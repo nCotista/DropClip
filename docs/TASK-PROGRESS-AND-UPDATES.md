@@ -68,7 +68,7 @@
   - [ ] **T1.10** Streaming Data Plane File Transfer Engine (`NET`)
   - [ ] **T1.11** Resumable Transfer Engine (64 MiB Checkpoints) (`NET`)
 - **Milestone M5: Desktop UI & Polish (สัปดาห์ 11–12)**
-  - [ ] **T1.12** Desktop System Tray, Dropzone UI & Settings (`DESK`) — *In Progress*: PR 1a (Flutter UI package + CI), 1b (Design tokens + Theme) , 2a (Desktop shell), 2b (หน้า Clipboard) และ 2c (แถบขวา) พร้อม PR; Tray/Dropzone ยังไม่เริ่ม
+  - [ ] **T1.12** Desktop System Tray, Dropzone UI & Settings (`DESK`) — *In Progress*: PR 1a (Flutter UI package + CI), 1b (Design tokens + Theme) , 2a (Desktop shell), 2b (หน้า Clipboard) , 2c (แถบขวา) และ 3a (เมนู Tray) พร้อม PR; ไอคอน Tray จริง/Dropzone ยังไม่เริ่ม
   - [ ] **T1.13** Device Management & Signed Cluster Revocation (`LEAD`)
 - [ ] **🚦 GATE-1** Milestone Review, Desktop Security Pentest & Dogfooding (`ALL`)
 
@@ -123,6 +123,7 @@
 | 2026-11-02 | **T1.12** (2a) | `feat/T1.12-desktop-shell` | `DESK` (ธีร์) | `READY FOR PR` | *(commit นี้)* | **Desktop shell:** `apps/desktop` เป็น Flutter app (runner Windows/macOS แยก commit), หน้าต่างหลักมี sidebar 4 section + การ์ด THIS DEVICE ตามดีไซน์, ธีมตาม OS, ข้อมูลจำลองจนกว่า T1.9/T1.11 เสร็จ; stacked บน 1b; Verification: format/analyze/test ผ่านทุก package, `dropclip_desktop` 5 passed; ยังไม่ได้ build .exe (ไม่มี Visual Studio) | T1.12 (2b) |
 | 2026-11-02 | **T1.12** (2b) | `feat/T1.12-clipboard-page` | `DESK` (ธีร์) | `READY FOR PR` | *(commit นี้)* | **หน้า Clipboard:** ตามดีไซน์ — auto-sync, Send clipboard, ค้นหา, filter, รายการล่าสุด + Copy again, แจ้งจำนวน clip จาก password manager ที่ไม่ถูก sync; ข้อมูลจำลอง; stacked บน 2a; Verification: format/analyze/test ผ่านทุก package, `dropclip_desktop` 12 passed, coverage 100% | T1.12 (2c) |
 | 2026-11-02 | **T1.12** (2c) | `feat/T1.12-clipboard-aside` | `DESK` (ธีร์) | `READY FOR PR` | *(commit นี้)* | **แถบขวาหน้า Clipboard:** Nearby devices (Online/Manual), Pair new device, การ์ด Dropzone, Sync latency p95 + กราฟ เทียบเป้า 1,000 ms (NFR-P01A), ซ่อนเมื่อหน้าต่างแคบ; ข้อมูลจำลอง; stacked บน 2b; Verification: format/analyze/test ผ่านทุก package, `dropclip_desktop` 18 passed, coverage 100% | T1.12 (3) |
+| 2026-11-02 | **T1.12** (3a) | `feat/T1.12-tray-menu` | `DESK` (ธีร์) | `READY FOR PR` | *(commit นี้)* | **เมนู Tray/Menubar (UI-01):** `TrayMenu` ตามดีไซน์ — สวิตช์ sync, รายชื่อเครื่อง online, 6 คำสั่ง + shortcut ตาม OS; ยังไม่ผูกกับไอคอน tray จริง; stacked บน 2c; Verification: format/analyze/test ผ่านทุก package, `dropclip_desktop` 25 passed, coverage 100% | T1.12 (3b) |
 | *(เพิ่มต่อที่นี่)*| ... | ... | ... | ... | ... | ... | ... |
 
 ---
