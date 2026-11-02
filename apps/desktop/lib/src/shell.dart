@@ -54,6 +54,12 @@ class _DesktopShellState extends State<DesktopShell> {
     super.dispose();
   }
 
+  /// Buttons stay enabled so they do not look broken; until their engine
+  /// lands they say so instead of doing nothing.
+  VoidCallback _notReady(String feature, String ticket) =>
+      () => ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('$feature is not available yet ($ticket)')));
+
   @override
   Widget build(BuildContext context) => ValueListenableBuilder(
         valueListenable: _section,
@@ -68,7 +74,12 @@ class _DesktopShellState extends State<DesktopShell> {
               ),
               Expanded(
                 child: section == ShellSection.clipboard
-                    ? ClipboardPage(status: widget.status)
+                    ? ClipboardPage(
+                        status: widget.status,
+                        onSendClipboard: _notReady('Send clipboard', 'T1.9'),
+                        onPair: _notReady('Pairing', 'T1.3'),
+                        onOpenDropzone: _notReady('Dropzone', 'T1.12'),
+                      )
                     : _PagePlaceholder(section: section),
               ),
             ],

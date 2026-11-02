@@ -78,5 +78,23 @@ void main() {
           hiddenLaunch: true, status: demoShellStatus));
       expect(tester.takeException(), isNull);
     });
+
+    testWidgets('unwired buttons are enabled and explain they are not ready',
+        (tester) async {
+      await _pumpApp(tester);
+
+      for (final (button, message) in [
+        ('Send clipboard', 'Send clipboard is not available yet (T1.9)'),
+        ('Pair new device', 'Pairing is not available yet (T1.3)'),
+        ('Drop files to send', 'Dropzone is not available yet (T1.12)'),
+      ]) {
+        await tester.tap(find.text(button));
+        await tester.pump();
+        expect(find.text(message), findsOneWidget);
+        ScaffoldMessenger.of(tester.element(find.byType(Scaffold).first))
+            .removeCurrentSnackBar();
+        await tester.pumpAndSettle();
+      }
+    });
   });
 }

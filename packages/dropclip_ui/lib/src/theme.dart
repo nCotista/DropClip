@@ -96,6 +96,24 @@ ThemeData buildDropClipTheme(Brightness brightness) {
         (s) => s.contains(WidgetState.selected) ? c.accent : c.hover,
       ),
     ),
+    // Filter chips: violet when selected, as in the design (Material 3
+    // would use the secondary color, which is cyan here).
+    chipTheme: ChipThemeData(
+      color: WidgetStateProperty.resolveWith(
+        (s) => s.contains(WidgetState.selected) ? c.accent : c.surface,
+      ),
+      // RawChip resolves the label *color* per state, not the whole style.
+      labelStyle: TextStyle(
+        color: WidgetStateColor.resolveWith(
+          (s) =>
+              s.contains(WidgetState.selected) ? c.onAccent : c.textSecondary,
+        ),
+      ),
+      checkmarkColor: c.onAccent,
+      side: BorderSide(color: c.border),
+      shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(DropClipRadius.button)),
+    ),
   );
 }
 
