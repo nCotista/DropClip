@@ -17,11 +17,15 @@ Future<void> main(List<String> args) async {
     NativeDesktopHost(isMacOS: defaultTargetPlatform == TargetPlatform.macOS),
     onAction: (a) => section.value = sectionForTrayAction(a),
   );
-  await tray.start(hidden: hidden);
 
   runApp(DropClipDesktopApp(
     hiddenLaunch: hidden,
     status: demoShellStatus,
     section: section,
   ));
+  // The runner no longer shows the window itself (flutter_window.cpp), so
+  // showing it after the first frame avoids a blank window, and a hidden
+  // launch never flashes one.
+  await WidgetsBinding.instance.endOfFrame;
+  await tray.start(hidden: hidden);
 }
