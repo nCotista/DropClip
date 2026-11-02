@@ -53,7 +53,7 @@
 
 ### 🔹 PHASE 1 — DESKTOP CORE ENGINE & TIER 1 SYNC (สัปดาห์ 3–12)
 - **Milestone M1: Discovery, Identity & Pairing (สัปดาห์ 3–5)**
-  - [ ] **T1.1** Zero-Configuration mDNS Advertiser & Browser Engine (`DESK`) — *In Progress*: PR 1a (TXT codec), 1b (Peer Cache) และ 2a (Discovery Service) พร้อม PR; PR 2b (adapter `bonsoir`) ยังไม่เริ่ม
+  - [ ] **T1.1** Zero-Configuration mDNS Advertiser & Browser Engine (`DESK`) — *In Progress*: PR 1a (TXT codec), 1b (Peer Cache), 2a (Discovery Service) และ 2b (adapter `bonsoir`) พร้อม PR; เหลือวัด < 3s ข้ามเครื่องจริง
   - [ ] **T1.2** Per-Device Key Identity & Encrypted Store (`LEAD`)
   - [ ] **T1.3** Pairing Engine, Commit-then-Reveal SAS & QR Flow (`LEAD` + `MOB`)
 - **Milestone M2: Secure Transport & Control Plane (สัปดาห์ 5–7)**
@@ -128,6 +128,7 @@
 | 2026-11-02 | **T1.12** (2c) | `feat/T1.12-clipboard-aside` | `DESK` (ธีร์) | `READY FOR PR` | *(commit นี้)* | **แถบขวาหน้า Clipboard:** Nearby devices (Online/Manual), Pair new device, การ์ด Dropzone, Sync latency p95 + กราฟ เทียบเป้า 1,000 ms (NFR-P01A), ซ่อนเมื่อหน้าต่างแคบ; ข้อมูลจำลอง; stacked บน 2b; Verification: format/analyze/test ผ่านทุก package, `dropclip_desktop` 18 passed, coverage 100% | T1.12 (3) |
 | 2026-11-02 | **T1.12** (3a) | `feat/T1.12-tray-menu` | `DESK` (ธีร์) | `READY FOR PR` | *(commit นี้)* | **เมนู Tray/Menubar (UI-01):** `TrayMenu` ตามดีไซน์ — สวิตช์ sync, รายชื่อเครื่อง online, 6 คำสั่ง + shortcut ตาม OS; ยังไม่ผูกกับไอคอน tray จริง; stacked บน 2c; Verification: format/analyze/test ผ่านทุก package, `dropclip_desktop` 25 passed, coverage 100% | T1.12 (3b) |
 | 2026-11-02 | **T1.12** (3b) | `feat/T1.12-tray-icon` | `DESK` (ธีร์) | `READY FOR PR` | *(commit นี้)* | **ไอคอน Tray จริง (NFR-U03):** `tray_manager`/`window_manager` ^0.5.0 (ตรวจ 0.5.0 และ 0.5.3/0.5.2 แล้วไม่มี network/telemetry) — `--hidden` ไม่เปิดหน้าต่าง, ปิดหน้าต่าง = ซ่อนลง tray, คลิกไอคอนเปิดหน้าต่าง, คลิกขวาเมนู native, Quit; logic อยู่ใน `TrayController` เทสต์ด้วย fake; ไอคอนเป็น placeholder; stacked บน 3a; Verification: format/analyze/test ผ่านทุก package, `dropclip_desktop` 33 passed; ยังไม่ได้รันบนเครื่องจริง (ไม่มี Visual Studio) | T1.12 (3c) |
+| 2026-11-02 | **T1.1** (2b) | `feat/T1.1-mdns-adapter` | `DESK` (ธีร์) | `READY FOR PR` | *(commit นี้)* | **mDNS จริง:** `BonsoirMdnsBackend` (Windows DNS-SD / Bonjour) + `NetworkWatcher` + เครื่องที่เจอแสดงใน Nearby devices; ทดสอบบน Windows 2 instance: เจอกัน 0.77 s, ออนไลน์เกิน 30 s, kill แล้วลบใน 68 ms; identity ยังชั่วคราว (รอ T1.2/T1.4); Verification: format/analyze/test ผ่านทุก package, `dropclip_desktop` 42 passed | T1.3, T1.4 |
 | *(เพิ่มต่อที่นี่)*| ... | ... | ... | ... | ... | ... | ... |
 
 ---
