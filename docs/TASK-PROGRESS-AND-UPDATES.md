@@ -68,7 +68,7 @@
   - [ ] **T1.10** Streaming Data Plane File Transfer Engine (`NET`)
   - [ ] **T1.11** Resumable Transfer Engine (64 MiB Checkpoints) (`NET`)
 - **Milestone M5: Desktop UI & Polish (สัปดาห์ 11–12)**
-  - [ ] **T1.12** Desktop System Tray, Dropzone UI & Settings (`DESK`) — *In Progress*: PR 1a (Flutter UI package + CI) และ 1b (Design tokens + Theme) พร้อม PR; Desktop shell ยังไม่เริ่ม
+  - [ ] **T1.12** Desktop System Tray, Dropzone UI & Settings (`DESK`) — *In Progress*: PR 1a (Flutter UI package + CI), 1b (Design tokens + Theme) และ 2a (Desktop shell) พร้อม PR; หน้า Clipboard/Tray/Dropzone ยังไม่เริ่ม
   - [ ] **T1.13** Device Management & Signed Cluster Revocation (`LEAD`)
 - [ ] **🚦 GATE-1** Milestone Review, Desktop Security Pentest & Dogfooding (`ALL`)
 
@@ -120,6 +120,7 @@
 | 2026-10-13 | **PCR-03** | `fix/PCR-03-review-followup` | `NET` (ปัน) | `READY FOR PR` | *(commit นี้)* | **Review follow-up:** S0.1 ส่วน Dart/Windows, revoke แบบ quarantine-then-confirm, key แบบ envelope encryption, แก้ native ทั้ง 4 OS; แก้เทสต์ที่ compile ไม่ผ่าน (`CONIN$` interpolation, `TestCluster` เรียก `Hlc.merge`/`increment` ผิด), ลบ field ที่ไม่ใช้, `dart format` ทุก package, bench/fuzzer คืน exit code จริง, pin Melos 6, แก้ test vector ที่ค้าง (`482910`/`579318`/`738586`), CVSS 5 ข้อใหม่, close code revoke, resume §12.4, marker ชื่อผิด; Verification: `dart format`/`analyze --fatal-infos`/`dart test` ผ่านทุก package ด้วย Dart 3.13.5 | Phase 1 M1 |
 | 2026-11-02 | **T1.12** (1a) | `chore/T1.12-flutter-ui-package` | `DESK` (ธีร์) | `READY FOR PR` | *(commit นี้)* | **Flutter UI package:** `dropclip_ui` เป็น Flutter package; Melos แยก `test:dart`/`test:flutter`; CI และ benchmark ใช้ `subosito/flutter-action`; เพิ่ม `repository:` ใน `melos.yaml` (เหมือน T1.1 1a); Verification: format/analyze/test ผ่านทุก package ในเครื่อง, ยังไม่ได้รันบน GitHub Actions | T1.12 (1b) |
 | 2026-11-02 | **T1.12** (1b) | `feat/T1.12-design-tokens` | `DESK` (ธีร์) | `READY FOR PR` | *(commit นี้)* | **Design tokens & Theme:** `DropClipColors` dark/light (ThemeExtension) + radius/spacing/fonts ตามดีไซน์ของตามด, `buildDropClipTheme`; เทสต์ contrast พบปุ่มหลักในดีไซน์ได้ 4.35:1 จึงปรับ accent เป็น `#6E4EF5`; stacked บน 1a; Verification: format/analyze/test ผ่านทุก package, `dropclip_ui` 13 passed, coverage 97.6% | T1.12 (2) |
+| 2026-11-02 | **T1.12** (2a) | `feat/T1.12-desktop-shell` | `DESK` (ธีร์) | `READY FOR PR` | *(commit นี้)* | **Desktop shell:** `apps/desktop` เป็น Flutter app (runner Windows/macOS แยก commit), หน้าต่างหลักมี sidebar 4 section + การ์ด THIS DEVICE ตามดีไซน์, ธีมตาม OS, ข้อมูลจำลองจนกว่า T1.9/T1.11 เสร็จ; stacked บน 1b; Verification: format/analyze/test ผ่านทุก package, `dropclip_desktop` 5 passed; ยังไม่ได้ build .exe (ไม่มี Visual Studio) | T1.12 (2b) |
 | *(เพิ่มต่อที่นี่)*| ... | ... | ... | ... | ... | ... | ... |
 
 ---
