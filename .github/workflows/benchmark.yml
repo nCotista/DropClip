@@ -13,10 +13,12 @@ jobs:
       - name: Checkout Repository
         uses: actions/checkout@v4
 
-      - name: Setup Dart SDK
-        uses: dart-lang/setup-dart@v1
+      # Bootstrap needs Flutter since dropclip_ui is a Flutter package (T1.12).
+      - name: Setup Flutter SDK
+        uses: subosito/flutter-action@v2
         with:
-          sdk: stable
+          channel: stable
+          cache: true
 
       - name: Install Melos
         run: dart pub global activate melos ^6.0.0

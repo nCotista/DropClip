@@ -1,4 +1,5 @@
 name: dropclip
+repository: https://github.com/nCotista/DropClip
 
 packages:
   - packages/**
@@ -24,14 +25,23 @@ scripts:
     description: Fix formatting across all packages.
 
   test:
-    run: melos exec --dir-exists="test" -- dart test
+    run: melos run test:dart && melos run test:flutter
     description: Run unit and integration tests for all packages.
 
+  test:dart:
+    run: melos exec --dir-exists="test" --no-flutter -- dart test
+    description: Run tests for pure Dart packages.
+
+  test:flutter:
+    run: melos exec --dir-exists="test" --flutter -- flutter test
+    description: Run tests for Flutter packages (e.g. dropclip_ui).
+
   test:coverage:
-    run: melos exec --dir-exists="test" -- dart test --coverage=coverage
+    run: >-
+      melos exec --dir-exists="test" --no-flutter -- dart test --coverage=coverage &&
+      melos exec --dir-exists="test" --flutter -- flutter test --coverage
     description: Run tests with coverage output.
 
   build:runner:
     run: melos exec --depends-on="build_runner" -- dart run build_runner build --delete-conflicting-outputs
     description: Run code generation with build_runner.
-
