@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 
 import 'clipboard_page.dart';
 import 'demo_data.dart';
+import 'tray_menu.dart';
 
 /// Main window sections from the UI design (Clipboard is the home screen).
 enum ShellSection { clipboard, transfers, devices, settings }
@@ -34,34 +35,55 @@ extension on ShellSection {
 class DesktopShell extends StatefulWidget {
   final ShellStatus status;
 
-  const DesktopShell({super.key, required this.status});
+  /// Selected section; shared so the tray menu can open a screen.
+  final ValueNotifier<ShellSection>? section;
+
+  const DesktopShell({super.key, required this.status, this.section});
 
   @override
   State<DesktopShell> createState() => _DesktopShellState();
 }
 
 class _DesktopShellState extends State<DesktopShell> {
-  ShellSection _section = ShellSection.clipboard;
+  late final ValueNotifier<ShellSection> _section =
+      widget.section ?? ValueNotifier(ShellSection.clipboard);
 
   @override
-  Widget build(BuildContext context) => Scaffold(
-        body: Row(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            _Sidebar(
-              status: widget.status,
-              selected: _section,
-              onSelect: (s) => setState(() => _section = s),
-            ),
-            Expanded(
-              child: _section == ShellSection.clipboard
-                  ? ClipboardPage(status: widget.status)
-                  : _PagePlaceholder(section: _section),
-            ),
-          ],
+  void dispose() {
+    if (widget.section == null) _section.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => ValueListenableBuilder(
+        valueListenable: _section,
+        builder: (context, section, _) => Scaffold(
+          body: Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              _Sidebar(
+                status: widget.status,
+                selected: section,
+                onSelect: (s) => _section.value = s,
+              ),
+              Expanded(
+                child: section == ShellSection.clipboard
+                    ? ClipboardPage(status: widget.status)
+                    : _PagePlaceholder(section: section),
+              ),
+            ],
+          ),
         ),
       );
 }
+
+/// Screen a tray action opens. Dropzone, Pair and Send clipboard get their
+/// own screens later; until then they land on Clipboard.
+ShellSection sectionForTrayAction(TrayAction action) => switch (action) {
+      TrayAction.settings => ShellSection.settings,
+      TrayAction.trustedDevices => ShellSection.devices,
+      _ => ShellSection.clipboard,
+    };
 
 class _Sidebar extends StatelessWidget {
   final ShellStatus status;

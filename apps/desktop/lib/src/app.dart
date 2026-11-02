@@ -6,14 +6,16 @@ import 'shell.dart';
 
 class DropClipDesktopApp extends StatelessWidget {
   /// Started at login with `--hidden`: stay in the tray, no window (NFR-U03).
-  /// Hiding the window needs the tray integration (next T1.12 PR).
+  /// The window itself is hidden by `TrayController`.
   final bool hiddenLaunch;
   final ShellStatus status;
+  final ValueNotifier<ShellSection>? section;
 
   const DropClipDesktopApp({
     super.key,
     required this.hiddenLaunch,
     required this.status,
+    this.section,
   });
 
   @override
@@ -23,6 +25,6 @@ class DropClipDesktopApp extends StatelessWidget {
         theme: buildDropClipTheme(Brightness.light),
         darkTheme: buildDropClipTheme(Brightness.dark),
         themeMode: ThemeMode.system,
-        home: DesktopShell(status: status),
+        home: DesktopShell(status: status, section: section),
       );
 }
