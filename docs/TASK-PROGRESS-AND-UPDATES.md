@@ -53,7 +53,7 @@
 
 ### 🔹 PHASE 1 — DESKTOP CORE ENGINE & TIER 1 SYNC (สัปดาห์ 3–12)
 - **Milestone M1: Discovery, Identity & Pairing (สัปดาห์ 3–5)**
-  - [ ] **T1.1** Zero-Configuration mDNS Advertiser & Browser Engine (`DESK`) — *In Progress*: PR 1a (TXT codec) และ PR 1b (Peer Cache) พร้อม PR; PR 2 (mDNS adapter จริง) ยังไม่เริ่ม
+  - [ ] **T1.1** Zero-Configuration mDNS Advertiser & Browser Engine (`DESK`) — *In Progress*: PR 1a (TXT codec), 1b (Peer Cache) และ 2a (Discovery Service) พร้อม PR; PR 2b (adapter `bonsoir`) ยังไม่เริ่ม
   - [ ] **T1.2** Per-Device Key Identity & Encrypted Store (`LEAD`)
   - [ ] **T1.3** Pairing Engine, Commit-then-Reveal SAS & QR Flow (`LEAD` + `MOB`)
 - **Milestone M2: Secure Transport & Control Plane (สัปดาห์ 5–7)**
@@ -120,6 +120,7 @@
 | 2026-10-13 | **PCR-03** | `fix/PCR-03-review-followup` | `NET` (ปัน) | `READY FOR PR` | *(commit นี้)* | **Review follow-up:** S0.1 ส่วน Dart/Windows, revoke แบบ quarantine-then-confirm, key แบบ envelope encryption, แก้ native ทั้ง 4 OS; แก้เทสต์ที่ compile ไม่ผ่าน (`CONIN$` interpolation, `TestCluster` เรียก `Hlc.merge`/`increment` ผิด), ลบ field ที่ไม่ใช้, `dart format` ทุก package, bench/fuzzer คืน exit code จริง, pin Melos 6, แก้ test vector ที่ค้าง (`482910`/`579318`/`738586`), CVSS 5 ข้อใหม่, close code revoke, resume §12.4, marker ชื่อผิด; Verification: `dart format`/`analyze --fatal-infos`/`dart test` ผ่านทุก package ด้วย Dart 3.13.5 | Phase 1 M1 |
 | 2026-11-02 | **T1.1** (1a) | `feat/T1.1-mdns-discovery` | `DESK` (ธีร์) | `READY FOR PR` | *(commit นี้)* | **TXT Record codec:** `DiscoveryRecord` (§3.2 — ตรวจ v/min_v/UUIDv4/os↔tier/port range/fp, ชื่อ Base64 UTF-8 ≤ 64 bytes ตัดที่ขอบ code point, ไทย+Emoji round-trip, malformed 13 แบบถูกทิ้ง); แก้ `melos.yaml` ขาด `repository:` ที่ทำให้ Melos 6 รันไม่ได้ (CI บน `main` พังที่ bootstrap); Verification: format/analyze/test ผ่านทุก package, `txt_record.dart` coverage 100% | T1.1 (1b) |
 | 2026-11-02 | **T1.1** (1b) | `feat/T1.1-peer-cache` | `DESK` (ธีร์) | `READY FOR PR` | *(commit นี้)* | **Discovered Peer Cache:** `PeerCache` (§3.3–§3.5 — trusted/untrusted/identity_changed, stale 30s, remove 120s, IP เปลี่ยนอัปเดต entry เดิม, goodbye ลบทันที, peer ที่ connected ไม่ถูก stale จาก mDNS, TXT/SRV port ไม่ตรงถูกทิ้ง); stacked บน 1a; Verification: format/analyze/test ผ่านทุก package (core 42 passed), coverage core 96.7% | T1.1 (2), T1.3 |
+| 2026-11-02 | **T1.1** (2a) | `feat/T1.1-discovery-service` | `DESK` (ธีร์) | `READY FOR PR` | *(commit นี้)* | **Discovery Service:** `DiscoveryService` + `MdnsBackend` (§3.1–§3.3 — register instance = device_id, query ซ้ำทุก 10s + sweep, goodbye ตอน stop, re-announce เมื่อ network เปลี่ยน, ทิ้ง TXT ผิดรูปแบบ/`id` ≠ instance); stacked บน 1b; Verification: format/analyze/test ผ่านทุก package (core 52 passed), coverage `discovery_service.dart` 100%, core 97.3% | T1.1 (2b) |
 | *(เพิ่มต่อที่นี่)*| ... | ... | ... | ... | ... | ... | ... |
 
 ---
