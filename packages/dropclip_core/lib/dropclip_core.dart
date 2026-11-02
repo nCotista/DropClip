@@ -2,6 +2,9 @@ library dropclip_core;
 
 import 'dart:typed_data';
 
+export 'src/discovery/discovery_service.dart';
+export 'src/discovery/peer_cache.dart';
+export 'src/discovery/txt_record.dart';
 export 'src/logging_scrubber.dart';
 export 'src/test_cluster.dart';
 
