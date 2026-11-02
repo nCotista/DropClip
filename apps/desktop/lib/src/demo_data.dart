@@ -60,6 +60,19 @@ class ShellStatus {
   final List<int> latencyP95Ms;
 
   int get clipCount => clips.length;
+
+  /// Replaces the demo nearby list with live discovery results (T1.1).
+  ShellStatus withNearby(List<NearbyDevice> nearby) => ShellStatus(
+        networkName: networkName,
+        address: address,
+        verifiedDevices: verifiedDevices,
+        activeTransfers: activeTransfers,
+        deviceCount: deviceCount,
+        clips: clips,
+        suppressedClips: suppressedClips,
+        nearby: nearby,
+        latencyP95Ms: latencyP95Ms,
+      );
 }
 
 const demoShellStatus = ShellStatus(
