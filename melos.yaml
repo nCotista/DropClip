@@ -1,4 +1,5 @@
 name: dropclip
+repository: https://github.com/nCotista/DropClip
 
 packages:
   - packages/**
