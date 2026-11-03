@@ -1,6 +1,7 @@
 import 'package:dropclip_ui/dropclip_ui.dart';
 import 'package:flutter/material.dart';
 
+import 'clipboard_page.dart';
 import 'demo_data.dart';
 
 /// Main window sections from the UI design (Clipboard is the home screen).
@@ -52,7 +53,11 @@ class _DesktopShellState extends State<DesktopShell> {
               selected: _section,
               onSelect: (s) => setState(() => _section = s),
             ),
-            Expanded(child: _PagePlaceholder(section: _section)),
+            Expanded(
+              child: _section == ShellSection.clipboard
+                  ? ClipboardPage(status: widget.status)
+                  : _PagePlaceholder(section: _section),
+            ),
           ],
         ),
       );

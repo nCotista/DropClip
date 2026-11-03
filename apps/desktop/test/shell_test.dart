@@ -28,9 +28,9 @@ void main() {
         expect(find.text(label), findsWidgets);
       }
       expect(_heading('Clipboard'), findsOneWidget);
-      expect(find.text('20'), findsOneWidget);
+      // 4 clips and 4 devices, 3 transfers.
+      expect(find.text('4'), findsNWidgets(2));
       expect(find.text('3'), findsOneWidget);
-      expect(find.text('4'), findsOneWidget);
     });
 
     testWidgets('selecting a section switches the page', (tester) async {
