@@ -111,6 +111,40 @@ inline std::string Utf16ToUtf8(const Bytes& in) {
   return out;
 }
 
+// UTF-8 -> UTF-16LE with a NUL terminator. Invalid bytes become U+FFFD.
+inline Bytes Utf8ToUtf16(const Bytes& in) {
+  Bytes out;
+  auto put = [&](uint32_t u) {
+    out.push_back(uint8_t(u & 0xFF));
+    out.push_back(uint8_t(u >> 8));
+  };
+  for (size_t i = 0; i < in.size();) {
+    const uint8_t b = in[i];
+    const int len = b < 0x80 ? 1 : (b >> 5) == 6 ? 2 : (b >> 4) == 14 ? 3 : (b >> 3) == 30 ? 4 : 0;
+    uint32_t c = len == 1 ? b : len == 2 ? (b & 0x1F) : len == 3 ? (b & 0x0F) : (b & 0x07);
+    bool ok = len > 0 && i + len <= in.size();
+    for (int k = 1; ok && k < len; ++k) {
+      ok = (in[i + k] & 0xC0) == 0x80;
+      c = (c << 6) | (in[i + k] & 0x3F);
+    }
+    if (!ok || c > 0x10FFFF || (c >= 0xD800 && c <= 0xDFFF)) {
+      put(0xFFFD);
+      i += 1;
+      continue;
+    }
+    if (c >= 0x10000) {
+      c -= 0x10000;
+      put(0xD800 + (c >> 10));
+      put(0xDC00 + (c & 0x3FF));
+    } else {
+      put(c);
+    }
+    i += len;
+  }
+  put(0);
+  return out;
+}
+
 // Reads the current clipboard (§14.1 `read` and change events). The
 // sensitive markers (§10.4) are checked BEFORE any content is read; if they
 // cannot be checked the change is treated as concealed (fail closed).
@@ -152,6 +186,38 @@ inline Status ReadSnapshot(ClipboardApi& api, const Formats& f, Snapshot& out) {
       if (!text.empty()) out.items.push_back({"text/plain", Bytes(text.begin(), text.end())});
     }
   }
+  return Status::kOk;
+}
+
+// Writes all items in one transaction (§14.1 `write`). Unknown MIME types are
+// skipped. On success `token` is the new sequence number.
+inline Status WriteItems(ClipboardApi& api, const Formats& f, const std::vector<Item>& items,
+                         uint32_t& token) {
+  if (!OpenWithRetry(api)) return Status::kLocked;
+  {
+    OpenGuard guard(api);
+    api.Empty();
+    for (const auto& item : items) {
+      if (item.mime == "text/plain" || item.mime == "text/uri-list") {
+        api.SetData(f.unicode_text, Utf8ToUtf16(item.data));
+      } else if (item.mime == "image/png" && f.png != 0) {
+        api.SetData(f.png, item.data);
+      } else if (item.mime == "image/x-win-dibv5") {
+        api.SetData(f.dib_v5, item.data);
+      } else if (item.mime == "image/x-win-dib") {
+        api.SetData(f.dib, item.data);
+      }
+    }
+  }
+  token = api.SequenceNumber();
+  return Status::kOk;
+}
+
+// §14.1 `clear`.
+inline Status Clear(ClipboardApi& api) {
+  if (!OpenWithRetry(api)) return Status::kLocked;
+  OpenGuard guard(api);
+  api.Empty();
   return Status::kOk;
 }
 
