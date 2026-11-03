@@ -7,8 +7,9 @@ enum SyncType { text, url, image }
 
 enum AppLanguage { th, en }
 
-/// `config.json` (PROTO-DC-V2.0 §15.6, E-06, FR-12). `language` is an
-/// addition for NFR-L01 that §15.6 does not list yet.
+/// `config.json` (PROTO-DC-V2.0 §15.6, E-06, FR-12). `language` (NFR-L01)
+/// and `first_run_done` (§3.1 firewall onboarding) are additions that
+/// §15.6 does not list yet.
 @immutable
 class AppConfig {
   static const int version = 1;
@@ -25,6 +26,9 @@ class AppConfig {
   final String logLevel;
   final AppLanguage language;
 
+  /// The first-run firewall explanation was dismissed.
+  final bool firstRunDone;
+
   const AppConfig({
     required this.deviceName,
     this.autoAccept = false,
@@ -35,6 +39,7 @@ class AppConfig {
     this.autoStart = true,
     this.logLevel = 'info',
     this.language = AppLanguage.th,
+    this.firstRunDone = false,
   });
 
   static const _logLevels = {'debug', 'info', 'warn', 'error'};
@@ -53,6 +58,7 @@ class AppConfig {
         'auto_start': autoStart,
         'log_level': logLevel,
         'language': language.name,
+        'first_run_done': firstRunDone,
       };
 
   /// Invalid or missing values fall back to the default; each one is
@@ -102,6 +108,7 @@ class AppConfig {
       autoStart: pick<bool>('auto_start', d.autoStart, (_) => true),
       logLevel: pick<String>('log_level', d.logLevel, _logLevels.contains),
       language: langOk ? AppLanguage.values.byName(lang as String) : d.language,
+      firstRunDone: pick<bool>('first_run_done', d.firstRunDone, (_) => true),
     );
   }
 
@@ -114,6 +121,7 @@ class AppConfig {
     int? Function()? clipboardTtlSeconds,
     bool? autoStart,
     AppLanguage? language,
+    bool? firstRunDone,
   }) =>
       AppConfig(
         deviceName: deviceName ?? this.deviceName,
@@ -127,6 +135,7 @@ class AppConfig {
         autoStart: autoStart ?? this.autoStart,
         logLevel: logLevel,
         language: language ?? this.language,
+        firstRunDone: firstRunDone ?? this.firstRunDone,
       );
 }
 

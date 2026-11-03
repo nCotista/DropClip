@@ -41,8 +41,15 @@ class DesktopShell extends StatefulWidget {
   /// Shown for the Settings section; a placeholder when null.
   final Widget? settingsPage;
 
+  /// Shown above every page (e.g. first-run firewall onboarding).
+  final Widget? banner;
+
   const DesktopShell(
-      {super.key, required this.status, this.section, this.settingsPage});
+      {super.key,
+      required this.status,
+      this.section,
+      this.settingsPage,
+      this.banner});
 
   @override
   State<DesktopShell> createState() => _DesktopShellState();
@@ -77,17 +84,27 @@ class _DesktopShellState extends State<DesktopShell> {
                 onSelect: (s) => _section.value = s,
               ),
               Expanded(
-                child: switch (section) {
-                  ShellSection.clipboard => ClipboardPage(
-                      status: widget.status,
-                      onSendClipboard: _notReady('Send clipboard', 'T1.9'),
-                      onPair: _notReady('Pairing', 'T1.3'),
-                      onOpenDropzone: _notReady('Dropzone', 'T1.12'),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    if (widget.banner != null) widget.banner!,
+                    Expanded(
+                      child: switch (section) {
+                        ShellSection.clipboard => ClipboardPage(
+                            status: widget.status,
+                            onSendClipboard:
+                                _notReady('Send clipboard', 'T1.9'),
+                            onPair: _notReady('Pairing', 'T1.3'),
+                            onOpenDropzone: _notReady('Dropzone', 'T1.12'),
+                          ),
+                        ShellSection.settings
+                            when widget.settingsPage != null =>
+                          widget.settingsPage!,
+                        _ => _PagePlaceholder(section: section),
+                      },
                     ),
-                  ShellSection.settings when widget.settingsPage != null =>
-                    widget.settingsPage!,
-                  _ => _PagePlaceholder(section: section),
-                },
+                  ],
+                ),
               ),
             ],
           ),

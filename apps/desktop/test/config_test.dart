@@ -23,6 +23,7 @@ void main() {
         'auto_start': true,
         'log_level': 'info',
         'language': 'th',
+        'first_run_done': false,
       });
     });
 
@@ -36,6 +37,7 @@ void main() {
         clipboardTtlSeconds: 60,
         autoStart: false,
         language: AppLanguage.en,
+        firstRunDone: true,
       );
       final back = AppConfig.fromJson(c.toJson(), defaultDeviceName: 'x');
       expect(back.toJson(), c.toJson());
