@@ -18,6 +18,9 @@ class DropClipDesktopApp extends StatelessWidget {
   final Widget? settingsPage;
   final Widget? banner;
 
+  /// Wraps every page, e.g. with the Dropzone overlay.
+  final TransitionBuilder? overlay;
+
   const DropClipDesktopApp({
     super.key,
     required this.hiddenLaunch,
@@ -26,6 +29,7 @@ class DropClipDesktopApp extends StatelessWidget {
     this.liveStatus,
     this.settingsPage,
     this.banner,
+    this.overlay,
   });
 
   @override
@@ -35,6 +39,7 @@ class DropClipDesktopApp extends StatelessWidget {
         theme: buildDropClipTheme(Brightness.light),
         darkTheme: buildDropClipTheme(Brightness.dark),
         themeMode: ThemeMode.system,
+        builder: overlay,
         home: liveStatus == null
             ? DesktopShell(
                 status: status,
