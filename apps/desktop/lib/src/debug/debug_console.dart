@@ -70,26 +70,36 @@ class _DebugConsoleHostState extends State<DebugConsoleHost> {
       });
 
   @override
+  void initState() {
+    super.initState();
+    // Global, so it works even when nothing in the app has focus.
+    HardwareKeyboard.instance.addHandler(_onKey);
+  }
+
+  @override
   void dispose() {
+    HardwareKeyboard.instance.removeHandler(_onKey);
     _sub?.cancel();
     super.dispose();
   }
 
+  bool _onKey(KeyEvent e) {
+    final k = HardwareKeyboard.instance;
+    final mac = defaultTargetPlatform == TargetPlatform.macOS;
+    final hit = e is KeyDownEvent && e.logicalKey == LogicalKeyboardKey.keyD;
+    if (!hit || !(mac ? k.isMetaPressed : k.isControlPressed)) return false;
+    if (!k.isShiftPressed || k.isAltPressed) return false;
+    _toggle();
+    return true;
+  }
+
   @override
   Widget build(BuildContext context) {
-    final mac = defaultTargetPlatform == TargetPlatform.macOS;
-    return CallbackShortcuts(
-      bindings: {
-        SingleActivator(LogicalKeyboardKey.keyD,
-            shift: true, meta: mac, control: !mac): _toggle,
-      },
-      child: Stack(children: [
-        widget.child,
-        if (_open)
-          Positioned(
-              left: 0, right: 0, bottom: 0, height: 260, child: _panel()),
-      ]),
-    );
+    return Stack(children: [
+      widget.child,
+      if (_open)
+        Positioned(left: 0, right: 0, bottom: 0, height: 260, child: _panel()),
+    ]);
   }
 
   Widget _panel() {

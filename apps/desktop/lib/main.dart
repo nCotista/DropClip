@@ -104,6 +104,7 @@ Future<void> main(List<String> args) async {
                     onDone: () =>
                         configs.update(c.copyWith(firstRunDone: true))),
           ),
+    onOpenDropzone: dropzone.show,
     // UI-02: drop files anywhere, or open from the tray / ⌥⌘D, Ctrl+Alt+D.
     overlay: (context, child) => DebugConsoleHost(
       feed: _LoggerFeed(log),
