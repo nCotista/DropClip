@@ -8,6 +8,8 @@ import 'src/app.dart';
 import 'src/demo_data.dart';
 import 'src/discovery/bonsoir_backend.dart';
 import 'src/discovery/discovery_controller.dart';
+import 'src/dropzone/dropzone_controller.dart';
+import 'src/dropzone/dropzone_host.dart';
 import 'src/l10n/strings.dart';
 import 'src/native_host.dart';
 import 'src/onboarding.dart';
@@ -16,6 +18,7 @@ import 'src/settings/config.dart';
 import 'src/settings/settings_page.dart';
 import 'src/shell.dart';
 import 'src/tray_controller.dart';
+import 'src/tray_menu.dart';
 
 Future<void> main(List<String> args) async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -24,9 +27,12 @@ Future<void> main(List<String> args) async {
   final section = ValueNotifier(ShellSection.clipboard);
   final isMacOS = defaultTargetPlatform == TargetPlatform.macOS;
 
+  final dropzone = DropzoneController();
   final tray = TrayController(
     NativeDesktopHost(isMacOS: isMacOS),
-    onAction: (a) => section.value = sectionForTrayAction(a),
+    onAction: (a) => a == TrayAction.openDropzone
+        ? dropzone.show()
+        : section.value = sectionForTrayAction(a),
   );
 
   // config.json (FR-12, §15.6); auto-start uses the Windows Run key.
@@ -83,6 +89,17 @@ Future<void> main(List<String> args) async {
                     onDone: () =>
                         configs.update(c.copyWith(firstRunDone: true))),
           ),
+    onOpenDropzone: dropzone.show,
+    // UI-02: drop files anywhere, or open from the tray / ⌥⌘D, Ctrl+Alt+D.
+    overlay: (context, child) => DropzoneHost(
+      controller: dropzone,
+      devices: discovery.nearby,
+      // File transfer (T1.10/T1.11) is not built yet.
+      onSend: (_, __) => ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text(Strings.of(context)
+              .notAvailable(Strings.of(context).transfers, 'T1.10')))),
+      child: child!,
+    ),
   );
   // NFR-L01: the UI language follows config.json and switches at once.
   runApp(ValueListenableBuilder<AppConfig>(

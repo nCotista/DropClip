@@ -18,6 +18,10 @@ class DropClipDesktopApp extends StatelessWidget {
   final Widget? settingsPage;
   final Widget? banner;
 
+  /// Wraps every page, e.g. with the Dropzone overlay.
+  final TransitionBuilder? overlay;
+  final VoidCallback? onOpenDropzone;
+
   const DropClipDesktopApp({
     super.key,
     required this.hiddenLaunch,
@@ -26,6 +30,8 @@ class DropClipDesktopApp extends StatelessWidget {
     this.liveStatus,
     this.settingsPage,
     this.banner,
+    this.overlay,
+    this.onOpenDropzone,
   });
 
   @override
@@ -35,19 +41,22 @@ class DropClipDesktopApp extends StatelessWidget {
         theme: buildDropClipTheme(Brightness.light),
         darkTheme: buildDropClipTheme(Brightness.dark),
         themeMode: ThemeMode.system,
+        builder: overlay,
         home: liveStatus == null
             ? DesktopShell(
                 status: status,
                 section: section,
                 settingsPage: settingsPage,
-                banner: banner)
+                banner: banner,
+                onOpenDropzone: onOpenDropzone)
             : ValueListenableBuilder<ShellStatus>(
                 valueListenable: liveStatus!,
                 builder: (_, s, __) => DesktopShell(
                     status: s,
                     section: section,
                     settingsPage: settingsPage,
-                    banner: banner),
+                    banner: banner,
+                    onOpenDropzone: onOpenDropzone),
               ),
       );
 }

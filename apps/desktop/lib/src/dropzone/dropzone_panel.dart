@@ -53,6 +53,22 @@ class DropzonePanel extends StatefulWidget {
 
 class _DropzonePanelState extends State<DropzonePanel> {
   int _picked = 0;
+  final _focus = FocusNode(debugLabel: 'Dropzone');
+
+  @override
+  void initState() {
+    super.initState();
+    // autofocus is ignored when the app already has focus, so take it.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _focus.requestFocus();
+    });
+  }
+
+  @override
+  void dispose() {
+    _focus.dispose();
+    super.dispose();
+  }
 
   NearbyDevice? get _target => widget.devices.isEmpty
       ? null
@@ -84,6 +100,7 @@ class _DropzonePanelState extends State<DropzonePanel> {
         const SingleActivator(LogicalKeyboardKey.escape): widget.onClose,
       },
       child: Focus(
+        focusNode: _focus,
         autofocus: true,
         child: Padding(
           padding: const EdgeInsets.all(18),
