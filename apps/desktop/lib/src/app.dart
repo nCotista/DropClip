@@ -1,4 +1,5 @@
 import 'package:dropclip_ui/dropclip_ui.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import 'demo_data.dart';
@@ -11,11 +12,16 @@ class DropClipDesktopApp extends StatelessWidget {
   final ShellStatus status;
   final ValueNotifier<ShellSection>? section;
 
+  /// When set, replaces [status] and rebuilds the shell on every change
+  /// (e.g. live mDNS discovery).
+  final ValueListenable<ShellStatus>? liveStatus;
+
   const DropClipDesktopApp({
     super.key,
     required this.hiddenLaunch,
     required this.status,
     this.section,
+    this.liveStatus,
   });
 
   @override
@@ -25,6 +31,12 @@ class DropClipDesktopApp extends StatelessWidget {
         theme: buildDropClipTheme(Brightness.light),
         darkTheme: buildDropClipTheme(Brightness.dark),
         themeMode: ThemeMode.system,
-        home: DesktopShell(status: status, section: section),
+        home: liveStatus == null
+            ? DesktopShell(status: status, section: section)
+            : ValueListenableBuilder<ShellStatus>(
+                valueListenable: liveStatus!,
+                builder: (_, s, __) =>
+                    DesktopShell(status: s, section: section),
+              ),
       );
 }
