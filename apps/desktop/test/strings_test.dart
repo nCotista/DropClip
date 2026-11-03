@@ -5,6 +5,7 @@ import 'package:dropclip_desktop/src/onboarding.dart';
 import 'package:dropclip_desktop/src/settings/config.dart';
 import 'package:dropclip_desktop/src/settings/settings_page.dart';
 import 'package:dropclip_desktop/src/shell.dart';
+import 'package:dropclip_desktop/src/tray_menu.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -19,6 +20,15 @@ List<String> _all(Strings s) => [
       s.destination, s.destinationSub, s.autoStartFailed, s.ttl(null),
       s.ttl(30), s.ttl(300), s.firewallTitle, s.firewallBody,
       s.firewallPublic, s.gotIt,
+      // Clipboard page, side panel, tray menu
+      s.copied, s.liveSyncAcross(3), s.autoSync, s.searchClips, s.all,
+      s.recentHeader, s.noClipsMatch, s.fromDevice('Pixel 8', 'now'),
+      s.copyAgain, s.suppressed(1), s.suppressed(2), s.nearbyDevices,
+      s.onlineCount(2), s.noDevicesNearby, s.pairNewDevice, s.dropFiles,
+      s.dropFilesSub, s.online, s.manual, s.syncLatency,
+      s.latencyTarget(under: true), s.latencyTarget(under: false),
+      s.connectedTo('Home'), s.clipboardSync, s.onlineDevices,
+      for (final a in TrayAction.values) a.labelIn(s),
     ];
 
 void main() {
@@ -65,6 +75,44 @@ void main() {
     expect(find.text('Devices'), findsOneWidget);
     expect(find.text('Got it'), findsOneWidget);
     expect(find.text('เปิดพร้อมระบบปฏิบัติการ'), findsNothing);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('Clipboard page, side panel and tray menu render in Thai',
+      (tester) async {
+    tester.view.physicalSize = const Size(1600, 1100);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    await tester.pumpWidget(StringsScope(
+      strings: const ThStrings(),
+      child: MaterialApp(
+        home: Scaffold(
+          body: Row(children: [
+            const Expanded(
+                child: DropClipDesktopApp(
+                    hiddenLaunch: false, status: demoShellStatus)),
+            TrayMenu(
+              status: demoShellStatus,
+              syncEnabled: true,
+              onSyncChanged: (_) {},
+              onAction: (_) {},
+              platform: TargetPlatform.windows,
+            ),
+          ]),
+        ),
+      ),
+    ));
+    for (final text in [
+      'ซิงก์อัตโนมัติ', // header switch
+      'ทั้งหมด', // filter chip
+      'อุปกรณ์ใกล้เคียง', // side panel
+      'ต่ำกว่าเป้า 1,000 ms', // latency card
+      'อุปกรณ์ที่ออนไลน์', // tray header
+      'ออกจาก DropClip', // tray action
+    ]) {
+      expect(find.text(text), findsWidgets, reason: text);
+    }
+    expect(find.textContaining('Nearby devices'), findsNothing);
     expect(tester.takeException(), isNull);
   });
 }

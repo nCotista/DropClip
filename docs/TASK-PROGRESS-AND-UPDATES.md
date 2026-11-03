@@ -134,6 +134,7 @@
 | 2026-11-03 | **T1.12** (4c) | `feat/T1.12-settings-page` | `DESK` (ธีร์) | `READY FOR PR` | *(commit นี้)* | **หน้า Settings (FR-12):** ตามดีไซน์ของตามด ทุกค่าบันทึกลง config.json และมีผลทันที, auto-start ตรวจและลงทะเบียนตอนเปิดแอป; Verification: format/analyze/test ผ่านทุก package | NFR-L01 |
 | 2026-11-03 | **T1.12** (5) | `feat/T1.12-macos-network` | `DESK` (ธีร์) | `READY FOR PR` | *(commit นี้)* | **macOS network:** entitlements `network.client/server` + `NSBonjourServices`/`NSLocalNetworkUsageDescription` ให้ mDNS ทำงานใน sandbox; Verification: XML ถูกต้อง, ยังไม่ได้ build บน Mac | ทดสอบบน Mac |
 | 2026-11-03 | **T1.12** (6) | `feat/T1.12-firewall-onboarding` | `DESK` (ธีร์) | `READY FOR PR` | *(commit นี้)* | **§3.1 Firewall onboarding:** การ์ดครั้งแรกบน Windows (Allow บน Private networks), จำด้วย `first_run_done`; Verification: format/analyze/test ผ่านทุก package (desktop 62 passed) | NFR-L01 |
+| 2026-11-03 | **T1.12** (7a/7b) | `feat/T1.12-l10n` → `feat/T1.12-l10n-2` | `DESK` (ธีร์) | `READY FOR PR` | *(commit นี้)* | **NFR-L01 ไทย/อังกฤษ:** ทุกหน้าในแอป สลับจาก Settings แล้วเปลี่ยนทันที, เทสต์ตรวจว่าทุกข้อความมีภาษาไทยและไม่ซ้ำกับอังกฤษ; ยังเป็นอังกฤษ: เมนู native ของ tray, ข้อมูลจำลอง; Verification: analyze/test ผ่าน (desktop 65 passed) | UI-02 |
 | *(เพิ่มต่อที่นี่)*| ... | ... | ... | ... | ... | ... | ... |
 
 ---
