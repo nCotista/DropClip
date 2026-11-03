@@ -3,6 +3,7 @@ library dropclip_core;
 import 'dart:typed_data';
 
 export 'src/logging_scrubber.dart';
+export 'src/security/device_identity.dart';
 export 'src/test_cluster.dart';
 
 /// Abstract interface for OS-level secure keystore operations (PROTO-DC-V2.0 §14.4)
