@@ -9,6 +9,9 @@ import 'src/demo_data.dart';
 import 'src/discovery/bonsoir_backend.dart';
 import 'src/discovery/discovery_controller.dart';
 import 'src/native_host.dart';
+import 'src/settings/auto_start.dart';
+import 'src/settings/config.dart';
+import 'src/settings/settings_page.dart';
 import 'src/shell.dart';
 import 'src/tray_controller.dart';
 
@@ -24,10 +27,24 @@ Future<void> main(List<String> args) async {
     onAction: (a) => section.value = sectionForTrayAction(a),
   );
 
-  // Real mDNS discovery (T1.1) feeds Nearby devices; the rest is demo data.
+  // config.json (FR-12, §15.6); auto-start uses the Windows Run key.
   final debugLog = _debugLog(Platform.environment['DROPCLIP_DISCOVERY_LOG']);
+  final store = ConfigStore(
+    ConfigStore.defaultFile(Platform.environment, isMacOS: isMacOS),
+    defaultDeviceName: Platform.localHostname,
+    onWarn: debugLog,
+  );
+  await store.load();
+  final configs = ConfigController(
+    store,
+    isMacOS
+        ? const UnsupportedAutoStart()
+        : WindowsRunKeyAutoStart(Platform.resolvedExecutable),
+  );
+
+  // Real mDNS discovery (T1.1) feeds Nearby devices; the rest is demo data.
   final local = placeholderLocalRecord(
-    name: Platform.localHostname,
+    name: store.config.value.deviceName,
     os: isMacOS ? DeviceOs.macos : DeviceOs.windows,
   );
   // No Trusted Store yet (T1.2), so every peer shows as ready to pair.
@@ -52,12 +69,14 @@ Future<void> main(List<String> args) async {
     status: status.value,
     liveStatus: status,
     section: section,
+    settingsPage: SettingsPage(config: store.config, onChanged: configs.update),
   ));
   // The runner no longer shows the window itself (flutter_window.cpp), so
   // showing it after the first frame avoids a blank window, and a hidden
   // launch never flashes one.
   await WidgetsBinding.instance.endOfFrame;
   await tray.start(hidden: hidden);
+  await configs.reconcile();
   debugLog?.call('started ${discovery.service.record.deviceId}');
   await discovery.start();
 }

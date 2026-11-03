@@ -38,7 +38,11 @@ class DesktopShell extends StatefulWidget {
   /// Selected section; shared so the tray menu can open a screen.
   final ValueNotifier<ShellSection>? section;
 
-  const DesktopShell({super.key, required this.status, this.section});
+  /// Shown for the Settings section; a placeholder when null.
+  final Widget? settingsPage;
+
+  const DesktopShell(
+      {super.key, required this.status, this.section, this.settingsPage});
 
   @override
   State<DesktopShell> createState() => _DesktopShellState();
@@ -73,14 +77,17 @@ class _DesktopShellState extends State<DesktopShell> {
                 onSelect: (s) => _section.value = s,
               ),
               Expanded(
-                child: section == ShellSection.clipboard
-                    ? ClipboardPage(
-                        status: widget.status,
-                        onSendClipboard: _notReady('Send clipboard', 'T1.9'),
-                        onPair: _notReady('Pairing', 'T1.3'),
-                        onOpenDropzone: _notReady('Dropzone', 'T1.12'),
-                      )
-                    : _PagePlaceholder(section: section),
+                child: switch (section) {
+                  ShellSection.clipboard => ClipboardPage(
+                      status: widget.status,
+                      onSendClipboard: _notReady('Send clipboard', 'T1.9'),
+                      onPair: _notReady('Pairing', 'T1.3'),
+                      onOpenDropzone: _notReady('Dropzone', 'T1.12'),
+                    ),
+                  ShellSection.settings when widget.settingsPage != null =>
+                    widget.settingsPage!,
+                  _ => _PagePlaceholder(section: section),
+                },
               ),
             ],
           ),
