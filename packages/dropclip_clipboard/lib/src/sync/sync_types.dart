@@ -17,7 +17,12 @@ class LocalClip {
   final Uint8List raw;
   final bool isConcealed;
 
-  LocalClip(this.type, this.raw, {this.isConcealed = false});
+  /// OS change counter of this clipboard state (§14.1 `changeToken`: macOS
+  /// `changeCount`, Windows `GetClipboardSequenceNumber()`). Two reports
+  /// with the same token are the same change seen twice.
+  final int? changeToken;
+
+  LocalClip(this.type, this.raw, {this.isConcealed = false, this.changeToken});
 }
 
 /// The fields of a `clipboard.update` message (§7, §10.2). JSON framing is

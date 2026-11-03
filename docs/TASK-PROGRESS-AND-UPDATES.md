@@ -63,7 +63,7 @@
   - [ ] **T1.6** macOS Native Clipboard Watcher & Concealed Detector (`DESK`)
   - [ ] **T1.7** Windows Native Clipboard Watcher & Win32 Integration (`NET`)
   - [ ] **T1.8** Cross-OS Clipboard Image Format Normalizer (`DESK`)
-  - [ ] **T1.9** Distributed Clipboard Sync Engine & Loop Prevention (`DESK`) — *In Progress*: PR A (ขาออก §10.2) พร้อม PR; ขารับ §10.3 กำลังทำ; รอ T1.5 สำหรับต่อ transport จริง
+  - [ ] **T1.9** Distributed Clipboard Sync Engine & Loop Prevention (`DESK`) — *In Progress*: แกน engine ครบ (A1, A2, B1, B2: ขาออก, ขารับ, จำลอง 1,000 event) พร้อม PR; รอ T1.5/T1.6/T1.7/T1.10 เพื่อต่อของจริง และวัด latency (NFR-P01A)
 - **Milestone M4: Streaming File Engine (สัปดาห์ 10–12)**
   - [ ] **T1.10** Streaming Data Plane File Transfer Engine (`NET`)
   - [ ] **T1.11** Resumable Transfer Engine (64 MiB Checkpoints) (`NET`)
@@ -120,6 +120,7 @@
 | 2026-10-13 | **PCR-03** | `fix/PCR-03-review-followup` | `NET` (ปัน) | `READY FOR PR` | *(commit นี้)* | **Review follow-up:** S0.1 ส่วน Dart/Windows, revoke แบบ quarantine-then-confirm, key แบบ envelope encryption, แก้ native ทั้ง 4 OS; แก้เทสต์ที่ compile ไม่ผ่าน (`CONIN$` interpolation, `TestCluster` เรียก `Hlc.merge`/`increment` ผิด), ลบ field ที่ไม่ใช้, `dart format` ทุก package, bench/fuzzer คืน exit code จริง, pin Melos 6, แก้ test vector ที่ค้าง (`482910`/`579318`/`738586`), CVSS 5 ข้อใหม่, close code revoke, resume §12.4, marker ชื่อผิด; Verification: `dart format`/`analyze --fatal-infos`/`dart test` ผ่านทุก package ด้วย Dart 3.13.5 | Phase 1 M1 |
 | 2026-11-03 | **T1.9** (A1/A2) | `feat/T1.9-sync-types` → `feat/T1.9-sync-outbound` | `DESK` (ธีร์) | `READY FOR PR` | *(commit นี้)* | **Sync ขาออก (§10.2):** engine pure Dart ผ่าน `SyncPorts` — concealed ทิ้งก่อน hash, echo suppression hash+800 ms, inline/blob/ทิ้งตามขนาด, HLC tick+persist, TTL, LRU 200, Ring 20; Verification: analyze/test ผ่าน (15 passed) | T1.9 (B) |
 | 2026-11-03 | **T1.9** (B1) | `feat/T1.9-sync-inbound` | `DESK` (ธีร์) | `READY FOR PR` | *(commit นี้)* | **Sync ขารับ (§10.3):** 12 ขั้นตามสเปก (drift, HLC merge, dedup, policy, LWW, blob, SHA-256/magic bytes, Tier 3, suppression ก่อนเขียน, TTL); Verification: analyze/test ผ่าน (24 passed) | T1.9 (B2) |
+| 2026-11-03 | **T1.9** (B2) | `feat/T1.9-convergence` | `DESK` (ธีร์) | `READY FOR PR` | *(commit นี้)* | **NFR-RE02:** จำลอง 4 เครื่อง 1,000 event (out-of-order, clock skew, echo) → ไม่วนซ้ำ ลู่เข้าค่าเดียวกัน (HLC สูงสุด); เพิ่ม `changeToken` (§14.1) หลังเจอส่งซ้ำ 63%; Verification: 28 passed | T1.5 (ต่อ transport) |
 | *(เพิ่มต่อที่นี่)*| ... | ... | ... | ... | ... | ... | ... |
 
 ---
