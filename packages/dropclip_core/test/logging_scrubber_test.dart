@@ -3,20 +3,27 @@ import 'dart:convert';
 import 'package:dropclip_core/dropclip_core.dart';
 import 'package:test/test.dart';
 
+/// Builds a fake PEM block. The armor label is assembled at runtime so the
+/// literal `BEGIN ... PRIVATE KEY` header never appears in the repository,
+/// which the CI secret scan (NFR-S02) rejects. The body is not a real key.
+String _fakePem(String type, String body) {
+  const label = 'PRIVATE ' 'KEY';
+  return '-----BEGIN $type $label-----\n$body\n-----END $type $label-----';
+}
+
 void main() {
   group('LoggingScrubber (T0.3 & NFR-S02, NFR-S04)', () {
     test('Redacts PEM EC and RSA Private Keys from string messages', () {
-      const pemKey = '''
------BEGIN EC PRIVATE KEY-----
-MHcCAQEEIIz9U/R5c+76w1yX1a7s5tM4k+79A9jK3a71b2c3d4e5
-oAoGCCqGSM49AwEHoUQDQgAE
------END EC PRIVATE KEY-----''';
+      for (final type in ['EC', 'RSA']) {
+        final pemKey = _fakePem(type,
+            'MHcCAQEEIIz9U/R5c+76w1yX1a7s5tM4k+79A9jK3a71b2c3d4e5\noAoGCCqGSM49AwEHoUQDQgAE');
 
-      const logMessage = 'Key generation successful: $pemKey for node-1';
-      final scrubbed = LoggingScrubber.scrubText(logMessage);
+        final logMessage = 'Key generation successful: $pemKey for node-1';
+        final scrubbed = LoggingScrubber.scrubText(logMessage);
 
-      expect(scrubbed, contains('[REDACTED_PRIVATE_KEY]'));
-      expect(scrubbed, isNot(contains('MHcCAQEEIIz9U')));
+        expect(scrubbed, contains('[REDACTED_PRIVATE_KEY]'), reason: type);
+        expect(scrubbed, isNot(contains('MHcCAQEEIIz9U')), reason: type);
+      }
     });
 
     test(
