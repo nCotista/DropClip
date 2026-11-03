@@ -2,6 +2,7 @@ import 'package:dropclip_ui/dropclip_ui.dart';
 import 'package:flutter/material.dart';
 
 import 'demo_data.dart';
+import 'l10n/strings.dart';
 
 /// NFR-P01A: macOS ↔ Windows text sync p95 < 1,000 ms.
 const int latencyTargetMs = 1000;
@@ -23,27 +24,28 @@ class ClipboardAside extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final c = DropClipColors.of(context);
+    final t = Strings.of(context);
     final online = status.nearby.where((d) => d.reach == PeerReach.online);
     return ListView(
       padding: const EdgeInsets.all(DropClipSpacing.xl),
       children: [
         Row(children: [
-          const Expanded(
-            child: Text('Nearby devices',
-                style: TextStyle(fontWeight: FontWeight.w700)),
+          Expanded(
+            child: Text(t.nearbyDevices,
+                style: const TextStyle(fontWeight: FontWeight.w700)),
           ),
-          Text('${online.length} online',
+          Text(t.onlineCount(online.length),
               style: TextStyle(fontSize: 12, color: c.textSecondary)),
         ]),
         const SizedBox(height: DropClipSpacing.md),
         if (status.nearby.isEmpty)
-          Text('No devices nearby', style: TextStyle(color: c.textTertiary)),
+          Text(t.noDevicesNearby, style: TextStyle(color: c.textTertiary)),
         for (final d in status.nearby) _DeviceRow(device: d),
         const SizedBox(height: DropClipSpacing.sm),
         OutlinedButton.icon(
           onPressed: onPair,
           icon: const Icon(Icons.qr_code_2_rounded, size: 18),
-          label: const Text('Pair new device'),
+          label: Text(t.pairNewDevice),
         ),
         const SizedBox(height: DropClipSpacing.lg),
         _Panel(
@@ -51,9 +53,9 @@ class ClipboardAside extends StatelessWidget {
           child: Column(children: [
             Icon(Icons.upload_file_rounded, color: c.textAccent, size: 28),
             const SizedBox(height: DropClipSpacing.sm),
-            const Text('Drop files to send',
-                style: TextStyle(fontWeight: FontWeight.w600)),
-            Text('Any size · Resumable · SHA-256 checked',
+            Text(t.dropFiles,
+                style: const TextStyle(fontWeight: FontWeight.w600)),
+            Text(t.dropFilesSub,
                 textAlign: TextAlign.center,
                 style: TextStyle(fontSize: 12, color: c.textSecondary)),
           ]),
@@ -101,8 +103,8 @@ class _DeviceRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final c = DropClipColors.of(context);
     final (label, color) = switch (device.reach) {
-      PeerReach.online => ('Online', c.success),
-      PeerReach.manual => ('Manual', c.warning),
+      PeerReach.online => (Strings.of(context).online, c.success),
+      PeerReach.manual => (Strings.of(context).manual, c.warning),
     };
     return Padding(
       padding: const EdgeInsets.only(bottom: DropClipSpacing.md),
@@ -145,7 +147,7 @@ class _LatencyCard extends StatelessWidget {
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Row(children: [
           Expanded(
-            child: Text('Sync latency · p95',
+            child: Text(Strings.of(context).syncLatency,
                 style: TextStyle(fontSize: 12, color: c.textSecondary)),
           ),
           Text('LIVE',
@@ -183,7 +185,7 @@ class _LatencyCard extends StatelessWidget {
           ),
         ),
         const SizedBox(height: DropClipSpacing.sm),
-        Text(ok ? 'Under 1,000 ms target' : 'Over 1,000 ms target',
+        Text(Strings.of(context).latencyTarget(under: ok),
             style: TextStyle(fontSize: 12, color: ok ? c.success : c.danger)),
       ]),
     );

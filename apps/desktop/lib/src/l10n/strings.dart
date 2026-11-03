@@ -55,6 +55,41 @@ abstract class Strings {
   String get firewallBody;
   String get firewallPublic;
   String get gotIt;
+
+  // Clipboard page
+  String get copied;
+  String liveSyncAcross(int n);
+  String get autoSync;
+  String get searchClips;
+  String get all;
+  String get recentHeader;
+  String get noClipsMatch;
+  String fromDevice(String device, String age);
+  String get copyAgain;
+  String suppressed(int n);
+
+  // Side panel
+  String get nearbyDevices;
+  String onlineCount(int n);
+  String get noDevicesNearby;
+  String get pairNewDevice;
+  String get dropFiles;
+  String get dropFilesSub;
+  String get online;
+  String get manual;
+  String get syncLatency;
+  String latencyTarget({required bool under});
+
+  // Tray menu (UI-01)
+  String connectedTo(String network);
+  String get clipboardSync;
+  String get onlineDevices;
+  String get trayOpenDropzone;
+  String get traySendClipboard;
+  String get trayPair;
+  String get trayTrusted;
+  String get traySettings;
+  String get trayQuit;
 }
 
 class EnStrings extends Strings {
@@ -146,6 +181,71 @@ class EnStrings extends Strings {
       'blocked; pair with IP + PIN later if you need to.';
   @override
   String get gotIt => 'Got it';
+
+  @override
+  String get copied => 'Copied to clipboard';
+  @override
+  String liveSyncAcross(int n) =>
+      'Live sync across $n devices · text, links, PNG/JPEG';
+  @override
+  String get autoSync => 'Auto-sync';
+  @override
+  String get searchClips => 'Search recent clips…';
+  @override
+  String get all => 'All';
+  @override
+  String get recentHeader => 'RECENT · UP TO 20 ITEMS · MEMORY ONLY';
+  @override
+  String get noClipsMatch => 'No clips match';
+  @override
+  String fromDevice(String device, String age) => 'From $device · $age';
+  @override
+  String get copyAgain => 'Copy again';
+  @override
+  String suppressed(int n) =>
+      '${n == 1 ? '1 item' : '$n items'} from a password manager not synced '
+      '— password-manager content never leaves this device';
+
+  @override
+  String get nearbyDevices => 'Nearby devices';
+  @override
+  String onlineCount(int n) => '$n online';
+  @override
+  String get noDevicesNearby => 'No devices nearby';
+  @override
+  String get pairNewDevice => 'Pair new device';
+  @override
+  String get dropFiles => 'Drop files to send';
+  @override
+  String get dropFilesSub => 'Any size · Resumable · SHA-256 checked';
+  @override
+  String get online => 'Online';
+  @override
+  String get manual => 'Manual';
+  @override
+  String get syncLatency => 'Sync latency · p95';
+  @override
+  String latencyTarget({required bool under}) =>
+      under ? 'Under 1,000 ms target' : 'Over 1,000 ms target';
+
+  @override
+  String connectedTo(String network) => 'Connected · $network';
+  @override
+  String get clipboardSync => 'Clipboard sync';
+  @override
+  String get onlineDevices => 'ONLINE DEVICES';
+  @override
+  String get trayOpenDropzone => 'Open Dropzone';
+  @override
+  String get traySendClipboard => 'Send clipboard to…';
+  @override
+  String get trayPair => 'Pair new device…';
+  @override
+  String get trayTrusted => 'Trusted devices…';
+  @override
+  String get traySettings => 'Settings…';
+  @override
+  String get trayQuit => 'Quit DropClip';
 }
 
 class ThStrings extends Strings {
@@ -239,6 +339,72 @@ class ThStrings extends Strings {
       'ให้ปล่อยบล็อกไว้ แล้วจับคู่ด้วย IP + PIN ภายหลังถ้าจำเป็น';
   @override
   String get gotIt => 'เข้าใจแล้ว';
+
+  @override
+  String get copied => 'คัดลอกแล้ว';
+  @override
+  String liveSyncAcross(int n) =>
+      'ซิงก์สดกับ $n อุปกรณ์ · ข้อความ ลิงก์ PNG/JPEG';
+  @override
+  String get autoSync => 'ซิงก์อัตโนมัติ';
+  @override
+  String get searchClips => 'ค้นหาคลิปล่าสุด…';
+  @override
+  String get all => 'ทั้งหมด';
+  @override
+  String get recentHeader =>
+      'ล่าสุด · สูงสุด 20 รายการ · เก็บในหน่วยความจำเท่านั้น';
+  @override
+  String get noClipsMatch => 'ไม่พบคลิปที่ตรงกัน';
+  @override
+  String fromDevice(String device, String age) => 'จาก $device · $age';
+  @override
+  String get copyAgain => 'คัดลอกอีกครั้ง';
+  @override
+  String suppressed(int n) => 'ไม่ได้ซิงก์ $n รายการจากโปรแกรมจัดการรหัสผ่าน '
+      '— ข้อมูลจากโปรแกรมจัดการรหัสผ่านจะไม่ออกจากเครื่องนี้';
+
+  @override
+  String get nearbyDevices => 'อุปกรณ์ใกล้เคียง';
+  @override
+  String onlineCount(int n) => 'ออนไลน์ $n เครื่อง';
+  @override
+  String get noDevicesNearby => 'ไม่พบอุปกรณ์ใกล้เคียง';
+  @override
+  String get pairNewDevice => 'จับคู่อุปกรณ์ใหม่';
+  @override
+  String get dropFiles => 'ลากไฟล์มาวางเพื่อส่ง';
+  @override
+  String get dropFilesSub =>
+      'ไม่จำกัดขนาด · ส่งต่อจากจุดที่ค้างได้ · ตรวจ SHA-256';
+  @override
+  String get online => 'ออนไลน์';
+  @override
+  String get manual => 'ส่งเอง';
+  @override
+  String get syncLatency => 'ความหน่วงการซิงก์ · p95';
+  @override
+  String latencyTarget({required bool under}) =>
+      under ? 'ต่ำกว่าเป้า 1,000 ms' : 'เกินเป้า 1,000 ms';
+
+  @override
+  String connectedTo(String network) => 'เชื่อมต่อแล้ว · $network';
+  @override
+  String get clipboardSync => 'ซิงก์คลิปบอร์ด';
+  @override
+  String get onlineDevices => 'อุปกรณ์ที่ออนไลน์';
+  @override
+  String get trayOpenDropzone => 'เปิด Dropzone';
+  @override
+  String get traySendClipboard => 'ส่งคลิปบอร์ดไปยัง…';
+  @override
+  String get trayPair => 'จับคู่อุปกรณ์ใหม่…';
+  @override
+  String get trayTrusted => 'อุปกรณ์ที่เชื่อถือ…';
+  @override
+  String get traySettings => 'การตั้งค่า…';
+  @override
+  String get trayQuit => 'ออกจาก DropClip';
 }
 
 /// Provides the [Strings] for the chosen language to the widget tree.

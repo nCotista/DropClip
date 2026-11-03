@@ -3,6 +3,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import 'demo_data.dart';
+import 'l10n/strings.dart';
 
 enum TrayAction {
   openDropzone('Open Dropzone', '⌥⌘D', 'Ctrl+Alt+D'),
@@ -20,6 +21,17 @@ enum TrayAction {
 
   String? shortcutFor(TargetPlatform platform) =>
       platform == TargetPlatform.macOS ? macShortcut : windowsShortcut;
+
+  /// Localized label for the in-app menu (NFR-L01). [label] stays English
+  /// for the native tray menu, which the OS builds once at startup.
+  String labelIn(Strings s) => switch (this) {
+        openDropzone => s.trayOpenDropzone,
+        sendClipboard => s.traySendClipboard,
+        pair => s.trayPair,
+        trustedDevices => s.trayTrusted,
+        settings => s.traySettings,
+        quit => s.trayQuit,
+      };
 }
 
 /// Menubar (macOS) / system tray (Windows) popover from the UI design
@@ -46,6 +58,7 @@ class TrayMenu extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final c = DropClipColors.of(context);
+    final t = Strings.of(context);
     final os = platform ?? defaultTargetPlatform;
     Widget divider() => Divider(height: DropClipSpacing.lg, color: c.border);
     return Container(
@@ -71,14 +84,14 @@ class TrayMenu extends StatelessWidget {
                     children: [
                       const Text(DropClipThemeTokens.appName,
                           style: TextStyle(fontWeight: FontWeight.w700)),
-                      Text('Connected · ${status.networkName}',
+                      Text(t.connectedTo(status.networkName),
                           overflow: TextOverflow.ellipsis,
                           style:
                               TextStyle(fontSize: 12, color: c.textSecondary)),
                     ]),
               ),
               Semantics(
-                label: 'Clipboard sync',
+                label: t.clipboardSync,
                 child: Switch(value: syncEnabled, onChanged: onSyncChanged),
               ),
             ]),
@@ -86,7 +99,7 @@ class TrayMenu extends StatelessWidget {
           divider(),
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-            child: Text('ONLINE DEVICES',
+            child: Text(t.onlineDevices,
                 style: TextStyle(
                     fontSize: 11,
                     fontWeight: FontWeight.w600,
@@ -96,7 +109,7 @@ class TrayMenu extends StatelessWidget {
           if (status.nearby.isEmpty)
             Padding(
               padding: const EdgeInsets.all(10),
-              child: Text('No devices nearby',
+              child: Text(t.noDevicesNearby,
                   style: TextStyle(color: c.textTertiary)),
             ),
           for (final d in status.nearby)
@@ -153,7 +166,7 @@ class _MenuItem extends StatelessWidget {
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 9),
           child: Row(children: [
-            Expanded(child: Text(action.label)),
+            Expanded(child: Text(action.labelIn(Strings.of(context)))),
             if (shortcut != null)
               Text(shortcut!,
                   style: dropClipMono(context, fontSize: 12)

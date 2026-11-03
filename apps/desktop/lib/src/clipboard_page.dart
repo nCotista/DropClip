@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 
 import 'clipboard_aside.dart';
 import 'demo_data.dart';
+import 'l10n/strings.dart';
 
 /// Below this page width the [ClipboardAside] is hidden.
 const double asideMinPageWidth = 900;
@@ -49,12 +50,13 @@ class _ClipboardPageState extends State<ClipboardPage> {
       Clipboard.setData(ClipboardData(text: clip.preview));
     }
     ScaffoldMessenger.of(context)
-        .showSnackBar(const SnackBar(content: Text('Copied to clipboard')));
+        .showSnackBar(SnackBar(content: Text(Strings.of(context).copied)));
   }
 
   @override
   Widget build(BuildContext context) {
     final c = DropClipColors.of(context);
+    final t = Strings.of(context);
     final s = widget.status;
     final clips = _visible;
     final list = ListView(
@@ -66,18 +68,16 @@ class _ClipboardPageState extends State<ClipboardPage> {
           crossAxisAlignment: WrapCrossAlignment.center,
           children: [
             Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text('Clipboard',
+              Text(t.clipboard,
                   style: Theme.of(context)
                       .textTheme
                       .headlineSmall
                       ?.copyWith(fontWeight: FontWeight.w700)),
-              Text(
-                  'Live sync across ${s.verifiedDevices} devices'
-                  ' · text, links, PNG/JPEG',
+              Text(t.liveSyncAcross(s.verifiedDevices),
                   style: TextStyle(color: c.textSecondary)),
             ]),
             Row(mainAxisSize: MainAxisSize.min, children: [
-              Text('Auto-sync', style: TextStyle(color: c.textSecondary)),
+              Text(t.autoSync, style: TextStyle(color: c.textSecondary)),
               Switch(
                 value: _autoSync,
                 onChanged: (v) => setState(() => _autoSync = v),
@@ -86,25 +86,25 @@ class _ClipboardPageState extends State<ClipboardPage> {
             FilledButton.icon(
               onPressed: widget.onSendClipboard,
               icon: const Icon(Icons.send_rounded, size: 18),
-              label: const Text('Send clipboard'),
+              label: Text(t.sendClipboard),
             ),
           ],
         ),
         const SizedBox(height: DropClipSpacing.xl),
         TextField(
           onChanged: (v) => setState(() => _query = v),
-          decoration: const InputDecoration(
-            hintText: 'Search recent clips…',
-            prefixIcon: Icon(Icons.search_rounded),
+          decoration: InputDecoration(
+            hintText: t.searchClips,
+            prefixIcon: const Icon(Icons.search_rounded),
           ),
         ),
         const SizedBox(height: DropClipSpacing.lg),
         Wrap(spacing: DropClipSpacing.sm, children: [
           for (final (label, kind) in [
-            ('All', null),
-            ('Text', ClipKind.text),
-            ('Links', ClipKind.link),
-            ('Images', ClipKind.image),
+            (t.all, null),
+            (t.text, ClipKind.text),
+            (t.links, ClipKind.link),
+            (t.images, ClipKind.image),
           ])
             ChoiceChip(
               label: Text(label),
@@ -113,7 +113,7 @@ class _ClipboardPageState extends State<ClipboardPage> {
             ),
         ]),
         const SizedBox(height: DropClipSpacing.xl),
-        Text('RECENT · UP TO 20 ITEMS · MEMORY ONLY',
+        Text(t.recentHeader,
             style: TextStyle(
                 fontSize: 11,
                 fontWeight: FontWeight.w600,
@@ -124,7 +124,7 @@ class _ClipboardPageState extends State<ClipboardPage> {
           Padding(
             padding: const EdgeInsets.all(DropClipSpacing.xl),
             child:
-                Text('No clips match', style: TextStyle(color: c.textTertiary)),
+                Text(t.noClipsMatch, style: TextStyle(color: c.textTertiary)),
           ),
         for (final clip in clips)
           _ClipTile(clip: clip, onCopy: () => _copy(clip)),
@@ -181,10 +181,11 @@ class _ClipTile extends StatelessWidget {
           child: Icon(icon, color: tint, size: 20),
         ),
         title: Text(clip.preview, maxLines: 1, overflow: TextOverflow.ellipsis),
-        subtitle: Text('From ${clip.sourceDevice} · ${clip.age}',
+        subtitle: Text(
+            Strings.of(context).fromDevice(clip.sourceDevice, clip.age),
             style: TextStyle(color: c.textSecondary)),
         trailing: IconButton(
-          tooltip: 'Copy again',
+          tooltip: Strings.of(context).copyAgain,
           icon: const Icon(Icons.copy_rounded),
           onPressed: onCopy,
         ),
@@ -201,7 +202,6 @@ class _SuppressedNotice extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final c = DropClipColors.of(context);
-    final items = count == 1 ? '1 item' : '$count items';
     return Container(
       padding: const EdgeInsets.all(DropClipSpacing.md),
       decoration: BoxDecoration(
@@ -213,11 +213,8 @@ class _SuppressedNotice extends StatelessWidget {
         Icon(Icons.lock_outline_rounded, color: c.success, size: 18),
         const SizedBox(width: DropClipSpacing.sm),
         Expanded(
-          child: Text(
-            '$items from a password manager not synced — '
-            'password-manager content never leaves this device',
-            style: TextStyle(color: c.textSecondary),
-          ),
+          child: Text(Strings.of(context).suppressed(count),
+              style: TextStyle(color: c.textSecondary)),
         ),
       ]),
     );
