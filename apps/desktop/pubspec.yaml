@@ -5,6 +5,7 @@ publish_to: none
 
 environment:
   sdk: '>=3.2.0 <4.0.0'
+  flutter: '>=3.16.0'
 
 dependencies:
   dropclip_protocol:
@@ -17,8 +18,14 @@ dependencies:
     path: ../../packages/dropclip_transfer
   dropclip_ui:
     path: ../../packages/dropclip_ui
+  flutter:
+    sdk: flutter
 
 dev_dependencies:
+  flutter_test:
+    sdk: flutter
   lints: ^3.0.0
-  test: ^1.24.9
+
+flutter:
+  uses-material-design: true
 

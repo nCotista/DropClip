@@ -1,13 +1,12 @@
-import 'dart:io';
+import 'package:flutter/material.dart';
 
-import 'package:dropclip_protocol/dropclip_protocol.dart';
-import 'package:dropclip_ui/dropclip_ui.dart';
+import 'src/app.dart';
+import 'src/demo_data.dart';
 
 void main(List<String> args) {
-  final isHiddenLaunch = args.contains('--hidden');
-  stdout.writeln('Starting ${DropClipThemeTokens.appName} Desktop Client...');
-  stdout.writeln('Protocol Version: ${ProtocolConstants.protocolVersion}');
-  stdout.writeln(
-    'Launch mode: ${isHiddenLaunch ? "Background / Tray Only" : "Interactive Window"}',
-  );
+  // `--hidden` is passed by the login item / Run key (T1.12, NFR-U03).
+  runApp(DropClipDesktopApp(
+    hiddenLaunch: args.contains('--hidden'),
+    status: demoShellStatus,
+  ));
 }
