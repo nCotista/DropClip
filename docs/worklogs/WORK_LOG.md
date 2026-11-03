@@ -34,6 +34,22 @@
 
 ---
 
+## [2026-11-02] T0.3 fix: CI Secret Audit ตกทุก PR เพราะ fixture ในเทสต์
+
+| รายการ | รายละเอียด |
+|---|---|
+| **Branch** | `fix/T0.3-secret-scan-fixture` |
+| **Engineer** | `DESK` (ธีร์) |
+| **AI Assistant** | Claude Code |
+| **Status** | `READY FOR PR` |
+
+- **ปัญหา:** ขั้น "Scan for Plaintext Private Keys & Secrets (NFR-S02)" ใน CI ตกทุก PR ที่เข้า `main` (เช่น #2, #5) เพราะ `logging_scrubber_test.dart` มีหัว PEM `BEGIN EC PRIVATE KEY` แบบตัวอักษรตรง ๆ (ข้อมูลตัวอย่าง ไม่ใช่คีย์จริง)
+- **แก้:** สร้าง PEM ปลอมด้วย `_fakePem()` ที่ประกอบคำว่า `PRIVATE KEY` ตอนรัน จึงไม่มีหัว PEM อยู่ใน repo; ไม่แก้ pattern ของ CI (ยังจับคีย์จริงได้เหมือนเดิม); เทสต์ครอบคลุมทั้ง EC และ RSA ตามชื่อเทสต์
+- **เพิ่ม `repository:` ใน `melos.yaml`** (บรรทัดเดียวกับ #2/#5) — ไม่มีแล้ว Code Quality พังที่ `melos bootstrap`
+- **Verification:** คำสั่ง scan ของ CI รันในเครื่อง → "No plaintext private keys found."; format/analyze/test ผ่านทุก package (core 14 passed)
+
+---
+
 ## [2026-10-13] PCR-03: Review Follow-up (ตรวจซ้ำหลัง PCR-01/PCR-02)
 
 | รายการ | รายละเอียด |
