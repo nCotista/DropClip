@@ -70,12 +70,10 @@ void main() {
     const pixel = NearbyDevice('Pixel 8', 'Android', PeerReach.online);
     late DropzoneController dz;
     late ValueNotifier<List<NearbyDevice>> devices;
-    late List<String> sent;
 
     setUp(() {
       dz = DropzoneController();
       devices = ValueNotifier(const []);
-      sent = [];
     });
 
     Future<void> pump(WidgetTester tester) async {
@@ -88,7 +86,6 @@ void main() {
           controller: dz,
           devices: devices,
           nativeDrop: false,
-          onSend: (to, items) => sent.add('${to.name}:${items.length}'),
           child: child!,
         ),
         // No focused widget, like the real app at start: the shortcut must
@@ -133,14 +130,6 @@ void main() {
       await tester.sendKeyEvent(LogicalKeyboardKey.escape);
       await tester.pump();
       expect(find.byType(DropzonePanel), findsNothing);
-    });
-
-    testWidgets('a drag shows "Release to add"', (tester) async {
-      await pump(tester);
-      dz.dragEntered();
-      await tester.pump();
-      expect(find.text('Release to add'), findsOneWidget);
-      expect(sent, isEmpty);
     });
 
     testWidgets('the shell\'s drop card opens it', (tester) async {

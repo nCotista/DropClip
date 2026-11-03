@@ -53,16 +53,10 @@ class _DropzoneHostState extends State<DropzoneHost> {
 
   bool _onKey(KeyEvent e) {
     final k = HardwareKeyboard.instance;
-    final mod = defaultTargetPlatform == TargetPlatform.macOS
-        ? k.isMetaPressed
-        : k.isControlPressed;
-    if (e is! KeyDownEvent ||
-        e.logicalKey != LogicalKeyboardKey.keyD ||
-        !mod ||
-        !k.isAltPressed ||
-        k.isShiftPressed) {
-      return false;
-    }
+    final mac = defaultTargetPlatform == TargetPlatform.macOS;
+    final hit = e is KeyDownEvent && e.logicalKey == LogicalKeyboardKey.keyD;
+    if (!hit || !(mac ? k.isMetaPressed : k.isControlPressed)) return false;
+    if (!k.isAltPressed || k.isShiftPressed) return false;
     _dz.show();
     return true;
   }
