@@ -1,6 +1,8 @@
 import 'package:dropclip_ui/dropclip_ui.dart';
 import 'package:flutter/material.dart';
 
+import 'l10n/strings.dart';
+
 /// First-run explanation of the Windows Defender Firewall prompt
 /// (PROTO-DC-V2.0 §3.1, UR-07). Shown once, then remembered in
 /// `config.json` (`first_run_done`).
@@ -13,6 +15,7 @@ class FirewallOnboardingCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final c = DropClipColors.of(context);
     final muted = TextStyle(color: c.textSecondary);
+    final s = Strings.of(context);
     return Container(
       margin: const EdgeInsets.fromLTRB(
           DropClipSpacing.xxl, DropClipSpacing.xl, DropClipSpacing.xxl, 0),
@@ -28,23 +31,16 @@ class FirewallOnboardingCard extends StatelessWidget {
         Expanded(
           child:
               Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            const Text('Allow DropClip on your network',
-                style: TextStyle(fontWeight: FontWeight.w700)),
+            Text(s.firewallTitle,
+                style: const TextStyle(fontWeight: FontWeight.w700)),
             const SizedBox(height: DropClipSpacing.xs),
-            Text(
-                'Windows Defender Firewall will ask once. Choose "Allow '
-                'access" for Private networks (home or work). DropClip only '
-                'talks to your devices on this Wi-Fi — no cloud, no account.',
-                style: muted),
+            Text(s.firewallBody, style: muted),
             const SizedBox(height: DropClipSpacing.xs),
-            Text(
-                'On a public network (café, airport), leave it blocked; '
-                'pair with IP + PIN later if you need to.',
-                style: muted.copyWith(fontSize: 12)),
+            Text(s.firewallPublic, style: muted.copyWith(fontSize: 12)),
           ]),
         ),
         const SizedBox(width: DropClipSpacing.md),
-        FilledButton(onPressed: onDone, child: const Text('Got it')),
+        FilledButton(onPressed: onDone, child: Text(s.gotIt)),
       ]),
     );
   }

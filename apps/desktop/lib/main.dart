@@ -8,6 +8,7 @@ import 'src/app.dart';
 import 'src/demo_data.dart';
 import 'src/discovery/bonsoir_backend.dart';
 import 'src/discovery/discovery_controller.dart';
+import 'src/l10n/strings.dart';
 import 'src/native_host.dart';
 import 'src/onboarding.dart';
 import 'src/settings/auto_start.dart';
@@ -65,7 +66,7 @@ Future<void> main(List<String> args) async {
     ]}');
   });
 
-  runApp(DropClipDesktopApp(
+  final app = DropClipDesktopApp(
     hiddenLaunch: hidden,
     status: status.value,
     liveStatus: status,
@@ -82,6 +83,13 @@ Future<void> main(List<String> args) async {
                     onDone: () =>
                         configs.update(c.copyWith(firstRunDone: true))),
           ),
+  );
+  // NFR-L01: the UI language follows config.json and switches at once.
+  runApp(ValueListenableBuilder<AppConfig>(
+    valueListenable: store.config,
+    builder: (_, c, child) =>
+        StringsScope(strings: Strings.forLanguage(c.language), child: child!),
+    child: app,
   ));
   // The runner no longer shows the window itself (flutter_window.cpp), so
   // showing it after the first frame avoids a blank window, and a hidden

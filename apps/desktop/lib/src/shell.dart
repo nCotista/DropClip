@@ -2,6 +2,7 @@ import 'package:dropclip_ui/dropclip_ui.dart';
 import 'package:flutter/material.dart';
 
 import 'clipboard_page.dart';
+import 'l10n/strings.dart';
 import 'demo_data.dart';
 import 'tray_menu.dart';
 
@@ -9,11 +10,11 @@ import 'tray_menu.dart';
 enum ShellSection { clipboard, transfers, devices, settings }
 
 extension on ShellSection {
-  String get label => switch (this) {
-        ShellSection.clipboard => 'Clipboard',
-        ShellSection.transfers => 'Transfers',
-        ShellSection.devices => 'Devices',
-        ShellSection.settings => 'Settings',
+  String label(Strings s) => switch (this) {
+        ShellSection.clipboard => s.clipboard,
+        ShellSection.transfers => s.transfers,
+        ShellSection.devices => s.devices,
+        ShellSection.settings => s.settings,
       };
 
   IconData get icon => switch (this) {
@@ -68,8 +69,8 @@ class _DesktopShellState extends State<DesktopShell> {
   /// Buttons stay enabled so they do not look broken; until their engine
   /// lands they say so instead of doing nothing.
   VoidCallback _notReady(String feature, String ticket) =>
-      () => ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('$feature is not available yet ($ticket)')));
+      () => ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text(Strings.of(context).notAvailable(feature, ticket))));
 
   @override
   Widget build(BuildContext context) => ValueListenableBuilder(
@@ -92,10 +93,12 @@ class _DesktopShellState extends State<DesktopShell> {
                       child: switch (section) {
                         ShellSection.clipboard => ClipboardPage(
                             status: widget.status,
-                            onSendClipboard:
-                                _notReady('Send clipboard', 'T1.9'),
-                            onPair: _notReady('Pairing', 'T1.3'),
-                            onOpenDropzone: _notReady('Dropzone', 'T1.12'),
+                            onSendClipboard: _notReady(
+                                Strings.of(context).sendClipboard, 'T1.9'),
+                            onPair:
+                                _notReady(Strings.of(context).pairing, 'T1.3'),
+                            onOpenDropzone: _notReady(
+                                Strings.of(context).dropzone, 'T1.12'),
                           ),
                         ShellSection.settings
                             when widget.settingsPage != null =>
@@ -134,6 +137,7 @@ class _Sidebar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final c = DropClipColors.of(context);
+    final s = Strings.of(context);
     final caption = TextStyle(
       fontSize: 11,
       fontWeight: FontWeight.w600,
@@ -166,14 +170,14 @@ class _Sidebar extends StatelessWidget {
             ),
           ]),
           const SizedBox(height: DropClipSpacing.xl),
-          Text('WORKSPACE', style: caption),
+          Text(s.workspace, style: caption),
           const SizedBox(height: DropClipSpacing.sm),
-          for (final s in ShellSection.values)
+          for (final sec in ShellSection.values)
             _NavItem(
-              section: s,
-              count: s.count(status),
-              selected: s == selected,
-              onTap: () => onSelect(s),
+              section: sec,
+              count: sec.count(status),
+              selected: sec == selected,
+              onTap: () => onSelect(sec),
             ),
           const Spacer(),
           Container(
@@ -185,7 +189,7 @@ class _Sidebar extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('THIS DEVICE', style: caption),
+                Text(s.thisDevice, style: caption),
                 const SizedBox(height: DropClipSpacing.sm),
                 Text(status.networkName, overflow: TextOverflow.ellipsis),
                 Text(status.address,
@@ -193,7 +197,7 @@ class _Sidebar extends StatelessWidget {
                     style: dropClipMono(context, fontSize: 12)
                         .copyWith(color: c.textSecondary)),
                 const SizedBox(height: DropClipSpacing.sm),
-                Text('${status.verifiedDevices} devices verified (SAS)',
+                Text(s.devicesVerified(status.verifiedDevices),
                     style: TextStyle(fontSize: 12, color: c.success)),
               ],
             ),
@@ -236,7 +240,9 @@ class _NavItem extends StatelessWidget {
             child: Row(children: [
               Icon(section.icon, size: 18, color: selected ? c.textAccent : fg),
               const SizedBox(width: DropClipSpacing.md),
-              Expanded(child: Text(section.label, style: TextStyle(color: fg))),
+              Expanded(
+                  child: Text(section.label(Strings.of(context)),
+                      style: TextStyle(color: fg))),
               if (count != null)
                 Text('$count',
                     style: dropClipMono(context, fontSize: 12)
@@ -259,7 +265,7 @@ class _PagePlaceholder extends StatelessWidget {
         padding: const EdgeInsets.all(DropClipSpacing.xxl),
         child: Align(
           alignment: Alignment.topLeft,
-          child: Text(section.label,
+          child: Text(section.label(Strings.of(context)),
               style: Theme.of(context)
                   .textTheme
                   .headlineSmall

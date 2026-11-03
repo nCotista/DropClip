@@ -2,6 +2,7 @@ import 'package:dropclip_ui/dropclip_ui.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
+import '../l10n/strings.dart';
 import 'auto_start.dart';
 import 'config.dart';
 
@@ -24,8 +25,8 @@ class SettingsPage extends StatelessWidget {
       await onChanged(next);
     } on AutoStartException {
       if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-            content: Text('Could not change "Start at login" on this system')));
+        ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text(Strings.of(context).autoStartFailed)));
       }
     }
   }
@@ -34,19 +35,20 @@ class SettingsPage extends StatelessWidget {
   Widget build(BuildContext context) => ValueListenableBuilder<AppConfig>(
         valueListenable: config,
         builder: (context, c, _) {
+          final s = Strings.of(context);
           void set(AppConfig next) => _apply(context, next);
           return ListView(
             padding: const EdgeInsets.all(DropClipSpacing.xxl),
             children: [
-              Text('Settings',
+              Text(s.settings,
                   style: Theme.of(context)
                       .textTheme
                       .headlineSmall
                       ?.copyWith(fontWeight: FontWeight.w700)),
-              const _Header('Application'),
+              _Header(s.application),
               _Row(
-                title: 'Language / ภาษา',
-                subtitle: 'Changes every screen right away',
+                title: 'ภาษา / Language',
+                subtitle: s.languageSub,
                 trailing: SegmentedButton<AppLanguage>(
                   segments: const [
                     ButtonSegment(value: AppLanguage.th, label: Text('ไทย')),
@@ -54,31 +56,30 @@ class SettingsPage extends StatelessWidget {
                         value: AppLanguage.en, label: Text('English')),
                   ],
                   selected: {c.language},
-                  onSelectionChanged: (s) => set(c.copyWith(language: s.first)),
+                  onSelectionChanged: (l) => set(c.copyWith(language: l.first)),
                 ),
               ),
               _Toggle(
-                title: 'Start at login',
-                subtitle:
-                    'Stays hidden in the menubar / system tray, no window',
+                title: s.startAtLogin,
+                subtitle: s.startAtLoginSub,
                 value: c.autoStart,
                 onChanged: (v) => set(c.copyWith(autoStart: v)),
               ),
-              const _Header('Clipboard'),
+              _Header(s.clipboard),
               _Toggle(
-                title: 'Sync clipboard automatically',
-                subtitle: 'Sends what you copy to paired devices right away',
+                title: s.syncAuto,
+                subtitle: s.syncAutoSub,
                 value: c.clipboardSyncEnabled,
                 onChanged: (v) => set(c.copyWith(clipboardSyncEnabled: v)),
               ),
               _Row(
-                title: 'Types to sync',
-                subtitle: 'Password-manager content is never sent',
+                title: s.typesToSync,
+                subtitle: s.typesToSyncSub,
                 trailing: Wrap(spacing: DropClipSpacing.sm, children: [
                   for (final (t, label) in [
-                    (SyncType.text, 'Text'),
-                    (SyncType.url, 'Links'),
-                    (SyncType.image, 'Images'),
+                    (SyncType.text, s.text),
+                    (SyncType.url, s.links),
+                    (SyncType.image, s.images),
                   ])
                     FilterChip(
                       label: Text(label),
@@ -91,31 +92,28 @@ class SettingsPage extends StatelessWidget {
                 ]),
               ),
               _Row(
-                title: 'Clear clipboard automatically (TTL)',
-                subtitle: 'Clears received data after this time unless '
-                    'something newer was copied',
+                title: s.ttlTitle,
+                subtitle: s.ttlSub,
                 trailing: DropdownButton<int?>(
                   value: c.clipboardTtlSeconds,
                   items: [
-                    for (final s in ttlChoices)
-                      DropdownMenuItem(value: s, child: Text(ttlLabel(s))),
+                    for (final t in ttlChoices)
+                      DropdownMenuItem(value: t, child: Text(s.ttl(t))),
                   ],
-                  onChanged: (s) =>
-                      set(c.copyWith(clipboardTtlSeconds: () => s)),
+                  onChanged: (t) =>
+                      set(c.copyWith(clipboardTtlSeconds: () => t)),
                 ),
               ),
-              const _Header('Receiving files'),
+              _Header(s.receivingFiles),
               _Toggle(
-                title: 'Accept files automatically',
-                subtitle: 'From paired devices, without asking. Off by '
-                    'default for safety (T-E03).',
+                title: s.autoAccept,
+                subtitle: s.autoAcceptSub,
                 value: c.autoAccept,
                 onChanged: (v) => set(c.copyWith(autoAccept: v)),
               ),
               _Row(
-                title: 'Destination folder',
-                subtitle: 'Files are SHA-256 checked before moving here and '
-                    'are never opened automatically',
+                title: s.destination,
+                subtitle: s.destinationSub,
                 trailing: Text(c.destinationDir,
                     style: dropClipMono(context, fontSize: 13)),
               ),
@@ -124,13 +122,6 @@ class SettingsPage extends StatelessWidget {
         },
       );
 }
-
-String ttlLabel(int? seconds) => switch (seconds) {
-      null => 'Never',
-      < 60 => '$seconds seconds',
-      60 => '1 minute',
-      _ => '${seconds ~/ 60} minutes',
-    };
 
 class _Header extends StatelessWidget {
   final String text;
