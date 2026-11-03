@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:dropclip_desktop/src/shell.dart';
 import 'package:dropclip_desktop/src/tray_controller.dart';
 import 'package:dropclip_desktop/src/tray_menu.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -101,5 +102,13 @@ void main() {
       await host.emit(const TrayClicked());
       expect(host.calls, ['show']);
     });
+  });
+
+  test('tray actions map to shell sections', () {
+    expect(sectionForTrayAction(TrayAction.settings), ShellSection.settings);
+    expect(
+        sectionForTrayAction(TrayAction.trustedDevices), ShellSection.devices);
+    expect(
+        sectionForTrayAction(TrayAction.openDropzone), ShellSection.clipboard);
   });
 }

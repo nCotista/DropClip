@@ -55,6 +55,37 @@ void main() {
         expect(theme.colorScheme.onSurface, colors.textPrimary);
         expect(theme.extension<DropClipColors>(), same(colors));
       });
+
+      testWidgets('chips render violet when selected, readable when not',
+          (tester) async {
+        await tester.pumpWidget(MaterialApp(
+          theme: buildDropClipTheme(colors.brightness),
+          home: Scaffold(
+            body: Row(children: [
+              ChoiceChip(
+                  label: const Text('on'), selected: true, onSelected: (_) {}),
+              ChoiceChip(
+                  label: const Text('off'),
+                  selected: false,
+                  onSelected: (_) {}),
+            ]),
+          ),
+        ));
+        Color? text(String s) => tester
+            .widget<RichText>(find.descendant(
+                of: find.text(s), matching: find.byType(RichText)))
+            .text
+            .style
+            ?.color;
+
+        expect(text('on'), colors.onAccent);
+        expect(text('off'), colors.textSecondary);
+        expect(contrastRatio(text('off')!, colors.surface),
+            greaterThanOrEqualTo(DropClipThemeTokens.minContrastRatio));
+        final chip = buildDropClipTheme(colors.brightness).chipTheme;
+        expect(chip.color!.resolve({WidgetState.selected}), colors.accent);
+        expect(chip.color!.resolve({}), colors.surface);
+      });
     });
   }
 
