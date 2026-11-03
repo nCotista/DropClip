@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import 'src/app.dart';
+import 'src/debug/debug_console.dart';
 import 'src/demo_data.dart';
 import 'src/discovery/bonsoir_backend.dart';
 import 'src/discovery/discovery_controller.dart';
@@ -36,11 +37,14 @@ Future<void> main(List<String> args) async {
   );
 
   // config.json (FR-12, §15.6); auto-start uses the Windows Run key.
-  final debugLog = _debugLog(Platform.environment['DROPCLIP_DISCOVERY_LOG']);
+  // Warnings during load are kept until the logger exists (it needs the
+  // device id, which needs the config).
+  final early = <String>[];
+  void Function(String) warn = early.add;
   final store = ConfigStore(
     ConfigStore.defaultFile(Platform.environment, isMacOS: isMacOS),
     defaultDeviceName: Platform.localHostname,
-    onWarn: debugLog,
+    onWarn: (m) => warn(m),
   );
   await store.load();
   final configs = ConfigController(
@@ -55,21 +59,32 @@ Future<void> main(List<String> args) async {
     name: store.config.value.deviceName,
     os: isMacOS ? DeviceOs.macos : DeviceOs.windows,
   );
+  // Structured JSON logs (T0.3): <config dir>/logs, 10 MB × 5 files, every
+  // line scrubbed (NFR-S02). Ctrl+Shift+D / ⌘⇧D shows them in the app.
+  final log = StructuredLogger(
+    deviceId: local.deviceId,
+    sink: RotatingFileSink(
+        Directory('${store.file.parent.path}${Platform.pathSeparator}logs')),
+  );
+  warn = (m) => log.warn('config', m);
+  early.forEach(warn);
   // No Trusted Store yet (T1.2), so every peer shows as ready to pair.
   final discovery = DiscoveryController(
     backend: BonsoirMdnsBackend(),
     cache: PeerCache(
         localDeviceId: local.deviceId, trustedFingerprint: (_) => null),
     local: local,
-    onDebug: debugLog,
+    onDebug: (m) => log.info('discovery', m),
   );
   final status = ValueNotifier(demoShellStatus.withNearby(const []));
   discovery.nearby.addListener(() {
     status.value = status.value.withNearby(discovery.nearby.value);
-    debugLog?.call('nearby: ${[
-      for (final d in discovery.nearby.value)
-        '${d.name} (${d.detail}, ${d.reach.name})'
-    ]}');
+    // Names come from public TXT records (§3.2).
+    log.info('discovery', 'nearby', {
+      'devices': [
+        for (final d in discovery.nearby.value) '${d.name} (${d.reach.name})'
+      ],
+    });
   });
 
   final app = DropClipDesktopApp(
@@ -90,14 +105,17 @@ Future<void> main(List<String> args) async {
                         configs.update(c.copyWith(firstRunDone: true))),
           ),
     // UI-02: drop files anywhere, or open from the tray / ⌥⌘D, Ctrl+Alt+D.
-    overlay: (context, child) => DropzoneHost(
-      controller: dropzone,
-      devices: discovery.nearby,
-      // File transfer (T1.10/T1.11) is not built yet.
-      onSend: (_, __) => ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text(Strings.of(context)
-              .notAvailable(Strings.of(context).transfers, 'T1.10')))),
-      child: child!,
+    overlay: (context, child) => DebugConsoleHost(
+      feed: _LoggerFeed(log),
+      child: DropzoneHost(
+        controller: dropzone,
+        devices: discovery.nearby,
+        // File transfer (T1.10/T1.11) is not built yet.
+        onSend: (_, __) => ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+            content: Text(Strings.of(context)
+                .notAvailable(Strings.of(context).transfers, 'T1.10')))),
+        child: child!,
+      ),
     ),
   );
   // NFR-L01: the UI language follows config.json and switches at once.
@@ -118,16 +136,19 @@ Future<void> main(List<String> args) async {
   store.config.addListener(
       () => tray.setStrings(Strings.forLanguage(store.config.value.language)));
   await configs.reconcile();
-  debugLog?.call('started ${discovery.service.record.deviceId}');
+  log.info('app', 'started', {'hidden': hidden});
   await discovery.start();
 }
 
-/// Dev aid: with `DROPCLIP_DISCOVERY_LOG=<file>`, discovery events are
-/// appended there with timestamps. TXT data is public (§3.2); no secrets.
-void Function(String)? _debugLog(String? path) {
-  if (path == null || path.isEmpty) return null;
-  final file = File(path);
-  return (line) => file.writeAsStringSync(
-      '${DateTime.now().toIso8601String()} $line\n',
-      mode: FileMode.append);
+/// The core logger as the debug console's feed.
+class _LoggerFeed implements LogFeed {
+  final StructuredLogger log;
+
+  _LoggerFeed(this.log);
+
+  @override
+  List<String> get recent => log.recent;
+
+  @override
+  Stream<String> get lines => log.lines;
 }
