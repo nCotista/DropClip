@@ -133,6 +133,7 @@
 | 2026-11-03 | **T1.12** (4b) | `feat/T1.12-auto-start` | `DESK` (ธีร์) | `READY FOR PR` | *(commit นี้)* | **FR-12 Auto-Start:** Windows Run key (`"<exe>" --hidden`) ผ่าน `reg.exe`, `ConfigController` คงค่าเดิมถ้า OS ปฏิเสธ; macOS ยังไม่รองรับ (ต้อง native); Verification: format/analyze/test ผ่าน (ใช้ `reg` จำลอง ยังไม่ได้เขียน registry จริง) | T1.12 (4c) |
 | 2026-11-03 | **T1.12** (4c) | `feat/T1.12-settings-page` | `DESK` (ธีร์) | `READY FOR PR` | *(commit นี้)* | **หน้า Settings (FR-12):** ตามดีไซน์ของตามด ทุกค่าบันทึกลง config.json และมีผลทันที, auto-start ตรวจและลงทะเบียนตอนเปิดแอป; Verification: format/analyze/test ผ่านทุก package | NFR-L01 |
 | 2026-11-03 | **T1.12** (5) | `feat/T1.12-macos-network` | `DESK` (ธีร์) | `READY FOR PR` | *(commit นี้)* | **macOS network:** entitlements `network.client/server` + `NSBonjourServices`/`NSLocalNetworkUsageDescription` ให้ mDNS ทำงานใน sandbox; Verification: XML ถูกต้อง, ยังไม่ได้ build บน Mac | ทดสอบบน Mac |
+| 2026-11-03 | **T1.12** (6) | `feat/T1.12-firewall-onboarding` | `DESK` (ธีร์) | `READY FOR PR` | *(commit นี้)* | **§3.1 Firewall onboarding:** การ์ดครั้งแรกบน Windows (Allow บน Private networks), จำด้วย `first_run_done`; Verification: format/analyze/test ผ่านทุก package (desktop 62 passed) | NFR-L01 |
 | *(เพิ่มต่อที่นี่)*| ... | ... | ... | ... | ... | ... | ... |
 
 ---

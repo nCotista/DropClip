@@ -9,6 +9,7 @@ import 'src/demo_data.dart';
 import 'src/discovery/bonsoir_backend.dart';
 import 'src/discovery/discovery_controller.dart';
 import 'src/native_host.dart';
+import 'src/onboarding.dart';
 import 'src/settings/auto_start.dart';
 import 'src/settings/config.dart';
 import 'src/settings/settings_page.dart';
@@ -70,6 +71,17 @@ Future<void> main(List<String> args) async {
     liveStatus: status,
     section: section,
     settingsPage: SettingsPage(config: store.config, onChanged: configs.update),
+    // §3.1: explain the Windows Firewall prompt once, on first run.
+    banner: isMacOS
+        ? null
+        : ValueListenableBuilder<AppConfig>(
+            valueListenable: store.config,
+            builder: (_, c, __) => c.firstRunDone
+                ? const SizedBox.shrink()
+                : FirewallOnboardingCard(
+                    onDone: () =>
+                        configs.update(c.copyWith(firstRunDone: true))),
+          ),
   ));
   // The runner no longer shows the window itself (flutter_window.cpp), so
   // showing it after the first frame avoids a blank window, and a hidden
