@@ -1,0 +1,4 @@
+# melos_managed_dependency_overrides: dropclip_protocol
+dependency_overrides:
+  dropclip_protocol:
+    path: ..\\dropclip_protocol
