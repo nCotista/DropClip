@@ -1,5 +1,6 @@
 library dropclip_clipboard;
 
+export 'src/sync/sync_engine.dart';
 export 'src/sync/sync_types.dart';
 
 /// Data class representing an item on the native clipboard
