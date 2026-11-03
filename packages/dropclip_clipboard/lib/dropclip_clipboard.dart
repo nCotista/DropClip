@@ -1,6 +1,7 @@
 library dropclip_clipboard;
 
 export 'src/image/dib.dart';
+export 'src/image/dibv5_encoder.dart';
 export 'src/image/png_decoder.dart';
 export 'src/image/png_encoder.dart';
 
