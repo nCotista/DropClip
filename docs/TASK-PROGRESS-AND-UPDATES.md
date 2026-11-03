@@ -62,7 +62,7 @@
 - **Milestone M3: Cross-OS Clipboard Engine (สัปดาห์ 7–10)**
   - [ ] **T1.6** macOS Native Clipboard Watcher & Concealed Detector (`DESK`)
   - [ ] **T1.7** Windows Native Clipboard Watcher & Win32 Integration (`NET`)
-  - [ ] **T1.8** Cross-OS Clipboard Image Format Normalizer (`DESK`) — *In Progress*: PR 1a (PNG encoder) และ 1b (DIB → PNG) พร้อม PR; PNG → CF_DIBV5 และ macOS TIFF ยังไม่เริ่ม
+  - [ ] **T1.8** Cross-OS Clipboard Image Format Normalizer (`DESK`)
   - [ ] **T1.9** Distributed Clipboard Sync Engine & Loop Prevention (`DESK`)
 - **Milestone M4: Streaming File Engine (สัปดาห์ 10–12)**
   - [ ] **T1.10** Streaming Data Plane File Transfer Engine (`NET`)
@@ -118,8 +118,6 @@
 | 2026-10-13 | **PCR-01** | `main` | `LEAD` (เจ) | `MERGED` | `7ab6ae2` | **Protocol & Architectural Alignment:** ซิงก์ §9.1/§9.2 กับ §5.4 Commit-then-Reveal (`/pair/finalize`, `commitment_B`); ปรับ §18.1 Dual Nonce SAS 160 bytes (`337017`); ลบ `derivePinNonce`; เปลี่ยน header Lamport เป็น `X-DropClip-HLC`; เพิ่ม `ClockDriftException` (60s) และ normalize `d` ใน `hlc.dart`; ป้องกัน Unicode Bidi override และ DOS reserved device names (`CONIN$`, `COM¹`) ใน `path_sanitizer.dart`; เพิ่ม `validateOfferPaths` ป้องกัน collision แบบ case-insensitive; Conformance test vectors ผ่าน 100% | Phase 1 M1 |
 | 2026-10-13 | **PCR-02** | `main` | `LEAD` + `ALL` | `MERGED` | `5bcfe4a` | **Peer Review Systemic Corrections & ISO Realignments:** ปรับปรุง `03-SRS.md` สู่มาตรฐาน ISO/IEC/IEEE 29148 & IEEE 830 (Use Cases UC-01–UC-12, MoSCoW, Rationale, Verification Methods T/I/A/D, ปรับแก้ Data Gathering Plan, RTM ครบ 100%); แก้ไขคะแนน CVSS v3.1 และเพิ่มภัยคุกคาม T-I04, T-D04, T-T04, T-E03, T-R03 ใน `04-THREAT-MODEL.md`; ปลดล็อก Dependency T0.1 และเกลี่ยภาระงาน Phase 2 & 3 (T2.1, T2.3, T2.4, T3.2, T3.4) ใน `02-TICKETS.md`; เพิ่มช่องทาง Signing สำหรับโอเพนซอร์ส/นักศึกษาและแทนที่ด้วย `osv-scanner` ใน `05-RELEASE-AND-UPDATE-PLAN.md`; ซิงก์แบตเตอรี่ (<3%/24h) และ Revocation (<1s/<2s) ใน `00-PROJECT-PROPOSAL-AND-PLAYBOOK.md`; สร้างโค้ดจริงและ Unit Tests สำหรับ `LoggingScrubber` (T0.3) และ `TestCluster` (T0.4) ใน `packages/dropclip_core` ผ่านครบ 100% | Phase 1 M1 |
 | 2026-10-13 | **PCR-03** | `fix/PCR-03-review-followup` | `NET` (ปัน) | `READY FOR PR` | *(commit นี้)* | **Review follow-up:** S0.1 ส่วน Dart/Windows, revoke แบบ quarantine-then-confirm, key แบบ envelope encryption, แก้ native ทั้ง 4 OS; แก้เทสต์ที่ compile ไม่ผ่าน (`CONIN$` interpolation, `TestCluster` เรียก `Hlc.merge`/`increment` ผิด), ลบ field ที่ไม่ใช้, `dart format` ทุก package, bench/fuzzer คืน exit code จริง, pin Melos 6, แก้ test vector ที่ค้าง (`482910`/`579318`/`738586`), CVSS 5 ข้อใหม่, close code revoke, resume §12.4, marker ชื่อผิด; Verification: `dart format`/`analyze --fatal-infos`/`dart test` ผ่านทุก package ด้วย Dart 3.13.5 | Phase 1 M1 |
-| 2026-11-03 | **T1.8** (1a) | `feat/T1.8-png-encoder` | `DESK` (ธีร์) | `READY FOR PR` | *(commit นี้)* | **PNG encoder (FR-06):** RGBA → PNG + `pHYs` (DPI) ตาม §11.1, filter Up + zlib level 1, ไม่เพิ่ม package; Verification: analyze/test ผ่าน | T1.8 (1b) |
-| 2026-11-03 | **T1.8** (1b) | `feat/T1.8-dib-to-png` | `DESK` (ธีร์) | `READY FOR PR` | *(commit นี้)* | **DIB → PNG (FR-06):** `CF_DIB`/`CF_DIBV5` → RGBA → PNG (+`pHYs`) ตาม §11.2–§11.3; 4K 124 ms (AOT, เป้า < 200 ms); ตรวจกับ decoder ของ Windows ตรง 400/400 pixel; Verification: analyze/test ผ่าน (11 passed) | T1.8 (2) |
 | *(เพิ่มต่อที่นี่)*| ... | ... | ... | ... | ... | ... | ... |
 
 ---
