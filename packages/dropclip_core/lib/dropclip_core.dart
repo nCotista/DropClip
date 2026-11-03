@@ -2,6 +2,7 @@ library dropclip_core;
 
 import 'dart:typed_data';
 
+export 'src/logging/structured_logger.dart';
 export 'src/logging_scrubber.dart';
 export 'src/test_cluster.dart';
 
