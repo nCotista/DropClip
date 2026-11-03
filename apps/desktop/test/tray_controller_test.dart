@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:dropclip_desktop/src/l10n/strings.dart';
 import 'package:dropclip_desktop/src/shell.dart';
 import 'package:dropclip_desktop/src/tray_controller.dart';
 import 'package:dropclip_desktop/src/tray_menu.dart';
@@ -8,15 +9,22 @@ import 'package:flutter_test/flutter_test.dart';
 class _FakeHost implements DesktopHost {
   final controller = StreamController<HostEvent>.broadcast();
   final calls = <String>[];
-  List<TrayAction>? menu;
+  List<(TrayAction, String)>? menu;
 
   @override
   Stream<HostEvent> get events => controller.stream;
 
   @override
   Future<void> init(
-      {required String tooltip, required List<TrayAction> menu}) async {
+      {required String tooltip,
+      required List<(TrayAction, String)> menu}) async {
     calls.add('init $tooltip');
+    this.menu = menu;
+  }
+
+  @override
+  Future<void> setMenu(List<(TrayAction, String)> menu) async {
+    calls.add('menu');
     this.menu = menu;
   }
 
@@ -55,7 +63,9 @@ void main() {
     test('normal launch creates the tray and shows the window', () async {
       await tray.start(hidden: false);
       expect(host.calls, ['init DropClip', 'show']);
-      expect(host.menu, TrayAction.values);
+      expect(host.menu, [
+        for (final a in TrayAction.values) (a, a.labelIn(const EnStrings())),
+      ]);
     });
 
     test('--hidden launch keeps the window hidden', () async {
@@ -101,6 +111,42 @@ void main() {
       host.calls.clear();
       await host.emit(const TrayClicked());
       expect(host.calls, ['show']);
+    });
+  });
+
+  group('native tray menu language (NFR-L01)', () {
+    List<String> labels() => [for (final (_, l) in host.menu!) l];
+
+    test('starts in the configured language', () async {
+      await tray.start(hidden: true, strings: const ThStrings());
+      expect(labels(), [
+        for (final a in TrayAction.values) a.labelIn(const ThStrings()),
+      ]);
+      expect(labels(), isNot(contains('Quit DropClip')));
+    });
+
+    test('switching language rebuilds the menu once', () async {
+      await tray.start(hidden: true);
+      host.calls.clear();
+      await tray.setStrings(const ThStrings());
+      await tray.setStrings(const ThStrings());
+      expect(host.calls, ['menu']);
+      expect(labels().last, const ThStrings().trayQuit);
+    });
+
+    test('a change before start is used at start, not sent early', () async {
+      await tray.setStrings(const ThStrings());
+      expect(host.calls, isEmpty);
+      await tray.start(hidden: true, strings: const ThStrings());
+      expect(host.calls, ['init DropClip', 'hide']);
+    });
+
+    test('after stop, a language change is not sent', () async {
+      await tray.start(hidden: true);
+      await tray.stop();
+      host.calls.clear();
+      await tray.setStrings(const ThStrings());
+      expect(host.calls, isEmpty);
     });
   });
 

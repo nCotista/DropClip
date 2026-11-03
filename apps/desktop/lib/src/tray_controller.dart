@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'l10n/strings.dart';
 import 'tray_menu.dart';
 
 /// OS events the desktop host reports.
@@ -29,8 +30,13 @@ class WindowCloseRequested extends HostEvent {
 abstract interface class DesktopHost {
   Stream<HostEvent> get events;
 
-  /// Creates the tray icon with [tooltip] and a right-click menu of [menu].
-  Future<void> init({required String tooltip, required List<TrayAction> menu});
+  /// Creates the tray icon with [tooltip] and a right-click [menu] of
+  /// actions and their labels.
+  Future<void> init(
+      {required String tooltip, required List<(TrayAction, String)> menu});
+
+  /// Replaces the right-click menu, e.g. after a language change.
+  Future<void> setMenu(List<(TrayAction, String)> menu);
 
   Future<void> showWindow();
   Future<void> hideWindow();
@@ -48,11 +54,19 @@ class TrayController {
   final void Function(TrayAction action)? onAction;
 
   StreamSubscription<HostEvent>? _events;
+  Strings _strings = const EnStrings();
 
   TrayController(this.host, {this.onAction});
 
-  Future<void> start({required bool hidden}) async {
-    await host.init(tooltip: 'DropClip', menu: TrayAction.values);
+  List<(TrayAction, String)> get _menu =>
+      [for (final a in TrayAction.values) (a, a.labelIn(_strings))];
+
+  Future<void> start({
+    required bool hidden,
+    Strings strings = const EnStrings(),
+  }) async {
+    _strings = strings;
+    await host.init(tooltip: 'DropClip', menu: _menu);
     _events ??= host.events.listen(_onEvent);
     await (hidden ? host.hideWindow() : host.showWindow());
   }
@@ -70,6 +84,14 @@ class TrayController {
         await host.showWindow();
         onAction?.call(action);
     }
+  }
+
+  /// Rebuilds the native menu in the new UI language (NFR-L01). Does
+  /// nothing if the language is the same or the tray is not running.
+  Future<void> setStrings(Strings strings) async {
+    if (strings.runtimeType == _strings.runtimeType) return;
+    _strings = strings;
+    if (_events != null) await host.setMenu(_menu);
   }
 
   Future<void> stop() async {
