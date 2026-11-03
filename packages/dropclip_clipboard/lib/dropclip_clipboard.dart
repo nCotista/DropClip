@@ -1,5 +1,7 @@
 library dropclip_clipboard;
 
+export 'src/image/png_encoder.dart';
+
 /// Data class representing an item on the native clipboard
 class ClipboardItem {
   final String mime;
