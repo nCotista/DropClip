@@ -61,7 +61,7 @@
   - [ ] **T1.5** WebSocket Control Plane & Reconnect Engine (`NET`)
 - **Milestone M3: Cross-OS Clipboard Engine (สัปดาห์ 7–10)**
   - [ ] **T1.6** macOS Native Clipboard Watcher & Concealed Detector (`DESK`)
-  - [ ] **T1.7** Windows Native Clipboard Watcher & Win32 Integration (`NET`)
+  - [ ] **T1.7** Windows Native Clipboard Watcher & Win32 Integration (`NET`) — *In Progress*: PR 1a (`ClipSnapshot`, #41), 1b (`NativeClipboard`), 2a (Win32 read core + CI) และ 2b (write path + `Win32ClipboardApi`) พร้อม PR; PR 3 (ผูก channel เข้า Windows runner) รอ T1.12 merge, ยังไม่ได้ทดสอบบนเครื่องจริง
   - [ ] **T1.8** Cross-OS Clipboard Image Format Normalizer (`DESK`) — *In Progress*: PR 1a (PNG encoder) และ 1b (DIB → PNG) พร้อม PR; PNG → CF_DIBV5 และ macOS TIFF ยังไม่เริ่ม
   - [ ] **T1.9** Distributed Clipboard Sync Engine & Loop Prevention (`DESK`) — *In Progress*: แกน engine ครบ (A1, A2, B1, B2: ขาออก, ขารับ, จำลอง 1,000 event) พร้อม PR; รอ T1.5/T1.6/T1.7/T1.10 เพื่อต่อของจริง และวัด latency (NFR-P01A)
 - **Milestone M4: Streaming File Engine (สัปดาห์ 10–12)**
@@ -167,6 +167,10 @@
 | 2026-11-03 | **T1.9** (B1) | `feat/T1.9-sync-inbound` | `DESK` (ธีร์) | `OPEN PR` | #28 | **Sync ขารับ (§10.3):** 12 ขั้นตามสเปก (drift, HLC merge, dedup, policy, LWW, blob, SHA-256/magic bytes, Tier 3, suppression ก่อนเขียน, TTL); Verification: analyze/test ผ่าน (24 passed) | T1.9 (B2) |
 | 2026-11-03 | **T1.9** (B2) | `feat/T1.9-convergence` | `DESK` (ธีร์) | `OPEN PR` | #29 | **NFR-RE02:** จำลอง 4 เครื่อง 1,000 event (out-of-order, clock skew, echo) → ไม่วนซ้ำ ลู่เข้าค่าเดียวกัน (HLC สูงสุด); เพิ่ม `changeToken` (§14.1) หลังเจอส่งซ้ำ 63%; Verification: 28 passed | T1.5 (ต่อ transport) |
 | 2026-11-02 | **T0.3** (fix) | `fix/T0.3-secret-scan-fixture` | `DESK` (ธีร์) | `OPEN PR` | #12 | **CI Secret Audit:** `logging_scrubber_test.dart` มีหัว PEM แบบตัวอักษรตรง ๆ ทำให้ขั้น scan ตกทุก PR → สร้าง PEM ปลอมตอนรัน (ไม่แก้ pattern ของ CI), เทสต์ทั้ง EC และ RSA; เพิ่ม `repository:` ใน `melos.yaml`; Verification: scan ในเครื่องไม่เจอ, format/analyze/test ผ่านทุก package | ปลดล็อก CI ของ #2, #5 |
+| 2026-11-03 | **T1.7** (1a) | `feat/T1.7-clip-snapshot` | `NET` (ปัน) | `OPEN PR` | #41 | **ClipSnapshot codec (§14.1):** ถอดรหัส event ของ `dropclip/clipboard/events` แบบเข้มงวด, concealed ทิ้ง `items` เสมอ (§10.4), PNG > DIBV5 > DIB (§11.2), ข้าม MIME ไม่รู้จัก/เกิน 32 MiB; Verification: format/analyze/test ผ่าน (22 passed), coverage 100%, 252 บรรทัด; CI แดงเพราะ `main` (`melos.yaml` ไม่มี `repository:`, secret-scan fixture) | T1.7 (1b), T1.9 |
+| 2026-11-03 | **T1.7** (1b) | `feat/T1.7-native-clipboard` | `NET` (ปัน) | `READY FOR PR` | `5224ed1` | **NativeClipboard (§14.1):** `ClipboardChannel` interface (ไม่พึ่ง Flutter), `changes` stream, `CLIPBOARD_LOCKED` → `ClipboardLockedException`, write ทุก item ใน call เดียว, log ไม่มีเนื้อหา; stacked บน 1a; Verification: format/analyze/test ผ่าน (39 passed), coverage 100%, 380 บรรทัด | T1.7 (3) |
+| 2026-11-03 | **T1.7** (2a) | `feat/T1.7-win32-clipboard-core` | `NET` (ปัน) | `READY FOR PR` | `41acfd5` | **Win32 clipboard read core (C++):** `ClipboardApi` แยกจาก Win32, เช็ก marker ก่อนอ่านเนื้อหา + fail closed (§10.4), retry 50/100/200 ms → `kLocked` (§16), UTF-16 → UTF-8, CI job `native-windows-core`; Verification: g++ `-Werror` 12 ชุดผ่าน, gcov 100%, MinGW compile ผ่าน, 374 บรรทัด | T1.7 (2b) |
+| 2026-11-03 | **T1.7** (2b) | `feat/T1.7-win32-clipboard-binding` | `NET` (ปัน) | `READY FOR PR` | `654266e` | **Write path + Win32 binding:** `WriteItems` (transaction เดียว, PNG + CF_DIBV5), `Clear`, `Utf8ToUtf16`, `Win32ClipboardApi` ใน `ClipboardWatcher.cpp`; stacked บน 2a; Verification: 15 ชุดผ่าน, gcov 100%, MinGW compile + link ผ่าน; ยังไม่ได้รันบน Windows จริง | T1.7 (3), T1.8, T1.9 |
 | *(เพิ่มต่อที่นี่)*| ... | ... | ... | ... | ... | ... | ... |
 
 ---
