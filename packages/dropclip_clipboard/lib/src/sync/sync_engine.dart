@@ -53,6 +53,7 @@ class ClipboardSyncEngine {
   final _ttlTimers = <Timer>[];
   final Random _random;
   Timer? _persistDebounce;
+  int? _lastLocalToken;
 
   /// Tier 1–2 write received clips to the OS clipboard (`clip.push`);
   /// Tier 3 (iOS) only keeps them for the widget / foreground (§10.6).
@@ -76,6 +77,13 @@ class ClipboardSyncEngine {
 
   /// §10.2 Outbound: the local clipboard changed.
   void onLocalChange(LocalClip clip) {
+    // The watcher can report one OS change twice (e.g. a late event for our
+    // own write that reads the user's newer copy): handle each token once.
+    if (clip.changeToken != null) {
+      if (clip.changeToken == _lastLocalToken) return;
+      _lastLocalToken = clip.changeToken;
+    }
+
     // Step 0: sync off or type not allowed.
     final p = policy();
     if (!p.allows(clip.type)) return;

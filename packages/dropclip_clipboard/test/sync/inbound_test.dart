@@ -140,6 +140,18 @@ void main() {
       expect(ports.written, isEmpty);
     });
 
+    test('one OS change reported twice is handled once (§14.1 changeToken)',
+        () {
+      final a = Uint8List.fromList([1]);
+      engine.onLocalChange(LocalClip(ClipType.text, a, changeToken: 7));
+      engine.onLocalChange(LocalClip(ClipType.text, a, changeToken: 7));
+      expect(ports.sent, hasLength(1));
+      // Same content, new change (a deliberate re-copy): sent again.
+      clock = clock.add(const Duration(seconds: 1));
+      engine.onLocalChange(LocalClip(ClipType.text, a, changeToken: 8));
+      expect(ports.sent, hasLength(2));
+    });
+
     test('merge persists debounced; dispose flushes; TTL clears', () {
       fakeAsync((async) {
         engine.onRemoteUpdate(update([1], ttl: 30), _peer);
