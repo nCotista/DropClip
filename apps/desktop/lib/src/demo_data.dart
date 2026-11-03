@@ -13,6 +13,20 @@ class ClipItem {
       {required this.sourceDevice, required this.age});
 }
 
+/// `online`: synced passively (Tier 1–2). `manual`: needs a user action,
+/// e.g. iOS Share Sheet (Tier 3, FR-03C).
+enum PeerReach { online, manual }
+
+class NearbyDevice {
+  final String name;
+
+  /// e.g. `Android · 6 ms` or `iOS · Share Sheet`.
+  final String detail;
+  final PeerReach reach;
+
+  const NearbyDevice(this.name, this.detail, this.reach);
+}
+
 /// Snapshot shown by the shell. Filled from the engine once T1.9
 /// (clipboard sync) and T1.11 (transfers) land; demo values until then.
 class ShellStatus {
@@ -36,7 +50,14 @@ class ShellStatus {
     required this.deviceCount,
     this.clips = const [],
     this.suppressedClips = 0,
+    this.nearby = const [],
+    this.latencyP95Ms = const [],
   });
+
+  final List<NearbyDevice> nearby;
+
+  /// Recent clipboard sync latency p95 samples, oldest first (NFR-P01A).
+  final List<int> latencyP95Ms;
 
   int get clipCount => clips.length;
 }
@@ -48,6 +69,15 @@ const demoShellStatus = ShellStatus(
   activeTransfers: 3,
   deviceCount: 4,
   suppressedClips: 1,
+  nearby: [
+    NearbyDevice('Pixel 8', 'Android · 6 ms', PeerReach.online),
+    NearbyDevice('Surface Laptop', 'Windows · 3 ms', PeerReach.online),
+    NearbyDevice('iPhone 15', 'iOS · Share Sheet', PeerReach.manual),
+  ],
+  latencyP95Ms: [
+    380, 402, 365, 431, 390, 410, 372, 455, 420, 388, //
+    398, 470, 395, 415, 380, 428, 401, 449, 409, 412,
+  ],
   clips: [
     ClipItem(ClipKind.text,
         "Meeting notes: finalize protocol spec v2.0 before Friday's review",

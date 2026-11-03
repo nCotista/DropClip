@@ -2,7 +2,11 @@ import 'package:dropclip_ui/dropclip_ui.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import 'clipboard_aside.dart';
 import 'demo_data.dart';
+
+/// Below this page width the [ClipboardAside] is hidden.
+const double asideMinPageWidth = 900;
 
 /// Clipboard home screen from the UI design (T1.12, FR-04, FR-05, SF-03).
 class ClipboardPage extends StatefulWidget {
@@ -12,12 +16,16 @@ class ClipboardPage extends StatefulWidget {
   /// clipboard for text; images need the native watcher (T1.6/T1.7).
   final ValueChanged<ClipItem>? onCopy;
   final VoidCallback? onSendClipboard;
+  final VoidCallback? onPair;
+  final VoidCallback? onOpenDropzone;
 
   const ClipboardPage({
     super.key,
     required this.status,
     this.onCopy,
     this.onSendClipboard,
+    this.onPair,
+    this.onOpenDropzone,
   });
 
   @override
@@ -49,7 +57,7 @@ class _ClipboardPageState extends State<ClipboardPage> {
     final c = DropClipColors.of(context);
     final s = widget.status;
     final clips = _visible;
-    return ListView(
+    final list = ListView(
       padding: const EdgeInsets.all(DropClipSpacing.xxl),
       children: [
         Wrap(
@@ -125,6 +133,24 @@ class _ClipboardPageState extends State<ClipboardPage> {
           _SuppressedNotice(count: s.suppressedClips),
         ],
       ],
+    );
+    // The side panel drops out on narrow windows so the list stays usable.
+    return LayoutBuilder(
+      builder: (context, box) => box.maxWidth < asideMinPageWidth
+          ? list
+          : Row(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+              Expanded(child: list),
+              Container(
+                width: 300,
+                decoration: BoxDecoration(
+                    border: Border(left: BorderSide(color: c.border))),
+                child: ClipboardAside(
+                  status: s,
+                  onPair: widget.onPair,
+                  onOpenDropzone: widget.onOpenDropzone,
+                ),
+              ),
+            ]),
     );
   }
 }
