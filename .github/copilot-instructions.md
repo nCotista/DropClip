@@ -8,5 +8,5 @@ Key Directives:
 3. **Crypto Safety:** ECDSA P-256 (secp256r1) with TLS 1.3 only. Never implement custom crypto algorithms.
 4. **Zero PIN on Wire:** Never send pairing PIN or hash of PIN over the wire. It is strictly an OOB salt for SAS.
 5. **Quality Checks:** Always write unit tests for every change. Run `melos run analyze` and `melos run test`.
-6. **Logging & Tracking:** Keep a branch log in `docs/worklogs/` and update `docs/TASK-PROGRESS-AND-UPDATES.md` when completing your task.
+6. **Logging & Tracking:** Keep work logs in `docs/worklogs/` and update `docs/TASK-PROGRESS-AND-UPDATES.md` in `docs/task-progress-tracker` branch only (never in feature branches).
 

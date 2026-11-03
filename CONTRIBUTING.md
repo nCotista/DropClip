@@ -17,26 +17,74 @@
 
 ## 2. ลำดับขั้นตอนการพัฒนา (Workflow)
 
+กระบวนการพัฒนาแบ่งออกเป็น 2 ส่วนที่แยกจากกันอย่างชัดเจน:
+1. **การพัฒนาฟีเจอร์ / โค้ด (ใน Branch ของงาน)**
+2. **การบันทึก Worklogs และอัปเดตความคืบหน้างาน (ใน branch `docs/task-progress-tracker` เท่านั้น)**
+
+---
+
+### 2.1 การพัฒนาฟีเจอร์ / โค้ด (Feature / Spike / Bugfix Branch)
+
+> ⚠️ **กฎเหล็กเรื่อง Worklogs & Task Progress:**
+>
+> **ห้าม commit ไฟล์ใน `docs/worklogs/*` หรือ `docs/TASK-PROGRESS-AND-UPDATES.md` (รวมถึง `UPDATES.md`) เข้า Feature/Spike/Bugfix branch โดยเด็ดขาด!**
+>
+> เหตุผล:
+> 1. ป้องกัน Merge Conflict ระหว่างหลายๆ Feature branch ที่แตกแยกย้ายกันทำ
+> 2. รักษาขนาด PR Diff ไม่ให้เกิน 400 บรรทัด (Non-Negotiable Rule #1)
+> 3. รวมศูนย์ประวัติการทำงาน (Single Source of Truth) บน branch ติดตามความคืบหน้าส่วนกลาง
+
+ขั้นตอนการทำโค้ด:
 ```
 1. รับ Ticket จาก docs/02-TICKETS.md
 2. แตก Branch ออกจาก main:
    - Feature:  git checkout -b feat/<TICKET_ID>-<slug>
    - Spike:    git checkout -b spike/<SPIKE_ID>-<slug>
    - Bug fix:  git checkout -b fix/<TICKET_ID>-<slug>
-3. บันทึก Work Log ใน docs/worklogs/ (ตาม docs/worklogs/TEMPLATE.md)
-4. เขียน Test ก่อนหรือพร้อมกับโค้ด
-5. ตรวจสอบคุณภาพโค้ดก่อน Commit:
+3. พัฒนาโค้ดและเขียน Test (Happy path + 3 edge cases, Coverage >= 75%)
+   *(หมายเหตุ: ห้ามสร้างหรือ commit worklogs ลงใน branch นี้)*
+4. ตรวจสอบคุณภาพโค้ดก่อน Commit:
    - melos run format
    - melos run analyze
    - melos run test
-6. เมื่อทำเสร็จ อัปเดตสถานะใน docs/TASK-PROGRESS-AND-UPDATES.md (หรือ UPDATES.md)
-7. เปิด Pull Request พร้อมกรอก Checklist ตาม PR Template
-8. ได้รับ Code Review Approved อย่างน้อย 1 คน (งานด้าน Security ต้องผ่าน LEAD)
-9. Squash and Merge เข้าสู่ main
+5. Commit เฉพาะไฟล์โค้ดและชุดทดสอบของงานนั้นๆ (Diff <= 400 บรรทัด)
+6. เปิด Pull Request พร้อมกรอก Checklist ตาม PR Template
+7. ได้รับ Code Review Approved อย่างน้อย 1 คน (งานด้าน Security ต้องผ่าน LEAD)
+8. Squash and Merge เข้าสู่ main
 ```
 
-> **คำแนะนำสำหรับ AI Coding Assistants (Cursor, Copilot, etc.):**  
+---
+
+### 2.2 การบันทึก Worklogs & Task Progress (บน branch `docs/task-progress-tracker` เท่านั้น)
+
+ทุกคนในทีม (Developer ทั้ง 5 คน และ AI Coding Assistants ทุกตัว) **ต้องบันทึก Worklogs และอัปเดตกระดานสถานะงานใน branch `docs/task-progress-tracker` เท่านั้น**:
+
+```bash
+# 1. สลับมาที่ branch กลาง docs/task-progress-tracker และ pull ข้อมูลล่าสุด
+git checkout docs/task-progress-tracker
+git pull origin docs/task-progress-tracker
+
+# 2. บันทึก Work Log ประจำ Ticket:
+#    - สร้างไฟล์ docs/worklogs/<TICKET_ID>-<slug>.md (อิงตาม docs/worklogs/TEMPLATE.md)
+#    - หรือบันทึกต่อท้าย docs/worklogs/WORK_LOG.md
+#    - สรุปสิ่งที่มีการเปลี่ยนแปลง, การตัดสินใจทางเทคนิค และผลการรัน Test
+
+# 3. อัปเดตกระดานสถานะใน docs/TASK-PROGRESS-AND-UPDATES.md (หรือ UPDATES.md):
+#    - ติ๊กเครื่องหมาย [x] ที่ Ticket ของคุณใน "1. Ticket Status Board"
+#    - เพิ่มแถวในตาราง "2. Branch & Completed Tasks Registry":
+#      - Ticket ID, Branch Name, Assignee (LEAD, DESK, MOB, NET, QA)
+#      - Status (READY FOR PR / MERGED), Commit Hash ล่าสุด, วันที่
+#      - สรุปผลงาน และผลการรัน Test Verification (Format, Analyze, Test Pass)
+
+# 4. Commit และ Push ไปยัง docs/task-progress-tracker โดยตรง
+git add docs/worklogs/ docs/TASK-PROGRESS-AND-UPDATES.md
+git commit -m "docs(updates): update task progress and worklog for <TICKET_ID>"
+git push origin docs/task-progress-tracker
+```
+
+> **คำแนะนำสำหรับ AI Coding Assistants (Cursor, Copilot, Antigravity, etc.):**
 > ให้อ่านและปฏิบัติตาม [`AGENTS.md`](AGENTS.md) และ [`.cursorrules`](.cursorrules) อย่างเคร่งครัด
+> **ห้าม** แก้ไขหรือ commit ไฟล์ worklogs / progress ลงใน feature branch ที่กำลังพัฒนาโค้ด ให้สลับไปทำบน `docs/task-progress-tracker` เท่านั้น
 
 ---
 

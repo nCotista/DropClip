@@ -21,6 +21,6 @@ Detailed instructions are located in AGENTS.md. Follow these critical rules:
 - Sensitive Markers: 100% suppress ConcealedType, TransientType, ExcludeClipboardContentFromMonitorProcessing, CanIncludeInClipboardHistory, EXTRA_IS_SENSITIVE.
 
 ## 3. Mandatory Workflow Steps
-1. Document all work in a work log in `docs/worklogs/` (see `docs/worklogs/TEMPLATE.md`).
-2. When finishing a task in your branch, ALWAYS update `docs/TASK-PROGRESS-AND-UPDATES.md` (or `UPDATES.md`) with your ticket completion status, commit hash, and verification notes.
+1. Feature branches contain code & tests ONLY (PR diff <= 400 lines). NEVER commit worklogs or progress updates to feature branches.
+2. Update work logs in `docs/worklogs/` and `docs/TASK-PROGRESS-AND-UPDATES.md` (or `UPDATES.md`) in the `docs/task-progress-tracker` branch ONLY.
 
