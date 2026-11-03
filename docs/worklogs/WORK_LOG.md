@@ -5,6 +5,35 @@
 
 ---
 
+## [2026-11-03] Phase 0–4 LEAD Core & Platform Extensions Completion (`T0.2`, `S0.1`, `T1.2`, `T1.3`, `T1.13`, `T2.1`, `T3.1`, `T3.2`, `T4.2`, `T4.5`)
+
+| รายการ | รายละเอียด |
+|---|---|
+| **Scope** | Protocol Error Registry & Envelopes (`T0.2`), mTLS 1.3 ECDSA P-256 Matrix (`S0.1`), Device Identity & Encrypted Store (`T1.2`), Commit-then-Reveal SAS & Pairing Engine (`T1.3`), Signed Cluster Revocation (`T1.13`), Android `connectedDevice` Foreground Service & IPC (`T2.1`), iOS `NWBrowser` & Local Network Privacy (`T3.1`), iOS Share Extension `<30 MB` Engine & App Group Sync (`T3.2`), 100k-Request Security Audit & Pentest Suite (`T4.2`), Roll-Forward Auto-Updater, Code Signing & CycloneDX 1.5 SBOM (`T4.5`) |
+| **Branches** | `feat/T0.2-protocol-errors-envelopes`, `feat/T0.2-protocol-payloads-fuzzer`, `spike/S0.1-mtls-p256-crossplatform`, `feat/T1.2-device-identity`, `feat/T1.2-trusted-device-store`, `feat/T1.3-pairing-sas-engine`, `feat/T1.13-cluster-revocation`, `feat/T2.1-android-foreground-ipc`, `feat/T3.1-ios-nwbrowser-permissions`, `feat/T3.2-ios-share-extension-engine`, `feat/T4.2-security-pentest-suite`, `feat/T4.5-release-signing-updater` |
+| **Engineers** | `LEAD` (เจ) |
+| **AI Assistant** | Antigravity |
+| **Status** | `READY FOR PR` |
+
+### 1. สิ่งที่ส่งมอบ (Deliverables)
+- **`T0.2` (`dropclip_protocol`):** `ProtocolErrorCode` ครบ 18 รหัส (§8), `VersionNegotiator` (`4003 E_UNSUPPORTED_VERSION`, §2.4), `MessageType` ครบ 16 ชนิด (§7.2), `Envelope` โควตา 64 KiB (§7.1), `HelloPayload`, `ClipboardUpdatePayload` (§18.5 size boundaries), `FileOfferItem`, `RevocationBroadcastToken` (§7.4.10) และ Fuzz Test 10,000 รอบ
+- **`S0.1` (`spike_tls_matrix_test.dart`):** พิสูจน์ mTLS 1.3 ECDSA P-256 (`prime256v1`) ร่วมกับ `withTrustedRoots: false` และ SHA-256 DER Pinning ที่ระดับแอปพลิเคชันทั้งบน macOS arm64 และ Windows
+- **`T1.2` (`security/`):** `DeviceIdentityManager` สร้างคู่กุญแจ ECDSA P-256 และใบรับรอง X.509 v3 อายุ 10 ปี แยกเก็บ Private Key ใน `SecureKeyStore` (`dropclip.identity.p256`), `TrustedDeviceStore` เข้ารหัส `trusted_devices.json.enc` แบบ `nonce(12B) || ciphertext || tag(16B)` พร้อม NFR-S02 Automated Disk Audit
+- **`T1.3` (`pairing/`):** `QrPairingPayload` และ `PairingEngine` บังคับใช้ Commit-then-Reveal SAS (`337017` QR Mode, `639589` PIN Mode), Zero PIN on Wire (`ADR-009`), Rate Limit (5 ครั้ง/นาที/IP) และ Lockout 5 นาทีเมื่อผิดครบ 3 ครั้ง
+- **`T1.13` (`revocation/`):** `RevocationManager` เพิกถอนภายใน $<1\text{ s}$ (`4004`), ลงนาม ECDSA P-256 `RevocationBroadcastToken`, บังคับใช้ No Self-Revocation by Proxy, Quarantine-then-Confirm, `revoked_tombstones.json` และ Handshake Anti-Entropy (`tombstones_hash` / `revocation.sync`)
+- **`T2.1` (`platform/android_service_bridge.dart` & `ClipboardService.kt`):** บริการเบื้องหลังชนิด `connectedDevice` (`START_STICKY`), การจัดการ `WifiManager.MulticastLock`, การฟื้นตัวจาก Doze Mode, `DropClipBootReceiver`, และการระงับข้อมูลที่มี `ClipDescription.EXTRA_IS_SENSITIVE` 100%
+- **`T3.1` (`platform/ios_network_permission_manager.dart` & `LocalNetworkDiscoveryBridge.swift`):** ค้นหาโหนดผ่าน `NWBrowser` (`_dropclip._tcp`), บังคับแสดงหน้าจอ Pre-Permission Explainer ก่อนขอสิทธิ์จริงของ iOS และรองรับปุ่ม Deep Link ไปยัง Settings เมื่อผู้ใช้ปฏิเสธสิทธิ์
+- **`T3.2` (`platform/ios_app_group_sync.dart` & `ShareViewController.swift`):** ซิงก์รายการโหนดและ HLC ผ่าน `group.com.dropclip.shared`, ส่งคลิปบอร์ดผ่าน `/api/v1/clipboard` และสตรีมไฟล์ 4 GB ผ่าน Background `URLSession` โดยควบคุมหน่วยความจำสูงสุด $< 30\text{ MB}$ (`NFR-R03B`)
+- **`T4.2` (`security/security_audit_runner.dart` & `fuzzer.dart --pentest`):** ชุดตรวจสอบความปลอดภัยอัตโนมัติครอบคลุม Path Traversal 15 กรณี, การสกัดกั้น MITM & Zero-PIN-on-Wire, การตรวจการรั่วไหลในไฟล์ Log/Crash Dump, และการยิง Fuzzing 100,000 Requests โดยไม่เกิด Unhandled Exception
+- **`T4.5` (`release/release_updater.dart`):** ระบบตรวจสอบลายเซ็นดิจิทัลและ SHA-256 สำหรับ Roll-Forward Auto-Update, การแปลงโครงสร้างข้อมูลแบบ Zero-Loss, การส่งออกชุดวิเคราะห์ปัญหาแบบปกปิด Subnet, และการสร้าง CycloneDX 1.5 SBOM (`sbom-dropclip.json`)
+
+### 2. ผลการทดสอบ (Verification)
+- ทุกแพ็กเกจใน Monorepo ผ่าน `dart format --output=none --set-exit-if-changed .`, `dart analyze --fatal-infos` (0 issues), และ `dart test` ครบ 100% (`dropclip_protocol` 43 passed, `dropclip_core` 39 passed)
+- `tools/protocol_fuzzer --pentest` บล็อก Path Attack 14/14 และผ่าน Fuzz Frames 100,000/100,000
+- CI Secret Audit (`! grep -rnE "BEGIN (RSA |EC |OPENSSH |ED25519 )?PRIVATE KEY" packages/ apps/ native/`) ผ่าน 100% (0 matches)
+
+---
+
 ## [2026-10-13] PCR-03: Review Follow-up (ตรวจซ้ำหลัง PCR-01/PCR-02)
 
 | รายการ | รายละเอียด |
