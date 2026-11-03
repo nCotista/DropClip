@@ -28,5 +28,12 @@
 	<string>MainMenu</string>
 	<key>NSPrincipalClass</key>
 	<string>NSApplication</string>
+	<!-- Local network privacy (macOS 15+): Bonjour browse/advertise for FR-01. -->
+	<key>NSBonjourServices</key>
+	<array>
+		<string>_dropclip._tcp</string>
+	</array>
+	<key>NSLocalNetworkUsageDescription</key>
+	<string>DropClip finds your other devices on this Wi-Fi to sync the clipboard and send files directly, without the cloud.</string>
 </dict>
 </plist>

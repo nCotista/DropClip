@@ -132,6 +132,7 @@
 | 2026-11-03 | **T1.12** (4a) | `feat/T1.12-settings-store` | `DESK` (ธีร์) | `READY FOR PR` | *(commit นี้)* | **FR-12 config.json:** `AppConfig`/`ConfigStore` ตาม §15.6 (default `auto_accept=false`, ค่าผิด → default + warn, เขียน atomic, มีผลทันที) + key `language` (NFR-L01); Verification: format/analyze/test ผ่าน | T1.12 (4b) |
 | 2026-11-03 | **T1.12** (4b) | `feat/T1.12-auto-start` | `DESK` (ธีร์) | `READY FOR PR` | *(commit นี้)* | **FR-12 Auto-Start:** Windows Run key (`"<exe>" --hidden`) ผ่าน `reg.exe`, `ConfigController` คงค่าเดิมถ้า OS ปฏิเสธ; macOS ยังไม่รองรับ (ต้อง native); Verification: format/analyze/test ผ่าน (ใช้ `reg` จำลอง ยังไม่ได้เขียน registry จริง) | T1.12 (4c) |
 | 2026-11-03 | **T1.12** (4c) | `feat/T1.12-settings-page` | `DESK` (ธีร์) | `READY FOR PR` | *(commit นี้)* | **หน้า Settings (FR-12):** ตามดีไซน์ของตามด ทุกค่าบันทึกลง config.json และมีผลทันที, auto-start ตรวจและลงทะเบียนตอนเปิดแอป; Verification: format/analyze/test ผ่านทุก package | NFR-L01 |
+| 2026-11-03 | **T1.12** (5) | `feat/T1.12-macos-network` | `DESK` (ธีร์) | `READY FOR PR` | *(commit นี้)* | **macOS network:** entitlements `network.client/server` + `NSBonjourServices`/`NSLocalNetworkUsageDescription` ให้ mDNS ทำงานใน sandbox; Verification: XML ถูกต้อง, ยังไม่ได้ build บน Mac | ทดสอบบน Mac |
 | *(เพิ่มต่อที่นี่)*| ... | ... | ... | ... | ... | ... | ... |
 
 ---
