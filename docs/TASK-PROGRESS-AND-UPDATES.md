@@ -131,6 +131,7 @@
 | 2026-11-02 | **T1.1** (2b) | `feat/T1.1-mdns-adapter` → `feat/T1.1-nearby-live` | `DESK` (ธีร์) | `READY FOR PR` | *(commit นี้)* | **mDNS จริง (2 PR ซ้อน):** `BonsoirMdnsBackend` (Windows DNS-SD / Bonjour) + `NetworkWatcher` + เครื่องที่เจอแสดงใน Nearby devices; ทดสอบบน Windows 2 instance: เจอกัน 0.77 s, ออนไลน์เกิน 30 s, kill แล้วลบใน 68 ms; identity ยังชั่วคราว (รอ T1.2/T1.4); Verification: format/analyze/test ผ่านทุก package, `dropclip_desktop` 42 passed | T1.3, T1.4 |
 | 2026-11-03 | **T1.12** (4a) | `feat/T1.12-settings-store` | `DESK` (ธีร์) | `READY FOR PR` | *(commit นี้)* | **FR-12 config.json:** `AppConfig`/`ConfigStore` ตาม §15.6 (default `auto_accept=false`, ค่าผิด → default + warn, เขียน atomic, มีผลทันที) + key `language` (NFR-L01); Verification: format/analyze/test ผ่าน | T1.12 (4b) |
 | 2026-11-03 | **T1.12** (4b) | `feat/T1.12-auto-start` | `DESK` (ธีร์) | `READY FOR PR` | *(commit นี้)* | **FR-12 Auto-Start:** Windows Run key (`"<exe>" --hidden`) ผ่าน `reg.exe`, `ConfigController` คงค่าเดิมถ้า OS ปฏิเสธ; macOS ยังไม่รองรับ (ต้อง native); Verification: format/analyze/test ผ่าน (ใช้ `reg` จำลอง ยังไม่ได้เขียน registry จริง) | T1.12 (4c) |
+| 2026-11-03 | **T1.12** (4c) | `feat/T1.12-settings-page` | `DESK` (ธีร์) | `READY FOR PR` | *(commit นี้)* | **หน้า Settings (FR-12):** ตามดีไซน์ของตามด ทุกค่าบันทึกลง config.json และมีผลทันที, auto-start ตรวจและลงทะเบียนตอนเปิดแอป; Verification: format/analyze/test ผ่านทุก package | NFR-L01 |
 | *(เพิ่มต่อที่นี่)*| ... | ... | ... | ... | ... | ... | ... |
 
 ---

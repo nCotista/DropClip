@@ -15,6 +15,7 @@ class DropClipDesktopApp extends StatelessWidget {
   /// When set, replaces [status] and rebuilds the shell on every change
   /// (e.g. live mDNS discovery).
   final ValueListenable<ShellStatus>? liveStatus;
+  final Widget? settingsPage;
 
   const DropClipDesktopApp({
     super.key,
@@ -22,6 +23,7 @@ class DropClipDesktopApp extends StatelessWidget {
     required this.status,
     this.section,
     this.liveStatus,
+    this.settingsPage,
   });
 
   @override
@@ -32,11 +34,12 @@ class DropClipDesktopApp extends StatelessWidget {
         darkTheme: buildDropClipTheme(Brightness.dark),
         themeMode: ThemeMode.system,
         home: liveStatus == null
-            ? DesktopShell(status: status, section: section)
+            ? DesktopShell(
+                status: status, section: section, settingsPage: settingsPage)
             : ValueListenableBuilder<ShellStatus>(
                 valueListenable: liveStatus!,
-                builder: (_, s, __) =>
-                    DesktopShell(status: s, section: section),
+                builder: (_, s, __) => DesktopShell(
+                    status: s, section: section, settingsPage: settingsPage),
               ),
       );
 }
