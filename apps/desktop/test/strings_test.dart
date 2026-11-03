@@ -29,6 +29,9 @@ List<String> _all(Strings s) => [
       s.latencyTarget(under: true), s.latencyTarget(under: false),
       s.connectedTo('Home'), s.clipboardSync, s.onlineDevices,
       for (final a in TrayAction.values) a.labelIn(s),
+      // Dropzone
+      s.dropHere, s.releaseToAdd, s.itemCount(2), s.sendTo,
+      s.sendToDevice('Pixel 8'), s.dropzoneKeys,
     ];
 
 void main() {

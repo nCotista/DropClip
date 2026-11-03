@@ -90,6 +90,14 @@ abstract class Strings {
   String get trayTrusted;
   String get traySettings;
   String get trayQuit;
+
+  // Dropzone (UI-02)
+  String get dropHere;
+  String get releaseToAdd;
+  String itemCount(int n);
+  String get sendTo;
+  String sendToDevice(String name);
+  String get dropzoneKeys;
 }
 
 class EnStrings extends Strings {
@@ -246,6 +254,18 @@ class EnStrings extends Strings {
   String get traySettings => 'Settings…';
   @override
   String get trayQuit => 'Quit DropClip';
+  @override
+  String get dropHere => 'Drop files or folders here';
+  @override
+  String get releaseToAdd => 'Release to add';
+  @override
+  String itemCount(int n) => n == 1 ? '1 item' : '$n items';
+  @override
+  String get sendTo => 'SEND TO';
+  @override
+  String sendToDevice(String name) => 'Send to $name';
+  @override
+  String get dropzoneKeys => '↑↓ choose · Enter send · Esc close';
 }
 
 class ThStrings extends Strings {
@@ -405,6 +425,18 @@ class ThStrings extends Strings {
   String get traySettings => 'การตั้งค่า…';
   @override
   String get trayQuit => 'ออกจาก DropClip';
+  @override
+  String get dropHere => 'ลากไฟล์หรือโฟลเดอร์มาวางที่นี่';
+  @override
+  String get releaseToAdd => 'ปล่อยเพื่อเพิ่ม';
+  @override
+  String itemCount(int n) => '$n รายการ';
+  @override
+  String get sendTo => 'ส่งไปที่';
+  @override
+  String sendToDevice(String name) => 'ส่งไปที่ $name';
+  @override
+  String get dropzoneKeys => '↑↓ เลือก · Enter ส่ง · Esc ปิด';
 }
 
 /// Provides the [Strings] for the chosen language to the widget tree.
