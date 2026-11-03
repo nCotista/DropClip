@@ -9,6 +9,7 @@ export 'src/platform/ios_app_group_sync.dart';
 export 'src/platform/ios_network_permission_manager.dart';
 export 'src/revocation/revocation_manager.dart';
 export 'src/security/device_identity.dart';
+export 'src/security/security_audit_runner.dart';
 export 'src/security/trusted_device_store.dart';
 export 'src/test_cluster.dart';
 

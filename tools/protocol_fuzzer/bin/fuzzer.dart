@@ -35,8 +35,9 @@ void main(List<String> args) {
   }
 
   final rng = Random(42);
+  final totalFrames = args.contains('--pentest') ? 100000 : 10000;
   int fuzzCaught = 0;
-  for (var i = 0; i < 10000; i++) {
+  for (var i = 0; i < totalFrames; i++) {
     final bytes = List<int>.generate(rng.nextInt(96), (_) => rng.nextInt(256));
     try {
       Envelope.decodeWire(utf8.decode(bytes, allowMalformed: true));
@@ -47,7 +48,9 @@ void main(List<String> args) {
 
   stdout.writeln(
     'Fuzzer finished: Blocked $blockedCount / ${attackVectors.length} vectors; '
-    'survived $fuzzCaught / 10000 random parser frames.',
+    'survived $fuzzCaught / $totalFrames random parser frames.',
   );
-  if (blockedCount != attackVectors.length || fuzzCaught != 10000) exitCode = 1;
+  if (blockedCount != attackVectors.length || fuzzCaught != totalFrames) {
+    exitCode = 1;
+  }
 }
