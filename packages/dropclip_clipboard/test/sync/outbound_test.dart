@@ -7,30 +7,9 @@ import 'package:dropclip_protocol/dropclip_protocol.dart';
 import 'package:fake_async/fake_async.dart';
 import 'package:test/test.dart';
 
+import 'fakes.dart';
+
 const _me = '11111111-1111-4111-8111-111111111111';
-
-class FakePorts implements SyncPorts {
-  final sent = <ClipUpdate>[];
-  final blobs = <String, Uint8List>{};
-  final persisted = <Hlc>[];
-  final cleared = <String>[];
-
-  @override
-  void broadcast(ClipUpdate update) => sent.add(update);
-
-  @override
-  String putBlob(Uint8List raw, Duration ttl) {
-    final id = 'blob-${blobs.length}';
-    blobs[id] = raw;
-    return id;
-  }
-
-  @override
-  void persistHlc(Hlc hlc) => persisted.add(hlc);
-
-  @override
-  Future<void> clearIfStill(String hash) async => cleared.add(hash);
-}
 
 LocalClip text(String s) =>
     LocalClip(ClipType.text, Uint8List.fromList(utf8.encode(s)));
