@@ -45,12 +45,16 @@ class DesktopShell extends StatefulWidget {
   /// Shown above every page (e.g. first-run firewall onboarding).
   final Widget? banner;
 
+  /// Opens the Dropzone (UI-02); a "not available" note when null.
+  final VoidCallback? onOpenDropzone;
+
   const DesktopShell(
       {super.key,
       required this.status,
       this.section,
       this.settingsPage,
-      this.banner});
+      this.banner,
+      this.onOpenDropzone});
 
   @override
   State<DesktopShell> createState() => _DesktopShellState();
@@ -97,8 +101,9 @@ class _DesktopShellState extends State<DesktopShell> {
                                 Strings.of(context).sendClipboard, 'T1.9'),
                             onPair:
                                 _notReady(Strings.of(context).pairing, 'T1.3'),
-                            onOpenDropzone: _notReady(
-                                Strings.of(context).dropzone, 'T1.12'),
+                            onOpenDropzone: widget.onOpenDropzone ??
+                                _notReady(
+                                    Strings.of(context).dropzone, 'T1.12'),
                           ),
                         ShellSection.settings
                             when widget.settingsPage != null =>

@@ -12,7 +12,7 @@ import 'dropzone_panel.dart';
 /// onto the window, the tray's "Open Dropzone" is picked, or ⌥⌘D /
 /// Ctrl+Alt+D is pressed. The design's floating window is shown as a panel
 /// inside the main window; Flutter desktop has a single window.
-class DropzoneHost extends StatelessWidget {
+class DropzoneHost extends StatefulWidget {
   final DropzoneController controller;
   final ValueListenable<List<NearbyDevice>> devices;
   final void Function(NearbyDevice to, List<DroppedItem> items)? onSend;
@@ -31,31 +31,61 @@ class DropzoneHost extends StatelessWidget {
   });
 
   @override
+  State<DropzoneHost> createState() => _DropzoneHostState();
+}
+
+class _DropzoneHostState extends State<DropzoneHost> {
+  DropzoneController get _dz => widget.controller;
+
+  @override
+  void initState() {
+    super.initState();
+    // A global handler, not CallbackShortcuts: the shortcut has to work
+    // even when nothing in the app has keyboard focus yet.
+    HardwareKeyboard.instance.addHandler(_onKey);
+  }
+
+  @override
+  void dispose() {
+    HardwareKeyboard.instance.removeHandler(_onKey);
+    super.dispose();
+  }
+
+  bool _onKey(KeyEvent e) {
+    final k = HardwareKeyboard.instance;
+    final mod = defaultTargetPlatform == TargetPlatform.macOS
+        ? k.isMetaPressed
+        : k.isControlPressed;
+    if (e is! KeyDownEvent ||
+        e.logicalKey != LogicalKeyboardKey.keyD ||
+        !mod ||
+        !k.isAltPressed ||
+        k.isShiftPressed) {
+      return false;
+    }
+    _dz.show();
+    return true;
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final mac = defaultTargetPlatform == TargetPlatform.macOS;
-    Widget body = CallbackShortcuts(
-      bindings: {
-        SingleActivator(LogicalKeyboardKey.keyD,
-            alt: true, meta: mac, control: !mac): controller.show,
-      },
-      child: ListenableBuilder(
-        listenable: Listenable.merge([controller, devices]),
-        builder: (context, _) => Stack(children: [
-          child,
-          if (controller.open) ...[
-            ModalBarrier(
-                color: Colors.black.withValues(alpha: 0.45),
-                onDismiss: controller.close),
-            Center(child: _window(context)),
-          ],
-        ]),
-      ),
+    Widget body = ListenableBuilder(
+      listenable: Listenable.merge([_dz, widget.devices]),
+      builder: (context, _) => Stack(children: [
+        widget.child,
+        if (_dz.open) ...[
+          ModalBarrier(
+              color: Colors.black.withValues(alpha: 0.45),
+              onDismiss: _dz.close),
+          Center(child: _window(context)),
+        ],
+      ]),
     );
-    if (nativeDrop) {
+    if (widget.nativeDrop) {
       body = DropTarget(
-        onEnter: (_) => controller.dragEntered(),
-        onLeave: controller.dragLeft,
-        onDrop: (details) => controller.addDropped([
+        onEnter: (_) => _dz.dragEntered(),
+        onLeave: _dz.dragLeft,
+        onDrop: (details) => _dz.addDropped([
           for (final item in details.items)
             if (item case DropFileItem(:final name, :final localPath?))
               (name: name, path: localPath, isFolder: false)
@@ -82,11 +112,11 @@ class DropzoneHost extends StatelessWidget {
         width: 400,
         height: 640,
         child: DropzonePanel(
-          items: controller.items,
-          dragging: controller.dragging,
-          devices: devices.value,
-          onSend: onSend,
-          onClose: controller.close,
+          items: _dz.items,
+          dragging: _dz.dragging,
+          devices: widget.devices.value,
+          onSend: widget.onSend,
+          onClose: _dz.close,
         ),
       ),
     );
