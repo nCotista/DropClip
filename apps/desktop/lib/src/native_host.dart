@@ -30,7 +30,7 @@ class NativeDesktopHost
   @override
   Future<void> init({
     required String tooltip,
-    required List<TrayAction> menu,
+    required List<(TrayAction, String)> menu,
   }) async {
     await windowManager.ensureInitialized();
     await windowManager.setPreventClose(true);
@@ -39,13 +39,17 @@ class NativeDesktopHost
     trayManager.addListener(this);
     await trayManager.setIcon(isMacOS ? _macIcon : _windowsIcon);
     await trayManager.setToolTip(tooltip);
-    await trayManager.setContextMenu(Menu(items: [
-      for (final a in menu) ...[
-        if (a == TrayAction.quit) MenuItem.separator(),
-        MenuItem(key: a.name, label: a.label),
-      ],
-    ]));
+    await setMenu(menu);
   }
+
+  @override
+  Future<void> setMenu(List<(TrayAction, String)> menu) =>
+      trayManager.setContextMenu(Menu(items: [
+        for (final (a, label) in menu) ...[
+          if (a == TrayAction.quit) MenuItem.separator(),
+          MenuItem(key: a.name, label: label),
+        ],
+      ]));
 
   @override
   void onTrayIconMouseDown() => _events.add(const TrayClicked());

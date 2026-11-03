@@ -95,7 +95,12 @@ Future<void> main(List<String> args) async {
   // showing it after the first frame avoids a blank window, and a hidden
   // launch never flashes one.
   await WidgetsBinding.instance.endOfFrame;
-  await tray.start(hidden: hidden);
+  await tray.start(
+      hidden: hidden,
+      strings: Strings.forLanguage(store.config.value.language));
+  // The native tray menu follows the language too (NFR-L01).
+  store.config.addListener(
+      () => tray.setStrings(Strings.forLanguage(store.config.value.language)));
   await configs.reconcile();
   debugLog?.call('started ${discovery.service.record.deviceId}');
   await discovery.start();

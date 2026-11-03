@@ -22,8 +22,8 @@ enum TrayAction {
   String? shortcutFor(TargetPlatform platform) =>
       platform == TargetPlatform.macOS ? macShortcut : windowsShortcut;
 
-  /// Localized label for the in-app menu (NFR-L01). [label] stays English
-  /// for the native tray menu, which the OS builds once at startup.
+  /// Localized label for the in-app and native tray menus (NFR-L01).
+  /// [label] is the English name, used as a fallback in tests.
   String labelIn(Strings s) => switch (this) {
         openDropzone => s.trayOpenDropzone,
         sendClipboard => s.traySendClipboard,
