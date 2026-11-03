@@ -98,6 +98,10 @@ abstract class Strings {
   String get sendTo;
   String sendToDevice(String name);
   String get dropzoneKeys;
+
+  // Debug console (T0.3)
+  String debugConsole(int lines);
+  String get noLogLines;
 }
 
 class EnStrings extends Strings {
@@ -266,6 +270,10 @@ class EnStrings extends Strings {
   String sendToDevice(String name) => 'Send to $name';
   @override
   String get dropzoneKeys => '↑↓ choose · Enter send · Esc close';
+  @override
+  String debugConsole(int lines) => 'Debug console · $lines lines';
+  @override
+  String get noLogLines => 'No log lines yet';
 }
 
 class ThStrings extends Strings {
@@ -437,6 +445,10 @@ class ThStrings extends Strings {
   String sendToDevice(String name) => 'ส่งไปที่ $name';
   @override
   String get dropzoneKeys => '↑↓ เลือก · Enter ส่ง · Esc ปิด';
+  @override
+  String debugConsole(int lines) => 'คอนโซลดีบัก · $lines บรรทัด';
+  @override
+  String get noLogLines => 'ยังไม่มีบันทึก';
 }
 
 /// Provides the [Strings] for the chosen language to the widget tree.
