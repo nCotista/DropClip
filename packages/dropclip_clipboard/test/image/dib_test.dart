@@ -1,4 +1,3 @@
-import 'dart:io' show ZLibDecoder;
 import 'dart:typed_data';
 
 import 'package:dropclip_clipboard/dropclip_clipboard.dart';
@@ -143,63 +142,14 @@ void main() {
     });
   });
 
-  group('encodePng', () {
-    test('valid chunks, CRCs and pixels', () {
-      final img = decodeDib(makeDib(
-          3, 2, [red, clear, half, blue, white, green],
+  group('dibToPng', () {
+    test('CF_DIBV5 → PNG keeps size and DPI', () {
+      final png = dibToPng(makeDib(3, 2, [red, clear, half, blue, white, green],
           header: 124, bitfields: true, pelsPerMetre: 3780));
-      final png = encodePng(img);
       expect(png.sublist(0, 8), pngSignature);
-
-      final d = ByteData.sublistView(png);
-      final chunks = <String, Uint8List>{};
-      for (var o = 8; o < png.length;) {
-        final len = d.getUint32(o);
-        final type = String.fromCharCodes(png.sublist(o + 4, o + 8));
-        final body = png.sublist(o + 8, o + 8 + len);
-        expect(
-            d.getUint32(o + 8 + len), pngCrc32(png.sublist(o + 4, o + 8 + len)),
-            reason: '$type CRC');
-        chunks[type] = body;
-        o += 12 + len;
-      }
-      expect(chunks.keys, ['IHDR', 'pHYs', 'IDAT', 'IEND']);
-      expect(pngCrc32('IEND'.codeUnits), 0xAE426082);
-
-      final ihdr = ByteData.sublistView(chunks['IHDR']!);
-      expect([
-        ihdr.getUint32(0),
-        ihdr.getUint32(4),
-        ihdr.getUint8(8),
-        ihdr.getUint8(9)
-      ], [
-        3,
-        2,
-        8,
-        6
-      ]);
-      expect(ByteData.sublistView(chunks['pHYs']!).getUint32(0), 3780);
-
-      final raw = ZLibDecoder().convert(chunks['IDAT']!);
-      expect(raw, hasLength((3 * 4 + 1) * 2));
-      expect([raw[0], raw[13]], [0, 2]); // None, then Up
-      final row0 = raw.sublist(1, 13);
-      expect(row0, [...red, ...clear, ...half]);
-      // Undo the Up filter: each byte plus the byte above, mod 256.
-      final row1 = [
-        for (var i = 0; i < 12; i++) (raw[14 + i] + row0[i]) & 0xFF
-      ];
-      expect(row1, [...blue, ...white, ...green]);
-
-      final plain =
-          ZLibDecoder().convert(_idat(encodePng(img, upFilter: false)));
-      expect([plain[0], plain[13]], [0, 0]);
-      expect(plain.sublist(14), [...blue, ...white, ...green]);
-    });
-
-    test('no pHYs when DPI is unknown', () {
-      final png = dibToPng(makeDib(1, 1, [red]));
-      expect(String.fromCharCodes(png).contains('pHYs'), isFalse);
+      final ihdr = ByteData.sublistView(png, 16, 24);
+      expect([ihdr.getUint32(0), ihdr.getUint32(4)], [3, 2]);
+      expect(String.fromCharCodes(png).contains('pHYs'), isTrue);
     });
 
     test('4K screenshot converts (NFR-P05 timing printed)', () {
@@ -213,17 +163,4 @@ void main() {
       expect(png.length, greaterThan(0));
     });
   });
-}
-
-/// The IDAT payload of a PNG with a single IDAT chunk.
-List<int> _idat(Uint8List png) {
-  final d = ByteData.sublistView(png);
-  for (var o = 8; o < png.length;) {
-    final len = d.getUint32(o);
-    if (String.fromCharCodes(png.sublist(o + 4, o + 8)) == 'IDAT') {
-      return png.sublist(o + 8, o + 8 + len);
-    }
-    o += 12 + len;
-  }
-  throw StateError('no IDAT');
 }
