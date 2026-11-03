@@ -1,6 +1,8 @@
 library dropclip_clipboard;
 
 export 'src/channel/clip_snapshot.dart';
+export 'src/channel/clipboard_channel.dart';
+export 'src/channel/native_clipboard.dart';
 
 /// Data class representing an item on the native clipboard
 class ClipboardItem {
