@@ -1,5 +1,6 @@
 import 'package:dropclip_desktop/src/app.dart';
 import 'package:dropclip_desktop/src/demo_data.dart';
+import 'package:dropclip_desktop/src/l10n/strings.dart';
 import 'package:dropclip_desktop/src/settings/auto_start.dart';
 import 'package:dropclip_desktop/src/settings/config.dart';
 import 'package:dropclip_desktop/src/settings/settings_page.dart';
@@ -89,7 +90,7 @@ void main() {
   });
 
   test('TTL labels', () {
-    expect([for (final s in ttlChoices) ttlLabel(s)],
+    expect([for (final s in ttlChoices) const EnStrings().ttl(s)],
         ['Never', '30 seconds', '1 minute', '5 minutes', '15 minutes']);
   });
 
