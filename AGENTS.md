@@ -128,34 +128,46 @@ melos run build:runner
 
 ## 5. Mandatory Workflow for Developers & AI Assistants
 
-Whenever an AI assistant or human developer starts or finishes a task, **YOU MUST FOLLOW THESE TWO MANDATORY LOGGING STEPS**:
+Whenever an AI assistant or human developer starts or finishes a task, **YOU MUST FOLLOW THIS TWO-STREAM WORKFLOW**:
 
-### Step 1: Branch Creation & Work Log Entry (บันทึก Work Log ทุกครั้งที่ลงมือทำ)
+> [!IMPORTANT]
+> **Centralized Progress Branch:** All updates to `docs/worklogs/` and `docs/TASK-PROGRESS-AND-UPDATES.md` (or `UPDATES.md`) **MUST be committed to the `docs/task-progress-tracker` branch ONLY**!
+> **DO NOT** commit worklogs or task progress updates into feature/spike/fix branches (prevents merge conflicts and keeps PR diffs $\le 400$ lines).
+
+### Stream 1: Feature / Spike / Fix Branch (Code & Tests Only)
 1. Pick your assigned ticket from [`docs/02-TICKETS.md`](docs/02-TICKETS.md).
 2. Branch out from `main`:
    ```bash
    git checkout -b <type>/<TICKET_ID>-<slug>
    # Example: git checkout -b feat/T1.1-mdns-discovery
    ```
-3. **Open or create your branch work log** in [`docs/worklogs/`](docs/worklogs/):
-   - Copy [`docs/worklogs/TEMPLATE.md`](docs/worklogs/TEMPLATE.md) into `docs/worklogs/<TICKET_ID>-<slug>.md` (or append to [`docs/worklogs/WORK_LOG.md`](docs/worklogs/WORK_LOG.md)).
-   - Document what you did, technical decisions made, and test results as you work.
+3. Implement code and tests in this branch. Keep PR diff $\le 400$ lines.
+4. Verify code quality:
+   ```bash
+   melos run format
+   melos run analyze
+   melos run test
+   ```
+5. Commit only code and tests. Open PR, review, and merge into `main`.
 
-### Step 2: Update the Central Task Progress File (อัปเดตไฟล์กลางเมื่อเสร็จงาน)
-**BEFORE opening a Pull Request or merging your branch into `main`:**
-1. Open [`docs/TASK-PROGRESS-AND-UPDATES.md`](docs/TASK-PROGRESS-AND-UPDATES.md) (or root shortcut [`UPDATES.md`](UPDATES.md)).
-2. Mark your ticket as `[x] DONE` in the Ticket Status Board.
-3. Add a new row in the **Branch & Completed Tasks Registry table** with:
-   - Ticket ID & Branch Name
-   - Assignee & Role Code (`LEAD`, `DESK`, `MOB`, `NET`, `QA`)
-   - Status (`Ready for PR` / `Merged`)
-   - Commit Hash & Completion Date
-   - Summary of Changes & Test Verification Output
-   - Reviewer / Dependency Notes
-4. Commit the update to your branch before merging:
+### Stream 2: Worklog & Task Progress Tracking (in `docs/task-progress-tracker` branch ONLY)
+**Record worklogs and update central progress on the tracker branch:**
+1. Switch to `docs/task-progress-tracker` branch:
+   ```bash
+   git checkout docs/task-progress-tracker
+   git pull origin docs/task-progress-tracker
+   ```
+2. **Open or create your branch work log** in [`docs/worklogs/`](docs/worklogs/):
+   - Copy [`docs/worklogs/TEMPLATE.md`](docs/worklogs/TEMPLATE.md) into `docs/worklogs/<TICKET_ID>-<slug>.md` (or append to [`docs/worklogs/WORK_LOG.md`](docs/worklogs/WORK_LOG.md)).
+   - Document what you did, technical decisions made, and test results.
+3. Open [`docs/TASK-PROGRESS-AND-UPDATES.md`](docs/TASK-PROGRESS-AND-UPDATES.md) (or root shortcut [`UPDATES.md`](UPDATES.md)):
+   - Mark your ticket as `[x] DONE` in the Ticket Status Board.
+   - Add a new row in the **Branch & Completed Tasks Registry table** with Ticket ID, Branch Name, Assignee, Status, Commit Hash, Date, Summary, and Reviewer notes.
+4. Commit and push directly to `docs/task-progress-tracker`:
    ```bash
    git add docs/TASK-PROGRESS-AND-UPDATES.md docs/worklogs/
-   git commit -m "docs(updates): update task progress for <TICKET_ID>"
+   git commit -m "docs(updates): update task progress and worklog for <TICKET_ID>"
+   git push origin docs/task-progress-tracker
    ```
 
 ---
@@ -164,11 +176,11 @@ Whenever an AI assistant or human developer starts or finishes a task, **YOU MUS
 
 No branch or PR may be approved or merged until ALL boxes are checked:
 - [ ] Code strictly follows Monorepo & Architectural Invariants (§3).
-- [ ] PR diff is $\le 400$ lines.
+- [ ] PR diff is $\le 400$ lines (excluding generated files).
+- [ ] Feature branch does NOT contain `docs/worklogs/` or `docs/TASK-PROGRESS-AND-UPDATES.md`.
 - [ ] `melos run format` passes with 0 changes.
 - [ ] `melos run analyze` passes with 0 infos, warnings, or errors.
 - [ ] Unit & integration tests pass with $\ge 75\%$ code coverage.
 - [ ] NO plaintext secrets, private keys, or clipboard contents logged.
-- [ ] Work log documented in `docs/worklogs/`.
-- [ ] Central progress registry updated in [`docs/TASK-PROGRESS-AND-UPDATES.md`](docs/TASK-PROGRESS-AND-UPDATES.md).
+- [ ] Work log documented and central progress registry updated in `docs/task-progress-tracker` branch.
 
