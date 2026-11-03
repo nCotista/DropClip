@@ -7,6 +7,7 @@ export 'src/pairing/pairing_engine.dart';
 export 'src/platform/android_service_bridge.dart';
 export 'src/platform/ios_app_group_sync.dart';
 export 'src/platform/ios_network_permission_manager.dart';
+export 'src/release/release_updater.dart';
 export 'src/revocation/revocation_manager.dart';
 export 'src/security/device_identity.dart';
 export 'src/security/security_audit_runner.dart';
