@@ -63,6 +63,8 @@ Future<void> main(List<String> args) async {
   // line scrubbed (NFR-S02). Ctrl+Shift+D / ⌘⇧D shows them in the app.
   final log = StructuredLogger(
     deviceId: local.deviceId,
+    // §15.6 log_level; per-event discovery chatter is debug only.
+    minLevel: LogLevel.values.byName(store.config.value.logLevel),
     sink: RotatingFileSink(
         Directory('${store.file.parent.path}${Platform.pathSeparator}logs')),
   );
@@ -74,7 +76,7 @@ Future<void> main(List<String> args) async {
     cache: PeerCache(
         localDeviceId: local.deviceId, trustedFingerprint: (_) => null),
     local: local,
-    onDebug: (m) => log.info('discovery', m),
+    onDebug: (m) => log.debug('discovery', m),
   );
   final status = ValueNotifier(demoShellStatus.withNearby(const []));
   discovery.nearby.addListener(() {
