@@ -43,7 +43,7 @@ void main() {
         home: DebugConsoleHost(
           feed: feed,
           maxLines: maxLines,
-          child: const Focus(autofocus: true, child: Text('app')),
+          child: const Text('app'), // nothing focused, like the real app
         ),
       ));
     }
