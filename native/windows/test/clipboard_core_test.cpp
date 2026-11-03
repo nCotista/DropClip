@@ -49,6 +49,7 @@ class FakeClipboard : public ClipboardApi {
     return true;
   }
   bool SetData(uint32_t f, const Bytes& b) override {
+    CHECK(is_open);
     data[f] = b;
     return true;
   }
@@ -181,6 +182,41 @@ void TestUtfEdgeCases() {
   CHECK(Utf16ToUtf8({0x00, 0xDC}) == "\xEF\xBF\xBD");  // lone low surrogate
 }
 
+void TestUtf8ToUtf16() {
+  CHECK(Utf8ToUtf16({0xFF}) == (Bytes{0xFD, 0xFF, 0, 0}));                    // invalid byte
+  CHECK(Utf8ToUtf16({0xE0, 0xB8}) == (Bytes{0xFD, 0xFF, 0xFD, 0xFF, 0, 0}));  // truncated
+  CHECK(Utf8ToUtf16({0xED, 0xA0, 0x80}).size() == 3 * 2 + 2);  // surrogate: 3 x U+FFFD
+  CHECK(Utf16ToUtf8(Utf8ToUtf16(B("ไทย 😀 a"))) == "ไทย 😀 a");
+}
+
+void TestWriteIsOneTransaction() {
+  FakeClipboard c;
+  c.data[kF.dib] = {9};  // old content is replaced
+  uint32_t token = 0;
+  c.seq = 555;
+  CHECK(WriteItems(c, kF,
+                   {{"image/png", {1}}, {"image/x-win-dibv5", {2}}, {"text/plain", B("ก")},
+                    {"application/x-unknown", {3}}},
+                   token) == Status::kOk);
+  CHECK(token == 555);
+  CHECK(c.data.size() == 3);
+  CHECK(c.data[kF.png] == Bytes{1} && c.data[kF.dib_v5] == Bytes{2});
+  CHECK(c.data[kF.unicode_text] == U16(u"ก"));
+  CHECK(!c.is_open);
+}
+
+void TestWriteAndClearLocked() {
+  FakeClipboard c;
+  c.lock_count = 10;
+  c.data[kF.png] = {1};
+  uint32_t token = 7;
+  CHECK(WriteItems(c, kF, {{"image/png", {2}}}, token) == Status::kLocked);
+  CHECK(token == 7 && c.data[kF.png] == Bytes{1});
+  CHECK(Clear(c) == Status::kLocked);
+  c.lock_count = 0;
+  CHECK(Clear(c) == Status::kOk && c.data.empty());
+}
+
 }  // namespace
 
 int main() {
@@ -194,6 +230,9 @@ int main() {
   TestLockedWithMarkerFailsClosed();
   TestEmptyAndBrokenData();
   TestUtfEdgeCases();
+  TestUtf8ToUtf16();
+  TestWriteIsOneTransaction();
+  TestWriteAndClearLocked();
   if (failures != 0) {
     std::printf("%d check(s) failed\n", failures);
     return 1;

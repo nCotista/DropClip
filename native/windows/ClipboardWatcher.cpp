@@ -6,131 +6,161 @@
 #endif
 #include <windows.h>
 
+#include <cstring>
 #include <functional>
+#include <memory>
 #include <utility>
+
+#include "clipboard_core.h"
+
+namespace dropclip {
+
+// ClipboardApi on real Win32 calls. `owner` is our message-only window, so
+// clipboard content we write is owned by it and can be skipped as echo.
+class Win32ClipboardApi : public ClipboardApi {
+ public:
+  explicit Win32ClipboardApi(HWND owner) : owner_(owner) {}
+
+  bool Open() override { return OpenClipboard(owner_) != FALSE; }
+  void Close() override { CloseClipboard(); }
+  bool IsAvailable(uint32_t format) const override {
+    return IsClipboardFormatAvailable(format) != FALSE;
+  }
+
+  std::optional<Bytes> GetData(uint32_t format) override {
+    HANDLE handle = GetClipboardData(format);
+    if (handle == nullptr) return std::nullopt;
+    const SIZE_T size = GlobalSize(handle);
+    const auto* p = static_cast<const uint8_t*>(GlobalLock(handle));
+    if (p == nullptr) return std::nullopt;
+    Bytes out(p, p + size);
+    GlobalUnlock(handle);
+    return out;
+  }
+
+  bool Empty() override { return EmptyClipboard() != FALSE; }
+
+  bool SetData(uint32_t format, const Bytes& data) override {
+    HGLOBAL handle = GlobalAlloc(GMEM_MOVEABLE, data.empty() ? 1 : data.size());
+    if (handle == nullptr) return false;
+    void* p = GlobalLock(handle);
+    if (p == nullptr) {
+      GlobalFree(handle);
+      return false;
+    }
+    if (!data.empty()) std::memcpy(p, data.data(), data.size());
+    GlobalUnlock(handle);
+    // On success the OS owns the memory; on failure it is still ours.
+    if (SetClipboardData(format, handle) == nullptr) {
+      GlobalFree(handle);
+      return false;
+    }
+    return true;
+  }
+
+  uint32_t SequenceNumber() const override { return GetClipboardSequenceNumber(); }
+  void Sleep(uint32_t ms) override { ::Sleep(ms); }
+
+ private:
+  HWND owner_;
+};
 
 /**
  * Windows Native Clipboard Watcher using Win32 Event-Driven Listener (PROTO-DC-V2.0 §14.1, FR-03A)
  *
- * Threading: Start()/Stop() MUST be called on a thread that pumps a Win32 message loop
- * (the Flutter Windows runner's platform thread does). The watcher itself never reads
- * clipboard content; it only reports "changed" + whether the change is concealed (§10.4).
+ * Threading: all methods MUST be called on a thread that pumps a Win32 message loop
+ * (the Flutter Windows runner's platform thread does). The platform channel (PR 3)
+ * maps Status::kLocked to PlatformException('CLIPBOARD_LOCKED').
  */
 class WindowsClipboardWatcher {
-public:
-    // concealed == true → content MUST NOT be read or synced (NFR-S04).
-    // sequence  == GetClipboardSequenceNumber() at the time of the change.
-    using ChangeCallback = std::function<void(bool concealed, DWORD sequence)>;
+ public:
+  // Called for every change made by another app. On kOk the snapshot is filled
+  // (items empty when concealed, §10.4); on kLocked it only has change_token.
+  using ChangeCallback = std::function<void(Status status, const Snapshot& snapshot)>;
 
-    explicit WindowsClipboardWatcher(ChangeCallback onChange)
-        : onChange_(std::move(onChange)),
-          cfExclude_(RegisterClipboardFormatW(L"ExcludeClipboardContentFromMonitorProcessing")),
-          cfHistory_(RegisterClipboardFormatW(L"CanIncludeInClipboardHistory")),
-          cfCloud_(RegisterClipboardFormatW(L"CanUploadToCloudClipboard")) {}
+  explicit WindowsClipboardWatcher(ChangeCallback onChange) : onChange_(std::move(onChange)) {
+    formats_.png = RegisterClipboardFormatW(L"PNG");
+    formats_.exclude = RegisterClipboardFormatW(L"ExcludeClipboardContentFromMonitorProcessing");
+    formats_.history = RegisterClipboardFormatW(L"CanIncludeInClipboardHistory");
+    formats_.cloud = RegisterClipboardFormatW(L"CanUploadToCloudClipboard");
+  }
 
-    WindowsClipboardWatcher(const WindowsClipboardWatcher&) = delete;
-    WindowsClipboardWatcher& operator=(const WindowsClipboardWatcher&) = delete;
+  WindowsClipboardWatcher(const WindowsClipboardWatcher&) = delete;
+  WindowsClipboardWatcher& operator=(const WindowsClipboardWatcher&) = delete;
 
-    ~WindowsClipboardWatcher() { Stop(); }
+  ~WindowsClipboardWatcher() { Stop(); }
 
-    bool Start() {
-        if (hwnd_ != nullptr) return true;  // Already running
+  bool Start() {
+    if (hwnd_ != nullptr) return true;  // Already running
 
-        WNDCLASSEXW wc = {};
-        wc.cbSize = sizeof(wc);
-        wc.lpfnWndProc = &WindowsClipboardWatcher::WndProc;
-        wc.hInstance = GetModuleHandleW(nullptr);
-        wc.lpszClassName = kClassName;
-        if (RegisterClassExW(&wc) == 0 && GetLastError() != ERROR_CLASS_ALREADY_EXISTS) {
-            return false;
-        }
-
-        // `this` is handed over through lpParam and stored in GWLP_USERDATA on WM_NCCREATE.
-        hwnd_ = CreateWindowExW(0, kClassName, L"DropClipWatcher", 0, 0, 0, 0, 0,
-                                HWND_MESSAGE, nullptr, wc.hInstance, this);
-        if (hwnd_ == nullptr) return false;
-
-        if (!AddClipboardFormatListener(hwnd_)) {
-            DestroyWindow(hwnd_);
-            hwnd_ = nullptr;
-            return false;
-        }
-        return true;
+    WNDCLASSEXW wc = {};
+    wc.cbSize = sizeof(wc);
+    wc.lpfnWndProc = &WindowsClipboardWatcher::WndProc;
+    wc.hInstance = GetModuleHandleW(nullptr);
+    wc.lpszClassName = kClassName;
+    if (RegisterClassExW(&wc) == 0 && GetLastError() != ERROR_CLASS_ALREADY_EXISTS) {
+      return false;
     }
 
-    void Stop() {
-        if (hwnd_ == nullptr) return;
-        RemoveClipboardFormatListener(hwnd_);
-        DestroyWindow(hwnd_);
-        hwnd_ = nullptr;
+    // `this` is handed over through lpParam and stored in GWLP_USERDATA on WM_NCCREATE.
+    hwnd_ = CreateWindowExW(0, kClassName, L"DropClipWatcher", 0, 0, 0, 0, 0, HWND_MESSAGE,
+                            nullptr, wc.hInstance, this);
+    if (hwnd_ == nullptr) return false;
+
+    if (!AddClipboardFormatListener(hwnd_)) {
+      DestroyWindow(hwnd_);
+      hwnd_ = nullptr;
+      return false;
     }
+    api_ = std::make_unique<Win32ClipboardApi>(hwnd_);
+    return true;
+  }
 
-    // Our own window; used by the writer side so that echo of our writes can be skipped.
-    HWND Handle() const { return hwnd_; }
+  void Stop() {
+    if (hwnd_ == nullptr) return;
+    RemoveClipboardFormatListener(hwnd_);
+    DestroyWindow(hwnd_);
+    hwnd_ = nullptr;
+    api_.reset();
+  }
 
-private:
-    static constexpr const wchar_t* kClassName = L"DropClipWatcherClass";
+  // §14.1 methods for the platform channel. They need Start() first.
+  Status Read(Snapshot& out) { return ReadSnapshot(*api_, formats_, out); }
+  Status Write(const std::vector<Item>& items, uint32_t& token) {
+    return WriteItems(*api_, formats_, items, token);
+  }
+  Status ClearClipboard() { return Clear(*api_); }
+  uint32_t ChangeToken() const { return GetClipboardSequenceNumber(); }
+  bool IsRunning() const { return api_ != nullptr; }
 
-    static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
-        if (msg == WM_NCCREATE) {
-            auto* create = reinterpret_cast<CREATESTRUCTW*>(lParam);
-            SetWindowLongPtrW(hwnd, GWLP_USERDATA,
-                              reinterpret_cast<LONG_PTR>(create->lpCreateParams));
-        }
-        auto* self = reinterpret_cast<WindowsClipboardWatcher*>(
-            GetWindowLongPtrW(hwnd, GWLP_USERDATA));
-        if (msg == WM_CLIPBOARDUPDATE && self != nullptr) {
-            self->OnClipboardUpdate();
-            return 0;
-        }
-        return DefWindowProcW(hwnd, msg, wParam, lParam);
+ private:
+  static constexpr const wchar_t* kClassName = L"DropClipWatcherClass";
+
+  static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
+    if (msg == WM_NCCREATE) {
+      auto* create = reinterpret_cast<CREATESTRUCTW*>(lParam);
+      SetWindowLongPtrW(hwnd, GWLP_USERDATA, reinterpret_cast<LONG_PTR>(create->lpCreateParams));
     }
-
-    void OnClipboardUpdate() {
-        // Echo of our own write (we called OpenClipboard(hwnd_) + EmptyClipboard()).
-        if (GetClipboardOwner() == hwnd_) return;
-        if (onChange_) onChange_(IsConcealed(), GetClipboardSequenceNumber());
+    auto* self = reinterpret_cast<WindowsClipboardWatcher*>(GetWindowLongPtrW(hwnd, GWLP_USERDATA));
+    if (msg == WM_CLIPBOARDUPDATE && self != nullptr) {
+      self->OnClipboardUpdate();
+      return 0;
     }
+    return DefWindowProcW(hwnd, msg, wParam, lParam);
+  }
 
-    // PROTO §10.4 Windows markers. Presence of the exclude format, or a DWORD 0 in either
-    // history/cloud format, means the source app (e.g. a password manager) marked it sensitive.
-    bool IsConcealed() const {
-        if (cfExclude_ != 0 && IsClipboardFormatAvailable(cfExclude_)) return true;
+  void OnClipboardUpdate() {
+    // Echo of our own write (Write() opened the clipboard with hwnd_).
+    if (GetClipboardOwner() == hwnd_ || api_ == nullptr || !onChange_) return;
+    Snapshot snapshot;
+    const Status status = ReadSnapshot(*api_, formats_, snapshot);
+    onChange_(status, snapshot);
+  }
 
-        const bool hasHistory = cfHistory_ != 0 && IsClipboardFormatAvailable(cfHistory_);
-        const bool hasCloud = cfCloud_ != 0 && IsClipboardFormatAvailable(cfCloud_);
-        if (!hasHistory && !hasCloud) return false;
-
-        if (!OpenClipboardWithRetry()) return true;  // Fail closed: cannot verify → treat as concealed
-        const bool concealed = (hasHistory && FormatIsZeroDword(cfHistory_)) ||
-                               (hasCloud && FormatIsZeroDword(cfCloud_));
-        CloseClipboard();
-        return concealed;
-    }
-
-    static bool FormatIsZeroDword(UINT format) {
-        HANDLE data = GetClipboardData(format);
-        if (data == nullptr || GlobalSize(data) < sizeof(DWORD)) return false;
-        const auto* value = static_cast<const DWORD*>(GlobalLock(data));
-        if (value == nullptr) return false;
-        const bool isZero = (*value == 0);
-        GlobalUnlock(data);
-        return isZero;
-    }
-
-    // CLIPBOARD_LOCK_RETRY (§16): 3 attempts with 50 / 100 / 200 ms backoff.
-    bool OpenClipboardWithRetry() const {
-        const DWORD delaysMs[] = {50, 100, 200};
-        for (DWORD delay : delaysMs) {
-            if (OpenClipboard(hwnd_)) return true;
-            Sleep(delay);
-        }
-        return OpenClipboard(hwnd_) != FALSE;
-    }
-
-    ChangeCallback onChange_;
-    HWND hwnd_ = nullptr;
-    const UINT cfExclude_;
-    const UINT cfHistory_;
-    const UINT cfCloud_;
+  ChangeCallback onChange_;
+  Formats formats_;
+  HWND hwnd_ = nullptr;
+  std::unique_ptr<Win32ClipboardApi> api_;
 };
+
+}  // namespace dropclip
