@@ -55,7 +55,7 @@
 - **Milestone M1: Discovery, Identity & Pairing (สัปดาห์ 3–5)**
   - [ ] **T1.1** Zero-Configuration mDNS Advertiser & Browser Engine (`DESK`)
   - [x] **T1.2** Per-Device Key Identity & Encrypted Store (`LEAD`) — **DONE**
-  - [ ] **T1.3** Pairing Engine, Commit-then-Reveal SAS & QR Flow (`LEAD` + `MOB`)
+  - [x] **T1.3** Pairing Engine, Commit-then-Reveal SAS & QR Flow (`LEAD` + `MOB`) — **DONE**
 - **Milestone M2: Secure Transport & Control Plane (สัปดาห์ 5–7)**
   - [ ] **T1.4** Mutual TLS 1.3 Transport Server & Pinned Client (`NET`)
   - [ ] **T1.5** WebSocket Control Plane & Reconnect Engine (`NET`)
@@ -122,7 +122,8 @@
 | 2026-11-03 | **T0.2** (1b) | `feat/T0.2-protocol-payloads-fuzzer` | `LEAD` (เจ) | `READY FOR PR` | `98b5e06` | **Protocol Payloads & 10,000-Iteration Fuzz Suite:** `HelloPayload`, `ClipboardUpdatePayload` (§18.5 size boundaries), `FileOfferItem`, `RevocationBroadcastToken` (§7.4.10) และ Fuzz Test 10,000 รอบ; Verification: format/analyze/test ผ่าน (43 passed), fuzzer ผ่าน 10,000/10,000 | T1.2, T1.3, T1.13 |
 | 2026-11-03 | **S0.1** | `spike/S0.1-mtls-p256-crossplatform` | `LEAD` (เจ) | `READY FOR PR` | `4ef539a` | **Cross-Platform mTLS 1.3 ECDSA P-256 Matrix (`spike_tls_matrix_test.dart`):** ยืนยัน Handshake mTLS 1.3 (`prime256v1`), `withTrustedRoots: false`, app-layer SHA-256 DER pinning, การบล็อก rogue cert 100%, และ `403 E_NOT_PAIRED` หลัง revoke บน macOS arm64 & Windows; Verification: format/analyze/test ผ่าน (`dropclip_core` 17 passed) | T1.2, T1.4 |
 | 2026-11-03 | **T1.2** (3a) | `feat/T1.2-device-identity` | `LEAD` (เจ) | `READY FOR PR` | `2e15411` | **Per-Device ECDSA P-256 Identity & SecureKeyStore (`E-01`):** `DeviceIdentity`, `InMemorySecureKeyStore` (`dropclip.identity.p256`), `DeviceIdentityManager` (auto-generate `prime256v1` X.509 v3 cert 10yr, `identity.json` public metadata, `signUtf8`/`verifyUtf8` ECDSA P-256 SHA-256) และ NFR-S02 disk audit ตรวจ 0 private keys บน disk; Verification: format/analyze/test ผ่าน | T1.2 (3b), T1.13 |
-| 2026-11-03 | **T1.2** (3b) | `feat/T1.2-trusted-device-store` | `LEAD` (เจ) | `READY FOR PR` | *(commit นี้)* | **Encrypted Trusted Device Store (`E-02`, `trusted_devices.json.enc`):** `TrustedDevice`, `TrustedDeviceStore` เข้ารหัสแบบ `nonce(12B) \|\| ciphertext \|\| tag(16B)` ด้วย `dropclip.store.key`, รองรับ `fingerprintOf` (เข้ากันได้กับ `PeerCache` ของ `DESK`), `isActiveFingerprint`, quarantine status และตรวจจับการแก้ไข tag; Verification: format/analyze/test ผ่าน | T1.3, T1.4, T1.13 |
+| 2026-11-03 | **T1.2** (3b) | `feat/T1.2-trusted-device-store` | `LEAD` (เจ) | `READY FOR PR` | `658f86b` | **Encrypted Trusted Device Store (`E-02`, `trusted_devices.json.enc`):** `TrustedDevice`, `TrustedDeviceStore` เข้ารหัสแบบ `nonce(12B) \|\| ciphertext \|\| tag(16B)` ด้วย `dropclip.store.key`, รองรับ `fingerprintOf` (เข้ากันได้กับ `PeerCache` ของ `DESK`), `isActiveFingerprint`, quarantine status และตรวจจับการแก้ไข tag; Verification: format/analyze/test ผ่าน | T1.3, T1.4, T1.13 |
+| 2026-11-03 | **T1.3** | `feat/T1.3-pairing-sas-engine` | `LEAD` (เจ) | `READY FOR PR` | *(commit นี้)* | **Pairing Engine, Commit-then-Reveal SAS & Zero-PIN-on-Wire (`T1.3`):** `QrPairingPayload` (§5.3), `PairingEngine` (`/pair`, `/pair/confirm`, `/pair/finalize`), ผ่าน test vector `337017` (QR) และ `639589` (PIN), บล็อกการส่ง PIN บน wire, จำกัดอัตรา 5 req/min/IP (`E_RATE_LIMITED`) และล็อก 5 นาทีเมื่อผิดครบ 3 ครั้ง (`E_PAIR_LOCKED`); Verification: format/analyze/test ผ่าน | T1.4, T2.5 |
 | *(เพิ่มต่อที่นี่)*| ... | ... | ... | ... | ... | ... | ... |
 
 ---
