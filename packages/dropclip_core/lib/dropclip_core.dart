@@ -4,6 +4,7 @@ import 'dart:typed_data';
 
 export 'src/logging_scrubber.dart';
 export 'src/pairing/pairing_engine.dart';
+export 'src/revocation/revocation_manager.dart';
 export 'src/security/device_identity.dart';
 export 'src/security/trusted_device_store.dart';
 export 'src/test_cluster.dart';

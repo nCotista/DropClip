@@ -69,7 +69,7 @@
   - [ ] **T1.11** Resumable Transfer Engine (64 MiB Checkpoints) (`NET`)
 - **Milestone M5: Desktop UI & Polish (สัปดาห์ 11–12)**
   - [ ] **T1.12** Desktop System Tray, Dropzone UI & Settings (`DESK`)
-  - [ ] **T1.13** Device Management & Signed Cluster Revocation (`LEAD`)
+  - [x] **T1.13** Device Management & Signed Cluster Revocation (`LEAD`) — **DONE**
 - [ ] **🚦 GATE-1** Milestone Review, Desktop Security Pentest & Dogfooding (`ALL`)
 
 ---
@@ -123,7 +123,8 @@
 | 2026-11-03 | **S0.1** | `spike/S0.1-mtls-p256-crossplatform` | `LEAD` (เจ) | `READY FOR PR` | `4ef539a` | **Cross-Platform mTLS 1.3 ECDSA P-256 Matrix (`spike_tls_matrix_test.dart`):** ยืนยัน Handshake mTLS 1.3 (`prime256v1`), `withTrustedRoots: false`, app-layer SHA-256 DER pinning, การบล็อก rogue cert 100%, และ `403 E_NOT_PAIRED` หลัง revoke บน macOS arm64 & Windows; Verification: format/analyze/test ผ่าน (`dropclip_core` 17 passed) | T1.2, T1.4 |
 | 2026-11-03 | **T1.2** (3a) | `feat/T1.2-device-identity` | `LEAD` (เจ) | `READY FOR PR` | `2e15411` | **Per-Device ECDSA P-256 Identity & SecureKeyStore (`E-01`):** `DeviceIdentity`, `InMemorySecureKeyStore` (`dropclip.identity.p256`), `DeviceIdentityManager` (auto-generate `prime256v1` X.509 v3 cert 10yr, `identity.json` public metadata, `signUtf8`/`verifyUtf8` ECDSA P-256 SHA-256) และ NFR-S02 disk audit ตรวจ 0 private keys บน disk; Verification: format/analyze/test ผ่าน | T1.2 (3b), T1.13 |
 | 2026-11-03 | **T1.2** (3b) | `feat/T1.2-trusted-device-store` | `LEAD` (เจ) | `READY FOR PR` | `658f86b` | **Encrypted Trusted Device Store (`E-02`, `trusted_devices.json.enc`):** `TrustedDevice`, `TrustedDeviceStore` เข้ารหัสแบบ `nonce(12B) \|\| ciphertext \|\| tag(16B)` ด้วย `dropclip.store.key`, รองรับ `fingerprintOf` (เข้ากันได้กับ `PeerCache` ของ `DESK`), `isActiveFingerprint`, quarantine status และตรวจจับการแก้ไข tag; Verification: format/analyze/test ผ่าน | T1.3, T1.4, T1.13 |
-| 2026-11-03 | **T1.3** | `feat/T1.3-pairing-sas-engine` | `LEAD` (เจ) | `READY FOR PR` | *(commit นี้)* | **Pairing Engine, Commit-then-Reveal SAS & Zero-PIN-on-Wire (`T1.3`):** `QrPairingPayload` (§5.3), `PairingEngine` (`/pair`, `/pair/confirm`, `/pair/finalize`), ผ่าน test vector `337017` (QR) และ `639589` (PIN), บล็อกการส่ง PIN บน wire, จำกัดอัตรา 5 req/min/IP (`E_RATE_LIMITED`) และล็อก 5 นาทีเมื่อผิดครบ 3 ครั้ง (`E_PAIR_LOCKED`); Verification: format/analyze/test ผ่าน | T1.4, T2.5 |
+| 2026-11-03 | **T1.3** | `feat/T1.3-pairing-sas-engine` | `LEAD` (เจ) | `READY FOR PR` | `1e5f137` | **Pairing Engine, Commit-then-Reveal SAS & Zero-PIN-on-Wire (`T1.3`):** `QrPairingPayload` (§5.3), `PairingEngine` (`/pair`, `/pair/confirm`, `/pair/finalize`), ผ่าน test vector `337017` (QR) และ `639589` (PIN), บล็อกการส่ง PIN บน wire, จำกัดอัตรา 5 req/min/IP (`E_RATE_LIMITED`) และล็อก 5 นาทีเมื่อผิดครบ 3 ครั้ง (`E_PAIR_LOCKED`); Verification: format/analyze/test ผ่าน | T1.4, T2.5 |
+| 2026-11-03 | **T1.13** | `feat/T1.13-cluster-revocation` | `LEAD` (เจ) | `READY FOR PR` | *(commit นี้)* | **Device Management & Signed Cluster Revocation (`T1.13`):** `RevocationManager` เพิกถอนภายใน $<1\text{ s}$ (`4004`), เซ็น ECDSA P-256 `RevocationBroadcastToken`, บังคับใช้ No Self-Revocation by Proxy, Quarantine-then-Confirm, `revoked_tombstones.json` และ Handshake Anti-Entropy (`tombstones_hash` / `revocation.sync`); Verification: format/analyze/test ผ่าน | GATE-1 |
 | *(เพิ่มต่อที่นี่)*| ... | ... | ... | ... | ... | ... | ... |
 
 ---
