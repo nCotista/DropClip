@@ -1,0 +1,25 @@
+name: macOS Native (Swift)
+
+# Builds and tests the Flutter-free Swift core of the macOS plugin (T1.6).
+# Runs on every push that touches it, including stacked feature branches.
+on:
+  push:
+    paths:
+      - 'packages/dropclip_macos/macos/**'
+      - '.github/workflows/macos-native.yml'
+  pull_request:
+    paths:
+      - 'packages/dropclip_macos/macos/**'
+      - '.github/workflows/macos-native.yml'
+
+jobs:
+  swift-test:
+    name: Swift core tests (macOS)
+    runs-on: macos-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Build and test DropClipMacCore
+        working-directory: packages/dropclip_macos/macos
+        run: swift test
