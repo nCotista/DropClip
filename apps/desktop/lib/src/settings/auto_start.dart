@@ -55,8 +55,77 @@ class WindowsRunKeyAutoStart implements AutoStart {
   }
 }
 
-/// macOS needs `SMAppService` (13+) / a LaunchAgent (12) from native code,
-/// which is not written yet; reports off and refuses to change.
+/// macOS: a per-user LaunchAgent, `~/Library/LaunchAgents/<label>.plist`,
+/// that starts the app with `--hidden` at login (FR-12, NFR-U03). Used on
+/// macOS 12 and 13+ alike: `SMAppService.mainApp` (13+) cannot pass
+/// `--hidden`, so a login launch would open the window. Per-user, no admin
+/// rights, no native code; launchd reads it at the next login.
+class MacLaunchAgentAutoStart implements AutoStart {
+  static const label = 'dev.dropclip.dropclipDesktop.login';
+
+  final String executablePath;
+  final Directory launchAgents;
+
+  MacLaunchAgentAutoStart(this.executablePath, {required String home})
+      : launchAgents = Directory('$home/Library/LaunchAgents');
+
+  File get plist => File('${launchAgents.path}/$label.plist');
+
+  String get _program => '<string>${_xml(executablePath)}</string>';
+
+  String get plistContent => '''
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>$label</string>
+  <key>ProgramArguments</key>
+  <array>
+    $_program
+    <string>--hidden</string>
+  </array>
+  <key>RunAtLoad</key>
+  <true/>
+  <key>ProcessType</key>
+  <string>Interactive</string>
+</dict>
+</plist>
+''';
+
+  @override
+  Future<bool> isEnabled() async {
+    try {
+      // Only our own path counts; a stale one from an old install does not.
+      return plist.existsSync() && plist.readAsStringSync().contains(_program);
+    } on FileSystemException {
+      return false;
+    }
+  }
+
+  @override
+  Future<void> setEnabled(bool enabled) async {
+    try {
+      if (!enabled) {
+        if (plist.existsSync()) plist.deleteSync();
+        return;
+      }
+      launchAgents.createSync(recursive: true);
+      final tmp = File('${plist.path}.tmp')..writeAsStringSync(plistContent);
+      tmp.renameSync(plist.path);
+    } on FileSystemException catch (e) {
+      throw AutoStartException('LaunchAgent: ${e.message}');
+    }
+  }
+
+  static String _xml(String s) => s
+      .replaceAll('&', '&amp;')
+      .replaceAll('<', '&lt;')
+      .replaceAll('>', '&gt;')
+      .replaceAll('"', '&quot;');
+}
+
+/// For platforms without auto-start: reports off and refuses to change.
 class UnsupportedAutoStart implements AutoStart {
   const UnsupportedAutoStart();
 

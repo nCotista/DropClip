@@ -107,4 +107,55 @@ void main() {
       expect(auto.setEnabled(true), throwsA(isA<AutoStartException>()));
     });
   });
+
+  group('MacLaunchAgentAutoStart (FR-12, NFR-U03)', () {
+    late Directory home;
+    const exe = '/Applications/Drop & Clip.app/Contents/MacOS/dropclip_desktop';
+
+    setUp(() => home = Directory.systemTemp.createTempSync('home'));
+    tearDown(() => home.deleteSync(recursive: true));
+
+    test('enabling writes a LaunchAgent that starts the app hidden', () async {
+      final auto = MacLaunchAgentAutoStart(exe, home: home.path);
+      expect(await auto.isEnabled(), isFalse);
+      await auto.setEnabled(true);
+      expect(
+          auto.plist.path,
+          endsWith(
+              'Library/LaunchAgents/dev.dropclip.dropclipDesktop.login.plist'));
+      final xml = auto.plist.readAsStringSync();
+      expect(xml, contains('<string>/Applications/Drop &amp; Clip.app/'));
+      expect(xml, contains('<string>--hidden</string>'));
+      expect(xml, contains('<key>RunAtLoad</key>\n  <true/>'));
+      expect(await auto.isEnabled(), isTrue);
+      expect(File('${auto.plist.path}.tmp').existsSync(), isFalse);
+    });
+
+    test('disabling removes it, also when it is already gone', () async {
+      final auto = MacLaunchAgentAutoStart(exe, home: home.path);
+      await auto.setEnabled(true);
+      await auto.setEnabled(false);
+      expect(auto.plist.existsSync(), isFalse);
+      await auto.setEnabled(false);
+      expect(await auto.isEnabled(), isFalse);
+    });
+
+    test('an agent for another app path does not count', () async {
+      await MacLaunchAgentAutoStart('/old/dropclip', home: home.path)
+          .setEnabled(true);
+      expect(await MacLaunchAgentAutoStart(exe, home: home.path).isEnabled(),
+          isFalse);
+    });
+
+    test('a write failure is an AutoStartException; reconcile survives it',
+        () async {
+      File('${home.path}/Library').writeAsStringSync('not a folder');
+      final auto = MacLaunchAgentAutoStart(exe, home: home.path);
+      expect(auto.setEnabled(true), throwsA(isA<AutoStartException>()));
+      final store = ConfigStore(File('${home.path}/config.json'),
+          defaultDeviceName: 'Mac');
+      await store.load();
+      await ConfigController(store, auto).reconcile();
+    });
+  });
 }
