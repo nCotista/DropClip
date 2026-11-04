@@ -46,7 +46,8 @@ Future<void> main(List<String> args) async {
   final configs = ConfigController(
     store,
     isMacOS
-        ? const UnsupportedAutoStart()
+        ? MacLaunchAgentAutoStart(Platform.resolvedExecutable,
+            home: Platform.environment['HOME'] ?? '')
         : WindowsRunKeyAutoStart(Platform.resolvedExecutable),
   );
 
