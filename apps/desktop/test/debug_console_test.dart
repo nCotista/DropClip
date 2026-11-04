@@ -38,13 +38,13 @@ void main() {
     late _Feed feed;
 
     Future<void> pump(WidgetTester tester, {int maxLines = 500}) async {
+      // Mounted in MaterialApp.builder, above the Navigator and its Overlay,
+      // exactly as main.dart does; nothing focused, like the real app.
       await tester.pumpWidget(MaterialApp(
         theme: buildDropClipTheme(Brightness.dark),
-        home: DebugConsoleHost(
-          feed: feed,
-          maxLines: maxLines,
-          child: const Text('app'), // nothing focused, like the real app
-        ),
+        builder: (_, child) =>
+            DebugConsoleHost(feed: feed, maxLines: maxLines, child: child!),
+        home: const Text('app'),
       ));
     }
 
