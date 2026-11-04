@@ -118,10 +118,12 @@ class _DebugConsoleHostState extends State<DebugConsoleHost> {
             Expanded(
                 child: Text(s.debugConsole(_lines.length),
                     style: TextStyle(fontSize: 12, color: c.textSecondary))),
+            // No tooltip: this sits above the Navigator (MaterialApp.builder),
+            // where there is no Overlay for a tooltip to float in.
             IconButton(
-                icon: const Icon(Icons.close, size: 16),
-                onPressed: _toggle,
-                tooltip: 'Ctrl+Shift+D'),
+                icon: const Icon(Icons.close,
+                    size: 16, semanticLabel: 'Close (Ctrl+Shift+D)'),
+                onPressed: _toggle),
           ]),
         ),
         Expanded(
