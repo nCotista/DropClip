@@ -32,6 +32,8 @@ List<String> _all(Strings s) => [
       // Dropzone
       s.dropHere, s.releaseToAdd, s.itemCount(2), s.sendTo,
       s.sendToDevice('Pixel 8'), s.dropzoneKeys,
+      // Debug console
+      s.debugConsole(3), s.noLogLines,
     ];
 
 void main() {
