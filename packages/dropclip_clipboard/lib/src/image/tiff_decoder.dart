@@ -4,12 +4,13 @@ import 'package:dropclip_protocol/dropclip_protocol.dart';
 
 import 'dib.dart' show NormalizationException;
 import 'png_encoder.dart';
+import 'tiff_codecs.dart';
 
 /// macOS `public.tiff` → RGBA (FR-06, PROTO-DC-V2.0 §11.2). A TIFF can hold
 /// several images (Retina and non-Retina); the one with the most pixels is
 /// used, at full size. Supports strips of 8/16-bit grey or RGB with an
-/// optional alpha (premultiplied alpha is undone), uncompressed. [maxPixels]
-/// is checked before any pixel data is read (§11.3).
+/// optional alpha (premultiplied alpha is undone); strips may be compressed
+/// (see [decodeTiffStrip]). [maxPixels] is checked before decompressing (§11.3).
 RgbaImage decodeTiff(Uint8List tiff,
     {int maxPixels = ProtocolConstants.imageMaxPixels}) {
   if (tiff.length < 8) throw const NormalizationException('not a TIFF');
@@ -81,7 +82,10 @@ RgbaImage _decodeIfd(Uint8List tiff, Map<int, List<int>> t, int maxPixels) {
   if (w * h > maxPixels) throw NormalizationException('too large: ${w}x$h');
   final spp = one(277, 1), bits = t[258] ?? const [1];
   final depth = bits.first, photometric = one(262, -1);
-  final compression = one(259, 1);
+  final compression = one(259, 1), predictor = one(317, 1);
+  if (predictor == 2 && depth != 8) {
+    throw const NormalizationException('16-bit predictor');
+  }
   if (t.containsKey(322)) throw const NormalizationException('tiled TIFF');
   if (one(284, 1) != 1) throw const NormalizationException('planar TIFF');
   if ((depth != 8 && depth != 16) || bits.any((b) => b != depth)) {
@@ -110,8 +114,9 @@ RgbaImage _decodeIfd(Uint8List tiff, Map<int, List<int>> t, int maxPixels) {
     }
     final data =
         Uint8List.sublistView(tiff, offsets[s], offsets[s] + counts[s]);
-    raw.setRange(start, start + size, _strip(compression, data, size));
+    raw.setRange(start, start + size, decodeTiffStrip(compression, data, size));
   }
+  if (predictor == 2) undoTiffPredictor(raw, stride, bpp);
 
   final out = Uint8List(w * h * 4);
   // Big-endian 16-bit samples keep the first byte, little-endian the second.
@@ -135,15 +140,6 @@ RgbaImage _decodeIfd(Uint8List tiff, Map<int, List<int>> t, int maxPixels) {
   return RgbaImage(w, h, out,
       xPixelsPerMetre: _ppm(t[282], one(296, 2)),
       yPixelsPerMetre: _ppm(t[283], one(296, 2)));
-}
-
-Uint8List _strip(int compression, Uint8List data, int size) {
-  switch (compression) {
-    case 1:
-      if (data.length < size) throw const NormalizationException('strip short');
-      return data;
-  }
-  throw NormalizationException('unsupported compression $compression');
 }
 
 int _ppm(List<int>? rational, int unit) {
