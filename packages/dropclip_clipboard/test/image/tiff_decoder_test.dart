@@ -5,7 +5,7 @@ import 'package:test/test.dart';
 
 /// One image of a test TIFF: [samples] are the raw pixel bytes.
 class Img {
-  final int w, h, spp, depth, photometric, compression;
+  final int w, h, spp, depth, photometric, compression, predictor;
   final int? extraSamples;
   final List<int> samples;
   final int rowsPerStrip;
@@ -18,6 +18,7 @@ class Img {
       this.depth = 8,
       this.photometric = 2,
       this.compression = 1,
+      this.predictor = 1,
       this.extraSamples = 2,
       this.strip,
       int? rowsPerStrip})
@@ -70,6 +71,7 @@ Uint8List buildTiff(List<Img> images,
       [282, 5, 1, res],
       [283, 5, 1, res],
       [296, 3, 1, 2],
+      if (img.predictor != 1) [317, 3, 1, img.predictor],
       if (img.extraSamples != null && img.spp > (img.photometric == 2 ? 3 : 1))
         [338, 3, 1, img.extraSamples!],
     ];
