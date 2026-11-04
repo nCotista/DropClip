@@ -1,15 +1,15 @@
 name: macOS Native (Swift)
 
-# Builds and tests the Flutter-free Swift core of the macOS plugin (T1.6).
-# Runs on every push that touches it, including stacked feature branches.
+# Builds and tests the Swift code of the macOS plugin (T1.6). Runs on every
+# push that touches it, including stacked feature branches.
 on:
   push:
     paths:
-      - 'packages/dropclip_macos/macos/**'
+      - 'packages/dropclip_macos/**'
       - '.github/workflows/macos-native.yml'
   pull_request:
     paths:
-      - 'packages/dropclip_macos/macos/**'
+      - 'packages/dropclip_macos/**'
       - '.github/workflows/macos-native.yml'
 
 jobs:
@@ -23,3 +23,31 @@ jobs:
       - name: Build and test DropClipMacCore
         working-directory: packages/dropclip_macos/macos
         run: swift test
+
+  plugin-typecheck:
+    name: Flutter plugin compiles (macOS)
+    runs-on: macos-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup Flutter SDK
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Download the FlutterMacOS framework
+        run: flutter precache --macos
+
+      # The plugin class needs FlutterMacOS, which `swift test` does not have.
+      - name: Type-check plugin sources against FlutterMacOS
+        working-directory: packages/dropclip_macos/macos
+        run: |
+          FW=$(find "$FLUTTER_ROOT/bin/cache/artifacts/engine" -name FlutterMacOS.framework -path '*macos*' | head -1)
+          echo "FlutterMacOS: $FW"
+          xcrun swiftc -typecheck \
+            -sdk "$(xcrun --show-sdk-path --sdk macosx)" \
+            -target arm64-apple-macos10.15 \
+            -F "$(dirname "$FW")" \
+            Classes/Core/*.swift Classes/*.swift
