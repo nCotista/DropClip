@@ -4,6 +4,7 @@ export 'src/image/dib.dart';
 export 'src/image/dibv5_encoder.dart';
 export 'src/image/png_decoder.dart';
 export 'src/image/png_encoder.dart';
+export 'src/image/tiff_decoder.dart';
 
 /// Data class representing an item on the native clipboard
 class ClipboardItem {
