@@ -1,0 +1,41 @@
+// !$*UTF8*$!
+{
+ archiveVersion = 1;
+ classes = {};
+ objectVersion = 56;
+ objects = {
+  A00000000000000000000001 = {isa = PBXBuildFile; fileRef = B00000000000000000000001; };
+  A00000000000000000000002 = {isa = PBXBuildFile; fileRef = B00000000000000000000002; };
+  A00000000000000000000003 = {isa = PBXBuildFile; fileRef = B00000000000000000000003; };
+  A00000000000000000000004 = {isa = PBXBuildFile; fileRef = B00000000000000000000004; settings = {ATTRIBUTES = (RemoveHeadersOnCopy,); }; };
+  A00000000000000000000006 = {isa = PBXBuildFile; fileRef = B00000000000000000000006; };
+  A00000000000000000000007 = {isa = PBXBuildFile; fileRef = B00000000000000000000006; };
+  B00000000000000000000001 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HostApp.swift; sourceTree = "<group>"; };
+  B00000000000000000000002 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShareUploadViewController.swift; sourceTree = "<group>"; };
+  B00000000000000000000003 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ../BackgroundUploadProbe.swift; sourceTree = "<group>"; };
+  B00000000000000000000004 = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = ShareProbe.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+  B00000000000000000000005 = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = ShareUploadHarness.app; sourceTree = BUILT_PRODUCTS_DIR; };
+  B00000000000000000000006 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HarnessChecks.swift; sourceTree = "<group>"; };
+  C00000000000000000000001 = {isa = PBXGroup; children = (B00000000000000000000001, B00000000000000000000002, B00000000000000000000003, B00000000000000000000006, C00000000000000000000002,); sourceTree = "<group>"; };
+  C00000000000000000000002 = {isa = PBXGroup; children = (B00000000000000000000005, B00000000000000000000004,); name = Products; sourceTree = "<group>"; };
+  D00000000000000000000001 = {isa = PBXProject; attributes = {LastUpgradeCheck = 1620; TargetAttributes = {E00000000000000000000001 = {CreatedOnToolsVersion = 16.2; ProvisioningStyle = Automatic; }; E00000000000000000000002 = {CreatedOnToolsVersion = 16.2; ProvisioningStyle = Automatic; }; }; }; buildConfigurationList = 800000000000000000000001; compatibilityVersion = "Xcode 15.0"; developmentRegion = en; hasScannedForEncodings = 0; knownRegions = (en, Base,); mainGroup = C00000000000000000000001; productRefGroup = C00000000000000000000002; projectDirPath = ""; projectRoot = ""; targets = (E00000000000000000000001, E00000000000000000000002,); };
+  E00000000000000000000001 = {isa = PBXNativeTarget; buildConfigurationList = 800000000000000000000002; buildPhases = (F00000000000000000000001, F00000000000000000000002, F00000000000000000000003, F00000000000000000000004,); buildRules = (); dependencies = (700000000000000000000001,); name = ShareUploadHarness; productName = ShareUploadHarness; productReference = B00000000000000000000005; productType = "com.apple.product-type.application"; };
+  E00000000000000000000002 = {isa = PBXNativeTarget; buildConfigurationList = 800000000000000000000003; buildPhases = (F00000000000000000000005, F00000000000000000000006, F00000000000000000000007,); buildRules = (); dependencies = (); name = ShareProbe; productName = ShareProbe; productReference = B00000000000000000000004; productType = "com.apple.product-type.app-extension"; };
+  F00000000000000000000001 = {isa = PBXSourcesBuildPhase; buildActionMask = 2147483647; files = (A00000000000000000000001, A00000000000000000000006,); runOnlyForDeploymentPostprocessing = 0; };
+  F00000000000000000000002 = {isa = PBXFrameworksBuildPhase; buildActionMask = 2147483647; files = (); runOnlyForDeploymentPostprocessing = 0; };
+  F00000000000000000000003 = {isa = PBXResourcesBuildPhase; buildActionMask = 2147483647; files = (); runOnlyForDeploymentPostprocessing = 0; };
+  F00000000000000000000004 = {isa = PBXCopyFilesBuildPhase; buildActionMask = 2147483647; dstPath = ""; dstSubfolderSpec = 13; files = (A00000000000000000000004,); name = "Embed App Extensions"; runOnlyForDeploymentPostprocessing = 0; };
+  F00000000000000000000005 = {isa = PBXSourcesBuildPhase; buildActionMask = 2147483647; files = (A00000000000000000000002, A00000000000000000000003, A00000000000000000000007,); runOnlyForDeploymentPostprocessing = 0; };
+  F00000000000000000000006 = {isa = PBXFrameworksBuildPhase; buildActionMask = 2147483647; files = (); runOnlyForDeploymentPostprocessing = 0; };
+  F00000000000000000000007 = {isa = PBXResourcesBuildPhase; buildActionMask = 2147483647; files = (); runOnlyForDeploymentPostprocessing = 0; };
+  600000000000000000000001 = {isa = PBXContainerItemProxy; containerPortal = D00000000000000000000001; proxyType = 1; remoteGlobalIDString = E00000000000000000000002; remoteInfo = ShareProbe; };
+  700000000000000000000001 = {isa = PBXTargetDependency; target = E00000000000000000000002; targetProxy = 600000000000000000000001; };
+  800000000000000000000001 = {isa = XCConfigurationList; buildConfigurations = (900000000000000000000001,); defaultConfigurationIsVisible = 0; defaultConfigurationName = Debug; };
+  800000000000000000000002 = {isa = XCConfigurationList; buildConfigurations = (900000000000000000000002,); defaultConfigurationIsVisible = 0; defaultConfigurationName = Debug; };
+  800000000000000000000003 = {isa = XCConfigurationList; buildConfigurations = (900000000000000000000003,); defaultConfigurationIsVisible = 0; defaultConfigurationName = Debug; };
+  900000000000000000000001 = {isa = XCBuildConfiguration; buildSettings = {SDKROOT = iphoneos; IPHONEOS_DEPLOYMENT_TARGET = 15.0; SWIFT_VERSION = 5.0; }; name = Debug; };
+  900000000000000000000002 = {isa = XCBuildConfiguration; buildSettings = {ASSETCATALOG_COMPILER_APPICON_NAME = ""; CODE_SIGN_STYLE = Automatic; CODE_SIGN_ENTITLEMENTS = AppGroup.entitlements; GENERATE_INFOPLIST_FILE = NO; INFOPLIST_FILE = "Host-Info.plist"; IPHONEOS_DEPLOYMENT_TARGET = 15.0; PRODUCT_BUNDLE_IDENTIFIER = com.dropclip.s02upload; PRODUCT_NAME = "$(TARGET_NAME)"; SDKROOT = iphoneos; SUPPORTED_PLATFORMS = "iphoneos iphonesimulator"; SWIFT_VERSION = 5.0; TARGETED_DEVICE_FAMILY = 1; REGISTER_APP_GROUPS = YES; }; name = Debug; };
+  900000000000000000000003 = {isa = XCBuildConfiguration; buildSettings = {APPLICATION_EXTENSION_API_ONLY = YES; CODE_SIGN_STYLE = Automatic; CODE_SIGN_ENTITLEMENTS = AppGroup.entitlements; GENERATE_INFOPLIST_FILE = NO; INFOPLIST_FILE = "Share-Info.plist"; IPHONEOS_DEPLOYMENT_TARGET = 15.0; PRODUCT_BUNDLE_IDENTIFIER = com.dropclip.s02upload.Share; PRODUCT_NAME = "$(TARGET_NAME)"; SDKROOT = iphoneos; SUPPORTED_PLATFORMS = "iphoneos iphonesimulator"; SKIP_INSTALL = YES; SWIFT_VERSION = 5.0; TARGETED_DEVICE_FAMILY = 1; REGISTER_APP_GROUPS = YES; }; name = Debug; };
+ };
+ rootObject = D00000000000000000000001;
+}
