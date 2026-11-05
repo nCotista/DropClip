@@ -311,6 +311,8 @@ dropclip/
 | **Android 14+ QS** | ใช้ `PendingIntent` สำหรับ `startActivityAndCollapse` | ปฏิบัติตาม API requirement ของ Android 14 ป้องกัน SecurityException |
 | **iOS Share Ext** | ใช้ `URLSessionConfiguration.background(withIdentifier:)` + Cache ใน App Group | ควบคุม Peak RAM < 30 MB และป้องกัน extension ถูก Jetsam kill ระหว่างสตรีมไฟล์ 4 GB |
 
+**S0.2 device probe (2026-11-06):** A signed test host launched on iPhone 16 Pro (iOS 27.0). `NWBrowser` for `_dropclip._tcp` initially failed with `NoAuth`; after the containing app declared `NSLocalNetworkUsageDescription` and `NSBonjourServices` (array containing `_dropclip._tcp`), the browser reached `ready`. Apple requires these keys in the containing app for extension discovery ([TN3179](https://developer.apple.com/documentation/technotes/tn3179-understanding-local-network-privacy)). This verifies browser startup, not peer discovery. The 4 GB Share Extension upload, peak RAM, and Android 14/15 device criteria remain unverified.
+
 ### ADR-008 — ใช้ Hybrid Logical Clock (HLC) แทน Pure Lamport Clock
 
 | ปัญหาของ Pure Lamport | การแก้ปัญหาด้วย HLC |
