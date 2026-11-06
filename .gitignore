@@ -2,6 +2,9 @@
 .dart_tool/
 .packages
 build/
+.gradle/
+.kotlin/
+local.properties
 .pub-cache/
 .pub/
 *.dill

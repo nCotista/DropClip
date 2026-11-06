@@ -1,6 +1,6 @@
 package com.dropclip.spike
 
-import android.os.Bundle
+import android.os.PersistableBundle
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -17,13 +17,13 @@ class MobileConstraintProbeTest {
     }
 
     @Test fun sensitiveClipIsBlocked() {
-        assertTrue(MobileConstraintProbe.isSensitive(Bundle().apply {
+        assertTrue(MobileConstraintProbe.isSensitive(PersistableBundle().apply {
             putBoolean(MobileConstraintProbe.SENSITIVE_KEY, true)
         }))
     }
 
     @Test fun ordinaryAndMissingMetadataAreNotSensitive() {
-        assertFalse(MobileConstraintProbe.isSensitive(Bundle()))
+        assertFalse(MobileConstraintProbe.isSensitive(PersistableBundle()))
         assertFalse(MobileConstraintProbe.isSensitive(null))
     }
 }
