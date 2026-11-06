@@ -11,12 +11,16 @@
             android:foregroundServiceType="connectedDevice" />
         <service android:name=".SpikeTileService"
             android:exported="true"
+            android:label="DropClip Probe"
+            android:icon="@android:drawable/ic_menu_share"
             android:permission="android.permission.BIND_QUICK_SETTINGS_TILE">
             <intent-filter>
                 <action android:name="android.service.quicksettings.action.QS_TILE" />
             </intent-filter>
         </service>
         <activity android:name=".SpikeClipboardActivity"
+            android:exported="false" />
+        <activity android:name=".SpikeHarnessActivity"
             android:exported="false" />
     </application>
 </manifest>

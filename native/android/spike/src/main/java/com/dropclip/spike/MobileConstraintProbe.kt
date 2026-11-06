@@ -12,8 +12,8 @@ import android.content.Intent
 import android.content.pm.ServiceInfo
 import android.net.wifi.WifiManager
 import android.os.Build
-import android.os.Bundle
 import android.os.IBinder
+import android.os.PersistableBundle
 import android.service.quicksettings.TileService
 import android.widget.Toast
 
@@ -23,7 +23,8 @@ object MobileConstraintProbe {
 
     fun needsPendingIntent(api: Int): Boolean = api >= 34
 
-    fun isSensitive(extras: Bundle?): Boolean = extras?.getBoolean(SENSITIVE_KEY, false) == true
+    fun isSensitive(extras: PersistableBundle?): Boolean =
+        extras?.getBoolean(SENSITIVE_KEY, false) == true
 
     fun clipboardIntent(context: Context): Intent = Intent(context, SpikeClipboardActivity::class.java)
         .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
@@ -45,17 +46,22 @@ class SpikeTileService : TileService() {
     }
 }
 
+/** Visible entry point for starting the service during instrumentation. */
+class SpikeHarnessActivity : Activity()
+
 /** Read only after foreground focus; never log the clipboard value. */
 class SpikeClipboardActivity : Activity() {
     private var sampled = false
 
-    override fun onResume() {
-        super.onResume()
-        if (sampled) return
+    override fun onWindowFocusChanged(hasFocus: Boolean) {
+        super.onWindowFocusChanged(hasFocus)
+        if (!hasFocus || sampled) return
         sampled = true
         val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
         val concealed = MobileConstraintProbe.isSensitive(clipboard.primaryClipDescription?.extras)
         val present = !concealed && (clipboard.primaryClip?.itemCount ?: 0) > 0
+        getSharedPreferences("spike_results", MODE_PRIVATE).edit()
+            .putBoolean("clipboard_accessible", present).commit()
         Toast.makeText(this, if (present) "Clipboard accessible" else "Clipboard blocked or empty", Toast.LENGTH_SHORT).show()
         setResult(if (present) RESULT_OK else RESULT_CANCELED)
         finish()
@@ -98,7 +104,8 @@ class SpikeConnectedService : Service() {
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        beginDiscovery()
+        getSharedPreferences("spike_results", MODE_PRIVATE).edit()
+            .putBoolean("multicast_lock_held", beginDiscovery()).commit()
         return START_STICKY
     }
     override fun onDestroy() {
