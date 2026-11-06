@@ -1,12 +1,11 @@
 name: Android S0.2 Emulator
 
 on:
-  push:
-    branches: [spike/S0.2-android-ci]
   pull_request:
     paths:
       - '.github/workflows/android-spike.yml'
       - 'native/android/spike/**'
+  workflow_dispatch:
 
 permissions:
   contents: read
