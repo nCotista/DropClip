@@ -7,7 +7,10 @@ import android.content.Context
 import android.content.Intent
 import android.os.PersistableBundle
 import androidx.test.platform.app.InstrumentationRegistry
+import androidx.test.uiautomator.By
 import androidx.test.uiautomator.UiDevice
+import androidx.test.uiautomator.Until
+import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -56,13 +59,26 @@ class MobileConstraintDeviceTest {
         val component = "com.dropclip.spike/.SpikeTileService"
         device.executeShellCommand("cmd statusbar add-tile $component")
         try {
-            device.executeShellCommand("cmd statusbar click-tile $component")
+            device.pressHome()
+            device.openQuickSettings()
+            var tile = device.wait(Until.findObject(By.text("DropClip Probe")), 2_000)
+            repeat(4) {
+                if (tile != null) return@repeat
+                device.swipe(
+                    device.displayWidth * 3 / 4, device.displayHeight / 2,
+                    device.displayWidth / 4, device.displayHeight / 2, 10
+                )
+                tile = device.wait(Until.findObject(By.text("DropClip Probe")), 2_000)
+            }
+            assertNotNull("DropClip tile is missing from Quick Settings", tile)
+            tile!!.click()
             assertTrue("Tile did not launch the transient activity", waitFor {
                 results.contains("clipboard_accessible")
             })
             return results.getBoolean("clipboard_accessible", false)
         } finally {
             device.executeShellCommand("cmd statusbar remove-tile $component")
+            device.pressHome()
             clipboard.clearPrimaryClip()
         }
     }
