@@ -41,7 +41,7 @@
 
 ### 🔹 PHASE 0 — FOUNDATION & TECHNICAL SPIKES (สัปดาห์ 1–2)
 - [x] **S0.1** Cross-Platform mTLS ECDSA P-256 Spike (`LEAD`) — **DONE**
-- [ ] **S0.2** Mobile Background Constraints Spike (`MOB`) — *In Progress*
+- [ ] **S0.2** Mobile Background Constraints Spike (`MOB`) — *In Progress / blocked on device resources*: Android 15 physical overnight test and iPhone App Group signing unavailable; simulator/CI evidence recorded
 - [x] **T0.1** Monorepo Architecture Setup & CI/CD Pipeline (`LEAD`) — **DONE** (`4d8270f`)
 - [x] **T0.2** Protocol Package & Data Envelopes (HLC, SAS Engine) (`LEAD`) — **DONE**
 - [x] **T0.3** Logging & Telemetry Scrubber Framework (`DESK`) — **DONE**
