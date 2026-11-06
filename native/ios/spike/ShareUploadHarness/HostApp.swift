@@ -8,6 +8,10 @@ import UIKit
         window = UIWindow(frame: UIScreen.main.bounds)
         window?.rootViewController = HarnessViewController()
         window?.makeKeyAndVisible()
+        if ProcessInfo.processInfo.environment["S02_AUTO_PREPARE"] == "1" {
+            let documents = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
+            _ = try? HarnessChecks.prepareFile(in: documents)
+        }
         return true
     }
 }
@@ -66,6 +70,12 @@ final class HarnessViewController: UIViewController {
             try url.absoluteString.write(to: folder.appendingPathComponent("endpoint.txt"),
                                          atomically: true, encoding: .utf8)
             let directory = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
+            let free = try directory.resourceValues(forKeys: [.volumeAvailableCapacityForImportantUsageKey])
+                .volumeAvailableCapacityForImportantUsage
+            guard HarnessChecks.hasSpace(free) else {
+                status.text = "At least 16 GiB free storage is required for transfer copies."
+                return
+            }
             let file = try HarnessChecks.prepareFile(in: directory)
             let activity = UIActivityViewController(activityItems: [file], applicationActivities: nil)
             present(activity, animated: true)

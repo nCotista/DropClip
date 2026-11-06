@@ -7,6 +7,9 @@ import Foundation
         assert(HarnessChecks.localEndpoint("http://192.168.1.5/upload") == nil)
         assert(HarnessChecks.localEndpoint("https://8.8.8.8/upload") == nil)
         assert(HarnessChecks.localEndpoint("https:///upload") == nil)
+        assert(HarnessChecks.hasSpace(HarnessChecks.requiredFreeBytes))
+        assert(!HarnessChecks.hasSpace(HarnessChecks.requiredFreeBytes - 1))
+        assert(!HarnessChecks.hasSpace(nil))
 
         let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)

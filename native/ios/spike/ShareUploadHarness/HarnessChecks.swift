@@ -2,6 +2,12 @@ import Foundation
 
 enum HarnessChecks {
     static let byteCount: UInt64 = 4 * 1024 * 1024 * 1024
+    static let requiredFreeBytes: Int64 = 16 * 1024 * 1024 * 1024
+
+    static func hasSpace(_ available: Int64?) -> Bool {
+        guard let available = available else { return false }
+        return available >= requiredFreeBytes
+    }
 
     static func localEndpoint(_ text: String?) -> URL? {
         guard let text = text, let url = URL(string: text), url.scheme == "https",
