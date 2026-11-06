@@ -53,9 +53,9 @@ class SpikeHarnessActivity : Activity()
 class SpikeClipboardActivity : Activity() {
     private var sampled = false
 
-    override fun onResume() {
-        super.onResume()
-        if (sampled) return
+    override fun onWindowFocusChanged(hasFocus: Boolean) {
+        super.onWindowFocusChanged(hasFocus)
+        if (!hasFocus || sampled) return
         sampled = true
         val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
         val concealed = MobileConstraintProbe.isSensitive(clipboard.primaryClipDescription?.extras)
@@ -104,7 +104,8 @@ class SpikeConnectedService : Service() {
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        beginDiscovery()
+        getSharedPreferences("spike_results", MODE_PRIVATE).edit()
+            .putBoolean("multicast_lock_held", beginDiscovery()).commit()
         return START_STICKY
     }
     override fun onDestroy() {
