@@ -6,6 +6,10 @@ Simulator build: `xcodebuild -project ShareUploadHarness.xcodeproj -scheme Share
 
 For a simulator file smoke check, launch the host with `SIMCTL_CHILD_S02_AUTO_PREPARE=1 xcrun simctl launch <simulator-id> com.dropclip.s02upload`; its Documents file should have logical size `4294967296` bytes and consume no data blocks until copied.
 
+## Simulator-only upload without App Group
+
+The simulator build uses a foreground, file-backed `URLSession` from the Share Extension to `https://127.0.0.1:53317/upload`. It does not use the App Group or test background `URLSession` persistence. Start `receiver.py` bound to `127.0.0.1` with a local TLS 1.3 P-256 certificate trusted by the simulator (`xcrun simctl keychain booted add-root-cert <root-cert>`). Build and install the harness with `CODE_SIGNING_ALLOWED=NO`, open it, tap **Create and share 4 GiB**, select **DropClip S0.2 Upload**, and tap **Post**. The receiver must report `received=4294967296` and `valid=True`; find `S02_SIM_UPLOAD` in the simulator log for HTTP status, duration, and extension `peak_rss_bytes` (Darwin simulator `ru_maxrss` is in bytes). This is a Simulator measurement only and cannot satisfy the physical-device or background-session acceptance criteria.
+
 ## Run on iPhone
 
 1. In Apple Developer, register `group.com.dropclip.shared` and enable it for **both** bundle IDs `com.dropclip.s02upload` and `com.dropclip.s02upload.Share`. Select that Team for both Xcode targets. A Personal Team profile without this entitlement fails signing.

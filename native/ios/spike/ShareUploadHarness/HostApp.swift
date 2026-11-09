@@ -28,11 +28,16 @@ final class HarnessViewController: UIViewController {
         endpoint.borderStyle = .roundedRect
         endpoint.autocapitalizationType = .none
         endpoint.keyboardType = .URL
+        #if targetEnvironment(simulator)
+        endpoint.text = SimulatorUpload.endpoint.absoluteString
+        endpoint.isEnabled = false
+        #else
         if let folder = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: group) {
             endpoint.text = try? String(contentsOf: folder.appendingPathComponent("endpoint.txt"))
         }
+        #endif
         status.numberOfLines = 0
-        status.text = "Enter a local HTTPS receiver, then share a 4 GiB file."
+        status.text = "Start the local HTTPS receiver, then share a 4 GiB file."
         let button = UIButton(type: .system)
         button.setTitle("Create and share 4 GiB", for: .normal)
         button.addTarget(self, action: #selector(share), for: .touchUpInside)
@@ -58,6 +63,7 @@ final class HarnessViewController: UIViewController {
     }
 
     @objc private func share() {
+        #if !targetEnvironment(simulator)
         guard let url = HarnessChecks.localEndpoint(endpoint.text) else {
             status.text = "A local HTTPS receiver is required."
             return
@@ -66,9 +72,12 @@ final class HarnessViewController: UIViewController {
             status.text = "App Group unavailable; check signing."
             return
         }
+        #endif
         do {
+            #if !targetEnvironment(simulator)
             try url.absoluteString.write(to: folder.appendingPathComponent("endpoint.txt"),
                                          atomically: true, encoding: .utf8)
+            #endif
             let directory = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
             let free = try directory.resourceValues(forKeys: [.volumeAvailableCapacityForImportantUsageKey])
                 .volumeAvailableCapacityForImportantUsage

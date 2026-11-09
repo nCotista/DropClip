@@ -23,6 +23,18 @@ import Foundation
         _ = try HarnessChecks.prepareFile(in: directory)
         let corrected = try FileManager.default.attributesOfItem(atPath: file.path)[.size] as? UInt64
         assert(corrected == HarnessChecks.byteCount)
+
+        let request = SimulatorUpload.request(SimulatorUpload.endpoint, file: file)
+        assert(request?.httpMethod == "POST")
+        assert(request?.httpBody == nil)
+        assert(request?.value(forHTTPHeaderField: "Content-Type") == "application/octet-stream")
+        assert(SimulatorUpload.configuration().tlsMinimumSupportedProtocolVersion == .TLSv13)
+        assert(SimulatorUpload.request(URL(string: "http://127.0.0.1:53317/upload")!, file: file) == nil)
+        assert(SimulatorUpload.request(URL(string: "https://192.168.1.5:53317/upload")!, file: file) == nil)
+        assert(SimulatorUpload.request(URL(string: "https://127.0.0.1:53318/upload")!, file: file) == nil)
+        assert(SimulatorUpload.request(URL(string: "https://127.0.0.1:53317/other")!, file: file) == nil)
+        assert(SimulatorUpload.request(SimulatorUpload.endpoint,
+                                       file: directory.appendingPathComponent("missing")) == nil)
         print("HarnessChecksTests passed")
     }
 }
