@@ -135,14 +135,14 @@ class PairingEngine {
     }
     final claimedFp = (body['fp'] as String? ?? '').toLowerCase();
     final commitmentB = (body['commitment_B'] as String? ?? '').toLowerCase();
-    final mode = body['mode'] as String? ?? '';
+    final mode = (body['method'] ?? body['mode']) as String? ?? '';
     if (claimedFp.length != 64 ||
         claimedFp != tlsClientCertFp.toLowerCase() ||
         commitmentB.length != 64 ||
         (mode != 'qr' && mode != 'pin')) {
       _fail(clientIp, now, ProtocolErrorCode.pairingInvalid, 'Invalid request');
     }
-    if (mode == 'qr') {
+    if (mode == 'qr' && body.containsKey('qr_nonce')) {
       final Uint8List qrNonce;
       try {
         qrNonce = base64Decode(body['qr_nonce'] as String? ?? '');
