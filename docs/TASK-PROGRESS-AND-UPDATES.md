@@ -30,8 +30,8 @@
 |---|:---:|:---:|
 | **สถานะเฟสปัจจุบัน** | **Phase 0 Completed $\to$ Phase 1–4 Core, Clipboard & Desktop UI Merged** | สัปดาห์ 3–24 (All LEAD/DESK Core Modules Merged) |
 | **จำนวน Tickets ทั้งหมด** | 34 Tickets + 4 Gates | 24 สัปดาห์ |
-| **Tickets ที่เสร็จสิ้นแล้ว** | **18 / 34** (52.9%) + **S0.1 Done** | All `LEAD` & `DESK` Core Tickets Merged |
-| **Tickets ที่กำลังดำเนินการ** | **4 / 34** | S0.2 (`MOB`), T1.3 (`LEAD`+`MOB`), T1.7 (`NET`), T1.9 (`DESK`) |
+| **Tickets ที่เสร็จสิ้นแล้ว** | **18 / 34** (52.9%) + **S0.1 Done; S0.2 Done by LEAD exception** | All `LEAD` & `DESK` Core Tickets Merged |
+| **Tickets ที่กำลังดำเนินการ** | **3 / 34** | T1.3 (`LEAD`+`MOB`), T1.7 (`NET`), T1.9 (`DESK`) |
 | **สถานะ CI Automation** | **Passing บน `main`** — `format`, `analyze --fatal-infos`, `test`, `fuzzer`, และ Secret Scan ผ่านครบ 100% | Melos Monorepo Lint, Analyze & Test |
 | **ความพร้อมของเอกสารสเปก** | **Draft / Aligned (PCR-03)** | Protocol Spec v2.0, SRS v1.2, Threat Model |
 
@@ -41,7 +41,7 @@
 
 ### 🔹 PHASE 0 — FOUNDATION & TECHNICAL SPIKES (สัปดาห์ 1–2)
 - [x] **S0.1** Cross-Platform mTLS ECDSA P-256 Spike (`LEAD`) — **DONE**
-- [ ] **S0.2** Mobile Background Constraints Spike (`MOB`) — *In Progress (Spike Branches Merged)*: `spike/S0.2-android-ci` & `spike/S0.2-ios-share-extension` merged to `main`; physical Android 15 overnight & iPhone App Group signing pending hardware access
+- [x] **S0.2** Mobile Background Constraints Spike (`MOB`) — **DONE by LEAD-approved exception (2026-11-09)**: iPhone `NWBrowser`, iOS Simulator build/stage, Mac-only 4 GiB TLS loopback, Android API 34/35 CI accepted for spike closure; physical iOS upload/RSS and Android device endurance remain unverified (see worklog and ADR-007)
 - [x] **T0.1** Monorepo Architecture Setup & CI/CD Pipeline (`LEAD`) — **DONE** (`4d8270f`)
 - [x] **T0.2** Protocol Package & Data Envelopes (HLC, SAS Engine) (`LEAD`) — **DONE**
 - [x] **T0.3** Logging & Telemetry Scrubber Framework (`DESK`) — **DONE**
@@ -179,6 +179,7 @@
 | 2026-11-03 | **T1.7** (2a) | `feat/T1.7-win32-clipboard-core` | `NET` (ปัน) | `MERGED` | `41acfd5` | **Win32 clipboard read core (C++):** `ClipboardApi` แยกจาก Win32, เช็ก marker ก่อนอ่านเนื้อหา + fail closed (§10.4), retry 50/100/200 ms → `kLocked` (§16), UTF-16 → UTF-8, CI job `native-windows-core`; Verification: g++ `-Werror` 12 ชุดผ่าน, gcov 100%, MinGW compile ผ่าน, 374 บรรทัด | T1.7 (2b) |
 | 2026-11-03 | **T1.7** (2b) | `feat/T1.7-win32-clipboard-binding` | `NET` (ปัน) | `MERGED` | `654266e` | **Write path + Win32 binding:** `WriteItems` (transaction เดียว, PNG + CF_DIBV5), `Clear`, `Utf8ToUtf16`, `Win32ClipboardApi` ใน `ClipboardWatcher.cpp`; stacked บน 2a; Verification: 15 ชุดผ่าน, gcov 100%, MinGW compile + link ผ่าน; ยังไม่ได้รันบน Windows จริง | T1.7 (3), T1.8, T1.9 |
 | 2026-11-09 | **MERGE** | `main` (Waves 1–5) | `LEAD` (เจ) | `MERGED` | `6e83670` | **Full Monorepo Wave 1–5 PR Review & Merge Integration:** รวม 60+ branches (`T0.2`, `T0.3`, `S0.1`, `S0.2`, `T1.1`, `T1.2`, `T1.3`, `T1.6`, `T1.7`, `T1.8`, `T1.9`, `T1.12`, `T1.13`, `T2.1`, `T3.1`, `T3.2`, `T4.2`, `T4.5`, `docs/task-progress-tracker`) เข้าสู่ `main` พร้อมซิงก์สัญญา `PairingEngine` ↔ `PairingClientProof` (§5.4 `method`/`mode` & `/pair` rate-limit) | T1.4, T1.5, T1.10, T1.11 |
+| 2026-11-09 | **S0.2** closure | `docs/S0.2-acceptance-exception` + `docs/task-progress-tracker` | `MOB` (เกื้อ), `LEAD` approved | `DONE — exception` | `feb2b4f` ([PR #54](https://github.com/nCotista/DropClip/pull/54)) | LEAD accepted combined proxy evidence for spike closure: iPhone `NWBrowser` ready; Simulator host/extension build and 4 GiB staging; Mac-only 4 GiB TLS loopback; Android API 34/35 CI, 6 tests each, 94.6% coverage | No measured extension RSS/4 GiB upload or Android overnight hardware artifact; original device criteria remain open for later validation |
 | *(เพิ่มต่อที่นี่)*| ... | ... | ... | ... | ... | ... | ... |
 
 ---
