@@ -41,7 +41,7 @@
 
 ### 🔹 PHASE 0 — FOUNDATION & TECHNICAL SPIKES (สัปดาห์ 1–2)
 - [x] **S0.1** Cross-Platform mTLS ECDSA P-256 Spike (`LEAD`) — **DONE**
-- [x] **S0.2** Mobile Background Constraints Spike (`MOB`) — **DONE by LEAD-approved exception (2026-11-09)**: iPhone `NWBrowser`, iOS Simulator build/stage, Mac-only 4 GiB TLS loopback, Android API 34/35 CI accepted for spike closure; physical iOS upload/RSS and Android device endurance remain unverified (see worklog and ADR-007)
+- [x] **S0.2** Mobile Background Constraints Spike (`MOB`) — **DONE by LEAD-approved exception (2026-11-09)**: iPhone `NWBrowser`, Simulator-only 4 GiB foreground Share Extension upload + RSS, Android API 34/35 CI; physical iOS background upload/RSS and Android device endurance remain unverified (see worklog and ADR-007)
 - [x] **T0.1** Monorepo Architecture Setup & CI/CD Pipeline (`LEAD`) — **DONE** (`4d8270f`)
 - [x] **T0.2** Protocol Package & Data Envelopes (HLC, SAS Engine) (`LEAD`) — **DONE**
 - [x] **T0.3** Logging & Telemetry Scrubber Framework (`DESK`) — **DONE**
@@ -180,6 +180,7 @@
 | 2026-11-03 | **T1.7** (2b) | `feat/T1.7-win32-clipboard-binding` | `NET` (ปัน) | `MERGED` | `654266e` | **Write path + Win32 binding:** `WriteItems` (transaction เดียว, PNG + CF_DIBV5), `Clear`, `Utf8ToUtf16`, `Win32ClipboardApi` ใน `ClipboardWatcher.cpp`; stacked บน 2a; Verification: 15 ชุดผ่าน, gcov 100%, MinGW compile + link ผ่าน; ยังไม่ได้รันบน Windows จริง | T1.7 (3), T1.8, T1.9 |
 | 2026-11-09 | **MERGE** | `main` (Waves 1–5) | `LEAD` (เจ) | `MERGED` | `6e83670` | **Full Monorepo Wave 1–5 PR Review & Merge Integration:** รวม 60+ branches (`T0.2`, `T0.3`, `S0.1`, `S0.2`, `T1.1`, `T1.2`, `T1.3`, `T1.6`, `T1.7`, `T1.8`, `T1.9`, `T1.12`, `T1.13`, `T2.1`, `T3.1`, `T3.2`, `T4.2`, `T4.5`, `docs/task-progress-tracker`) เข้าสู่ `main` พร้อมซิงก์สัญญา `PairingEngine` ↔ `PairingClientProof` (§5.4 `method`/`mode` & `/pair` rate-limit) | T1.4, T1.5, T1.10, T1.11 |
 | 2026-11-09 | **S0.2** closure | `docs/S0.2-acceptance-exception` + `docs/task-progress-tracker` | `MOB` (เกื้อ), `LEAD` approved | `DONE — exception` | `feb2b4f` ([PR #54](https://github.com/nCotista/DropClip/pull/54)) | LEAD accepted combined proxy evidence for spike closure: iPhone `NWBrowser` ready; Simulator host/extension build and 4 GiB staging; Mac-only 4 GiB TLS loopback; Android API 34/35 CI, 6 tests each, 94.6% coverage | No measured extension RSS/4 GiB upload or Android overnight hardware artifact; original device criteria remain open for later validation |
+| 2026-11-09 | **S0.2** Simulator follow-up | `spike/S0.2-ios-simulator-no-app-group` | `MOB` (เกื้อ) | `READY FOR PR` | `f6f8569` ([PR #55](https://github.com/nCotista/DropClip/pull/55)) | Share Extension → local TLS 1.3 receiver: 4 GiB, SHA-256 match, HTTP 200; peak RSS 187.70 MiB on Simulator, +7.48 MiB over pre-upload high-water; 3.58 s; harness coverage 94.34% | Foreground Simulator-only path; does not validate physical-device <30 MB or background/App Group behavior |
 | *(เพิ่มต่อที่นี่)*| ... | ... | ... | ... | ... | ... | ... |
 
 ---
