@@ -43,6 +43,30 @@ class MobileConstraintDeviceTest {
         }
     }
 
+    /** Run this test alone on hardware; leave the service active for endurance monitoring. */
+    @Suppress("DEPRECATION")
+    @Test fun startConnectedDeviceForEndurance() {
+        val activity = instrumentation.startActivitySync(
+            Intent(context, SpikeHarnessActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        )
+        try {
+            val results = context.getSharedPreferences("spike_results", Context.MODE_PRIVATE)
+            results.edit().remove("multicast_lock_held").commit()
+            context.startForegroundService(Intent(context, SpikeConnectedService::class.java))
+            val manager = context.getSystemService(Context.ACTIVITY_SERVICE) as ActivityManager
+            assertTrue("Service did not enter foreground", waitFor {
+                manager.getRunningServices(50).any {
+                    it.service.className == SpikeConnectedService::class.java.name && it.foreground
+                }
+            })
+            assertTrue("MulticastLock was not acquired", waitFor {
+                results.getBoolean("multicast_lock_held", false)
+            })
+        } finally {
+            activity.finish()
+        }
+    }
+
     @Test fun tileReadsOrdinaryAndSuppressesSensitiveClipboard() {
         val component = "com.dropclip.spike/.SpikeTileService"
         val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
