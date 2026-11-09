@@ -101,7 +101,7 @@ void main() {
               (e) => e.errorCode, 'errorCode', ProtocolErrorCode.pairLocked)));
     });
 
-    test('PairingClientProof and PairingEngine interoperate in QR & PIN modes',
+    test('PairingClientProof and PairingEngine interoperate in QR mode',
         () async {
       final engine = PairingEngine(
           hostIdentity: hostId,
@@ -129,6 +129,128 @@ void main() {
           clientIp: '192.168.1.25',
           hostUserConfirmedMatch: true);
       expect(engine.state, PairingState.paired);
+    });
+
+    test('PIN client and host agree without putting the PIN in requests',
+        () async {
+      final engine =
+          PairingEngine(hostIdentity: hostId, trustedStore: trustedStore);
+      engine.startSession(
+          hostIp: '192.168.1.10', hostPort: 53318, pinOverride: '123456');
+      final client =
+          PairingClientProof.forPin(pin: '123456', clientFingerprint: fpHi);
+      final begin = <String, dynamic>{
+        ...client.begin(),
+        'device_id': '22222222-2222-4222-8222-222222222222',
+        'name': 'Pixel-8',
+        'os': 'android',
+      };
+      final reveal = engine.handlePairRequest(begin,
+          clientIp: '192.168.1.20', tlsClientCertFp: fpHi);
+      final confirm = client.acceptHostReveal(
+          pairId: reveal['pair_id'] as String,
+          tlsServerFingerprint: hostId.fp,
+          responseFingerprint: reveal['host_fp'] as String,
+          responseNonceA: reveal['nonce_A'] as String);
+      engine.handlePairConfirm(confirm, clientIp: '192.168.1.20');
+      expect(client.sas, engine.currentSasCode);
+      final finalize = client.finalize(userConfirmedMatch: true);
+      for (final request in [begin, confirm, finalize]) {
+        expect(request.keys,
+            isNot(contains(anyOf('pin', 'pin_hash', 'pin_nonce'))));
+        expect(request.values, isNot(contains('123456')));
+      }
+      await engine.handlePairFinalize(finalize,
+          clientIp: '192.168.1.20', hostUserConfirmedMatch: true);
+      expect(trustedStore.isActiveFingerprint(fpHi), isTrue);
+    });
+
+    test('SAS mismatch leaves the client untrusted', () async {
+      final engine =
+          PairingEngine(hostIdentity: hostId, trustedStore: trustedStore);
+      final session =
+          engine.startSession(hostIp: '192.168.1.10', hostPort: 53318);
+      final client = PairingClientProof.fromQr(
+          qr: session.qr.toJson(), clientFingerprint: fpHi);
+      final reveal = engine.handlePairRequest(<String, dynamic>{
+        ...client.begin(),
+        'device_id': '22222222-2222-4222-8222-222222222222',
+        'name': 'Pixel-8',
+        'os': 'android',
+      }, clientIp: '192.168.1.20', tlsClientCertFp: fpHi);
+      final confirm = client.acceptHostReveal(
+          pairId: reveal['pair_id'] as String,
+          tlsServerFingerprint: hostId.fp,
+          responseFingerprint: reveal['host_fp'] as String,
+          responseNonceA: reveal['nonce_A'] as String);
+      engine.handlePairConfirm(confirm, clientIp: '192.168.1.20');
+      await expectLater(
+          engine.handlePairFinalize(client.finalize(userConfirmedMatch: false),
+              clientIp: '192.168.1.20', hostUserConfirmedMatch: true),
+          throwsA(isA<ProtocolException>().having(
+              (e) => e.errorCode, 'errorCode', ProtocolErrorCode.sasFailed)));
+      expect(engine.state, PairingState.failed);
+      expect(trustedStore.isActiveFingerprint(fpHi), isFalse);
+    });
+
+    test('changed commitment rejects reveal without trusting the client',
+        () async {
+      final engine =
+          PairingEngine(hostIdentity: hostId, trustedStore: trustedStore);
+      final session =
+          engine.startSession(hostIp: '192.168.1.10', hostPort: 53318);
+      final client = PairingClientProof.fromQr(
+          qr: session.qr.toJson(), clientFingerprint: fpHi);
+      final begin = client.begin();
+      final reveal = engine.handlePairRequest(<String, dynamic>{
+        ...begin,
+        'commitment_B': '0' * 64,
+        'device_id': '22222222-2222-4222-8222-222222222222',
+        'name': 'Pixel-8',
+        'os': 'android',
+      }, clientIp: '192.168.1.20', tlsClientCertFp: fpHi);
+      final confirm = client.acceptHostReveal(
+          pairId: reveal['pair_id'] as String,
+          tlsServerFingerprint: hostId.fp,
+          responseFingerprint: reveal['host_fp'] as String,
+          responseNonceA: reveal['nonce_A'] as String);
+      expect(
+          () => engine.handlePairConfirm(confirm, clientIp: '192.168.1.20'),
+          throwsA(isA<ProtocolException>().having((e) => e.errorCode,
+              'errorCode', ProtocolErrorCode.pairingInvalid)));
+      expect(engine.state, PairingState.failed);
+      expect(trustedStore.isActiveFingerprint(fpHi), isFalse);
+    });
+
+    test('sixth pair request from one IP is rate limited', () {
+      var now = nowMs;
+      final engine = PairingEngine(
+          hostIdentity: hostId, trustedStore: trustedStore, clockMs: () => now);
+      Map<String, dynamic> request() => <String, dynamic>{
+            'device_id': '22222222-2222-4222-8222-222222222222',
+            'name': 'Pixel-8',
+            'os': 'android',
+            'fp': fpHi,
+            'method': 'pin',
+            'commitment_B': SasCalculator.createCommitment(nonceB, fpHi),
+          };
+      for (var i = 0; i < 5; i++) {
+        engine.startSession(hostIp: '192.168.1.10', hostPort: 53318);
+        engine.handlePairRequest(request(),
+            clientIp: '192.168.1.20', tlsClientCertFp: fpHi);
+      }
+      engine.startSession(hostIp: '192.168.1.10', hostPort: 53318);
+      expect(
+          () => engine.handlePairRequest(request(),
+              clientIp: '192.168.1.20', tlsClientCertFp: fpHi),
+          throwsA(isA<ProtocolException>().having(
+              (e) => e.errorCode, 'errorCode', ProtocolErrorCode.rateLimited)));
+      now += 60000;
+      engine.startSession(hostIp: '192.168.1.10', hostPort: 53318);
+      expect(
+          engine.handlePairRequest(request(),
+              clientIp: '192.168.1.20', tlsClientCertFp: fpHi)['status'],
+          'awaiting_reveal');
     });
   });
 }
