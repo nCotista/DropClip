@@ -12,6 +12,7 @@ import android.content.Intent
 import android.content.pm.ServiceInfo
 import android.net.wifi.WifiManager
 import android.os.Build
+import android.os.Bundle
 import android.os.IBinder
 import android.os.PersistableBundle
 import android.service.quicksettings.TileService
@@ -46,8 +47,20 @@ class SpikeTileService : TileService() {
     }
 }
 
-/** Visible entry point for starting the service during instrumentation. */
-class SpikeHarnessActivity : Activity()
+/** Shell-only entry point for an unattended hardware endurance run. */
+class SpikeHarnessActivity : Activity() {
+    companion object {
+        const val START_ENDURANCE = "com.dropclip.spike.START_ENDURANCE"
+    }
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        if (intent?.action == START_ENDURANCE) {
+            startForegroundService(Intent(this, SpikeConnectedService::class.java))
+            finish()
+        }
+    }
+}
 
 /** Read only after foreground focus; never log the clipboard value. */
 class SpikeClipboardActivity : Activity() {
