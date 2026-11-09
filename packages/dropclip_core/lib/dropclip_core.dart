@@ -5,6 +5,8 @@ import 'dart:typed_data';
 export 'src/discovery/discovery_service.dart';
 export 'src/discovery/peer_cache.dart';
 export 'src/discovery/txt_record.dart';
+export 'src/logging/rotating_file_sink.dart';
+export 'src/logging/structured_logger.dart';
 export 'src/logging_scrubber.dart';
 export 'src/pairing/pairing_engine.dart';
 export 'src/platform/android_service_bridge.dart';
