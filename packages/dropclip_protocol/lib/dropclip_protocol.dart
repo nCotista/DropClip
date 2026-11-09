@@ -1,6 +1,9 @@
 library dropclip_protocol;
 
 export 'src/constants.dart';
-export 'src/sas.dart';
-export 'src/path_sanitizer.dart';
+export 'src/envelope.dart';
+export 'src/errors.dart';
 export 'src/hlc.dart';
+export 'src/path_sanitizer.dart';
+export 'src/payloads.dart';
+export 'src/sas.dart';

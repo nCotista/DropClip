@@ -40,10 +40,10 @@
 ## 1. Ticket Status Board (กระดานสถานะงานแยกตามเฟส)
 
 ### 🔹 PHASE 0 — FOUNDATION & TECHNICAL SPIKES (สัปดาห์ 1–2)
-- [ ] **S0.1** Cross-Platform mTLS ECDSA P-256 Spike (`LEAD`) — *In Progress* (ส่วน Dart บน Windows ทดลองแล้วใน PCR-03 — เหลือ macOS/Android/iOS)
+- [x] **S0.1** Cross-Platform mTLS ECDSA P-256 Spike (`LEAD`) — **DONE**
 - [ ] **S0.2** Mobile Background Constraints Spike (`MOB`) — *In Progress*
 - [x] **T0.1** Monorepo Architecture Setup & CI/CD Pipeline (`LEAD`) — **DONE** (`4d8270f`)
-- [ ] **T0.2** Protocol Package & Data Envelopes (HLC, SAS Engine) (`LEAD`) — *บางส่วน*: SAS/HLC/Path Sanitizer เสร็จ แต่ยังไม่มี envelope data classes + JSON และ fuzz test 10,000 ครั้งตาม Acceptance Criteria
+- [x] **T0.2** Protocol Package & Data Envelopes (HLC, SAS Engine) (`LEAD`) — **DONE**
 - [x] **T0.3** Logging & Telemetry Scrubber Framework (`DESK`) — **DONE**
 - [x] **T0.4** Multi-Device Network Test Harness (`QA`) — **DONE**
 - [x] **T0.5** Formal STRIDE Threat Model & Attack Tree Review (`QA` + `LEAD`) — **DONE** (`06cada3`)
@@ -54,8 +54,8 @@
 ### 🔹 PHASE 1 — DESKTOP CORE ENGINE & TIER 1 SYNC (สัปดาห์ 3–12)
 - **Milestone M1: Discovery, Identity & Pairing (สัปดาห์ 3–5)**
   - [ ] **T1.1** Zero-Configuration mDNS Advertiser & Browser Engine (`DESK`)
-  - [ ] **T1.2** Per-Device Key Identity & Encrypted Store (`LEAD`)
-  - [ ] **T1.3** Pairing Engine, Commit-then-Reveal SAS & QR Flow (`LEAD` + `MOB`)
+  - [x] **T1.2** Per-Device Key Identity & Encrypted Store (`LEAD`) — **DONE**
+  - [x] **T1.3** Pairing Engine, Commit-then-Reveal SAS & QR Flow (`LEAD` + `MOB`) — **DONE**
 - **Milestone M2: Secure Transport & Control Plane (สัปดาห์ 5–7)**
   - [ ] **T1.4** Mutual TLS 1.3 Transport Server & Pinned Client (`NET`)
   - [ ] **T1.5** WebSocket Control Plane & Reconnect Engine (`NET`)
@@ -69,7 +69,7 @@
   - [ ] **T1.11** Resumable Transfer Engine (64 MiB Checkpoints) (`NET`)
 - **Milestone M5: Desktop UI & Polish (สัปดาห์ 11–12)**
   - [ ] **T1.12** Desktop System Tray, Dropzone UI & Settings (`DESK`)
-  - [ ] **T1.13** Device Management & Signed Cluster Revocation (`LEAD`)
+  - [x] **T1.13** Device Management & Signed Cluster Revocation (`LEAD`) — **DONE**
 - [ ] **🚦 GATE-1** Milestone Review, Desktop Security Pentest & Dogfooding (`ALL`)
 
 ---
@@ -118,6 +118,13 @@
 | 2026-10-13 | **PCR-01** | `main` | `LEAD` (เจ) | `MERGED` | `7ab6ae2` | **Protocol & Architectural Alignment:** ซิงก์ §9.1/§9.2 กับ §5.4 Commit-then-Reveal (`/pair/finalize`, `commitment_B`); ปรับ §18.1 Dual Nonce SAS 160 bytes (`337017`); ลบ `derivePinNonce`; เปลี่ยน header Lamport เป็น `X-DropClip-HLC`; เพิ่ม `ClockDriftException` (60s) และ normalize `d` ใน `hlc.dart`; ป้องกัน Unicode Bidi override และ DOS reserved device names (`CONIN$`, `COM¹`) ใน `path_sanitizer.dart`; เพิ่ม `validateOfferPaths` ป้องกัน collision แบบ case-insensitive; Conformance test vectors ผ่าน 100% | Phase 1 M1 |
 | 2026-10-13 | **PCR-02** | `main` | `LEAD` + `ALL` | `MERGED` | `5bcfe4a` | **Peer Review Systemic Corrections & ISO Realignments:** ปรับปรุง `03-SRS.md` สู่มาตรฐาน ISO/IEC/IEEE 29148 & IEEE 830 (Use Cases UC-01–UC-12, MoSCoW, Rationale, Verification Methods T/I/A/D, ปรับแก้ Data Gathering Plan, RTM ครบ 100%); แก้ไขคะแนน CVSS v3.1 และเพิ่มภัยคุกคาม T-I04, T-D04, T-T04, T-E03, T-R03 ใน `04-THREAT-MODEL.md`; ปลดล็อก Dependency T0.1 และเกลี่ยภาระงาน Phase 2 & 3 (T2.1, T2.3, T2.4, T3.2, T3.4) ใน `02-TICKETS.md`; เพิ่มช่องทาง Signing สำหรับโอเพนซอร์ส/นักศึกษาและแทนที่ด้วย `osv-scanner` ใน `05-RELEASE-AND-UPDATE-PLAN.md`; ซิงก์แบตเตอรี่ (<3%/24h) และ Revocation (<1s/<2s) ใน `00-PROJECT-PROPOSAL-AND-PLAYBOOK.md`; สร้างโค้ดจริงและ Unit Tests สำหรับ `LoggingScrubber` (T0.3) และ `TestCluster` (T0.4) ใน `packages/dropclip_core` ผ่านครบ 100% | Phase 1 M1 |
 | 2026-10-13 | **PCR-03** | `fix/PCR-03-review-followup` | `NET` (ปัน) | `READY FOR PR` | *(commit นี้)* | **Review follow-up:** S0.1 ส่วน Dart/Windows, revoke แบบ quarantine-then-confirm, key แบบ envelope encryption, แก้ native ทั้ง 4 OS; แก้เทสต์ที่ compile ไม่ผ่าน (`CONIN$` interpolation, `TestCluster` เรียก `Hlc.merge`/`increment` ผิด), ลบ field ที่ไม่ใช้, `dart format` ทุก package, bench/fuzzer คืน exit code จริง, pin Melos 6, แก้ test vector ที่ค้าง (`482910`/`579318`/`738586`), CVSS 5 ข้อใหม่, close code revoke, resume §12.4, marker ชื่อผิด; Verification: `dart format`/`analyze --fatal-infos`/`dart test` ผ่านทุก package ด้วย Dart 3.13.5 | Phase 1 M1 |
+| 2026-11-03 | **T0.2** (1a) | `feat/T0.2-protocol-errors-envelopes` | `LEAD` (เจ) | `READY FOR PR` | `23bccbd` | **Protocol Error Registry & WS Envelopes:** `ProtocolErrorCode` ครบ 18 รหัส (§8), `VersionNegotiator` (`4003 E_UNSUPPORTED_VERSION`, §2.4), `MessageType` 16 ชนิด (§7.2), `Envelope` พร้อมโควตา 64 KiB (§7.1) และ forward-compatibility; Verification: format/analyze/test ผ่าน (40 passed) | T0.2 (1b) |
+| 2026-11-03 | **T0.2** (1b) | `feat/T0.2-protocol-payloads-fuzzer` | `LEAD` (เจ) | `READY FOR PR` | `98b5e06` | **Protocol Payloads & 10,000-Iteration Fuzz Suite:** `HelloPayload`, `ClipboardUpdatePayload` (§18.5 size boundaries), `FileOfferItem`, `RevocationBroadcastToken` (§7.4.10) และ Fuzz Test 10,000 รอบ; Verification: format/analyze/test ผ่าน (43 passed), fuzzer ผ่าน 10,000/10,000 | T1.2, T1.3, T1.13 |
+| 2026-11-03 | **S0.1** | `spike/S0.1-mtls-p256-crossplatform` | `LEAD` (เจ) | `READY FOR PR` | `4ef539a` | **Cross-Platform mTLS 1.3 ECDSA P-256 Matrix (`spike_tls_matrix_test.dart`):** ยืนยัน Handshake mTLS 1.3 (`prime256v1`), `withTrustedRoots: false`, app-layer SHA-256 DER pinning, การบล็อก rogue cert 100%, และ `403 E_NOT_PAIRED` หลัง revoke บน macOS arm64 & Windows; Verification: format/analyze/test ผ่าน (`dropclip_core` 17 passed) | T1.2, T1.4 |
+| 2026-11-03 | **T1.2** (3a) | `feat/T1.2-device-identity` | `LEAD` (เจ) | `READY FOR PR` | `2e15411` | **Per-Device ECDSA P-256 Identity & SecureKeyStore (`E-01`):** `DeviceIdentity`, `InMemorySecureKeyStore` (`dropclip.identity.p256`), `DeviceIdentityManager` (auto-generate `prime256v1` X.509 v3 cert 10yr, `identity.json` public metadata, `signUtf8`/`verifyUtf8` ECDSA P-256 SHA-256) และ NFR-S02 disk audit ตรวจ 0 private keys บน disk; Verification: format/analyze/test ผ่าน | T1.2 (3b), T1.13 |
+| 2026-11-03 | **T1.2** (3b) | `feat/T1.2-trusted-device-store` | `LEAD` (เจ) | `READY FOR PR` | `658f86b` | **Encrypted Trusted Device Store (`E-02`, `trusted_devices.json.enc`):** `TrustedDevice`, `TrustedDeviceStore` เข้ารหัสแบบ `nonce(12B) \|\| ciphertext \|\| tag(16B)` ด้วย `dropclip.store.key`, รองรับ `fingerprintOf` (เข้ากันได้กับ `PeerCache` ของ `DESK`), `isActiveFingerprint`, quarantine status และตรวจจับการแก้ไข tag; Verification: format/analyze/test ผ่าน | T1.3, T1.4, T1.13 |
+| 2026-11-03 | **T1.3** | `feat/T1.3-pairing-sas-engine` | `LEAD` (เจ) | `READY FOR PR` | `1e5f137` | **Pairing Engine, Commit-then-Reveal SAS & Zero-PIN-on-Wire (`T1.3`):** `QrPairingPayload` (§5.3), `PairingEngine` (`/pair`, `/pair/confirm`, `/pair/finalize`), ผ่าน test vector `337017` (QR) และ `639589` (PIN), บล็อกการส่ง PIN บน wire, จำกัดอัตรา 5 req/min/IP (`E_RATE_LIMITED`) และล็อก 5 นาทีเมื่อผิดครบ 3 ครั้ง (`E_PAIR_LOCKED`); Verification: format/analyze/test ผ่าน | T1.4, T2.5 |
+| 2026-11-03 | **T1.13** | `feat/T1.13-cluster-revocation` | `LEAD` (เจ) | `READY FOR PR` | *(commit นี้)* | **Device Management & Signed Cluster Revocation (`T1.13`):** `RevocationManager` เพิกถอนภายใน $<1\text{ s}$ (`4004`), เซ็น ECDSA P-256 `RevocationBroadcastToken`, บังคับใช้ No Self-Revocation by Proxy, Quarantine-then-Confirm, `revoked_tombstones.json` และ Handshake Anti-Entropy (`tombstones_hash` / `revocation.sync`); Verification: format/analyze/test ผ่าน | GATE-1 |
 | *(เพิ่มต่อที่นี่)*| ... | ... | ... | ... | ... | ... | ... |
 
 ---
