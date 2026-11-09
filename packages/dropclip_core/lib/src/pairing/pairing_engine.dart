@@ -180,7 +180,7 @@ class PairingEngine {
   Map<String, dynamic> handlePairConfirm(Map<String, dynamic> body,
       {required String clientIp}) {
     final now = _clockMs();
-    _enforceLockoutAndRateLimit(clientIp, now);
+    _checkLockout(clientIp, now);
     _checkSessionActive(body['pair_id'], PairingState.committed, now);
     final Uint8List nonceB;
     try {
@@ -205,7 +205,7 @@ class PairingEngine {
   Future<Map<String, dynamic>> handlePairFinalize(Map<String, dynamic> body,
       {required String clientIp, required bool hostUserConfirmedMatch}) async {
     final now = _clockMs();
-    _enforceLockoutAndRateLimit(clientIp, now);
+    _checkLockout(clientIp, now);
     _checkSessionActive(body['pair_id'], PairingState.awaitingSas, now);
     if (body['result'] != 'match' || !hostUserConfirmedMatch) {
       _state = PairingState.failed;
@@ -237,7 +237,7 @@ class PairingEngine {
     }
   }
 
-  void _enforceLockoutAndRateLimit(String ip, int nowMs) {
+  void _checkLockout(String ip, int nowMs) {
     final lockedUntil = _lockoutUntilByIp[ip];
     if (lockedUntil != null) {
       if (nowMs < lockedUntil) {
@@ -247,6 +247,10 @@ class PairingEngine {
       _lockoutUntilByIp.remove(ip);
       _failuresByIp.remove(ip);
     }
+  }
+
+  void _enforceLockoutAndRateLimit(String ip, int nowMs) {
+    _checkLockout(ip, nowMs);
     final stamps = (_reqStampsByIp[ip] ??= <int>[])
       ..removeWhere((t) => nowMs - t >= 60000);
     if (stamps.length >= pairRateLimitPerIp) {

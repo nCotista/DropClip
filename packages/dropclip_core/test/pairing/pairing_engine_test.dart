@@ -100,5 +100,35 @@ void main() {
           throwsA(isA<ProtocolException>().having(
               (e) => e.errorCode, 'errorCode', ProtocolErrorCode.pairLocked)));
     });
+
+    test('PairingClientProof and PairingEngine interoperate in QR & PIN modes',
+        () async {
+      final engine = PairingEngine(
+          hostIdentity: hostId,
+          trustedStore: trustedStore,
+          clockMs: () => nowMs);
+      final sQr = engine.startSession(hostIp: '192.168.1.10', hostPort: 53318);
+      final clientQr = PairingClientProof.fromQr(
+          qr: sQr.qr.toJson(), clientFingerprint: fpHi, nowMs: () => nowMs);
+      final rQr = engine.handlePairRequest(<String, dynamic>{
+        ...clientQr.begin(),
+        'device_id': '22222222-2222-4222-8222-222222222222',
+        'name': 'Pixel-8',
+        'os': 'android',
+        'tier': 2,
+      }, clientIp: '192.168.1.25', tlsClientCertFp: fpHi);
+      final confirmQr = clientQr.acceptHostReveal(
+          pairId: rQr['pair_id'] as String,
+          tlsServerFingerprint: hostId.fp,
+          responseFingerprint: rQr['host_fp'] as String,
+          responseNonceA: rQr['nonce_A'] as String);
+      engine.handlePairConfirm(confirmQr, clientIp: '192.168.1.25');
+      expect(clientQr.sas, equals(engine.currentSasCode));
+      await engine.handlePairFinalize(
+          clientQr.finalize(userConfirmedMatch: true),
+          clientIp: '192.168.1.25',
+          hostUserConfirmedMatch: true);
+      expect(engine.state, PairingState.paired);
+    });
   });
 }
