@@ -1,0 +1,26 @@
+# T1.3 TLS pairing verification — 2026-11-10
+Source commit: 914e2e3; PR https://github.com/nCotista/DropClip/pull/58
+Environment: macOS arm64, Dart 3.13.7, OpenSSL 3.6.1.
+Commands: dart test --coverage=coverage --reporter expanded; dart analyze --fatal-infos; dart format --output=none --set-exit-if-changed.
+Result: core 106 tests pass, including 12 TLS/regression cases; analyze no issues; format zero changes.
+LCOV lib/: 1122/1213 lines = 92.50%; pairing_engine.dart: 148/156 = 94.87%.
+Test adapter: HTTPS loopback, minimum TLS 1.3, optional client certificate requested; all pairing requests have no client certificate. Test P-256 private-key files are encrypted and removed after fixture loading; passwords stay in memory.
+Exact request field sets and commitment bytes are checked in memory after TLS receipt. No PIN, SAS, private key or TLS traffic secret is emitted to this evidence file.
+Limits: not the production T1.4 router; not decrypted PCAP; automated timing excludes camera and human confirmation. Client trust persistence and post-pair mTLS/WebSocket remain outside this harness.
+
+## Extract from the full core test run
+00:00 +9: test/pairing/pairing_tls_test.dart: (setUpAll)
+00:00 +10: test/pairing/pairing_tls_test.dart: qr pairs over TLS 1.3 without a client certificate or PIN fields
+qr automated TLS pairing: 105 ms
+00:00 +12: test/pairing/pairing_tls_test.dart: pin pairs over TLS 1.3 without a client certificate or PIN fields
+pin automated TLS pairing: 12 ms
+00:00 +16: test/pairing/pairing_tls_test.dart: a changed nonce cannot open the committed client proof
+00:00 +17: test/pairing/pairing_tls_test.dart: server certificate pin mismatch fails before any HTTP request
+00:00 +18: test/pairing/pairing_tls_test.dart: TLS 1.2 downgrade is rejected before HTTP
+00:00 +19: test/pairing/pairing_tls_test.dart: expired session never reveals a host nonce
+00:00 +20: test/pairing/pairing_tls_test.dart: a supplied TLS certificate fingerprint still must match the claim
+00:00 +21: test/pairing/pairing_tls_test.dart: certificate-free pairing still rejects a non-hex fingerprint
+00:00 +22: test/pairing/pairing_tls_test.dart: sixth request is rate limited and the minute window recovers
+00:00 +23: test/pairing/pairing_tls_test.dart: three invalid commitments lock the IP for five minutes
+00:00 +24: test/pairing/pairing_tls_test.dart: (tearDownAll)
+00:05 +106: All tests passed!
