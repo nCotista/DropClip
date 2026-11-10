@@ -1,0 +1,4 @@
+# Downloaded by CI (Flutter header) and local test builds
+flutter/
+*_test
+*.exe
