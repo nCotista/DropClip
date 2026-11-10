@@ -57,9 +57,9 @@ final class HarnessViewController: UIViewController {
 
     @objc private func showResult() {
         guard let folder = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: group),
-              let text = try? String(contentsOf: folder.appendingPathComponent("peak-rss-kib.txt")),
-              let peak = Int(text) else { return }
-        status.text = "Share Extension peak RSS: \(peak / 1024) MiB (\(peak) KiB)"
+              let text = try? String(contentsOf: folder.appendingPathComponent(HarnessChecks.peakRSSFilename)),
+              let description = HarnessChecks.peakRSSDescription(text) else { return }
+        status.text = description
     }
 
     @objc private func share() {

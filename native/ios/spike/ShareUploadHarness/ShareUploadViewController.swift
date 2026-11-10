@@ -78,7 +78,7 @@ final class ShareUploadViewController: SLComposeServiceViewController {
                 var usage = rusage()
                 if getrusage(RUSAGE_SELF, &usage) == 0 {
                     try? String(usage.ru_maxrss).write(
-                        to: container.appendingPathComponent("peak-rss-kib.txt"),
+                        to: container.appendingPathComponent(HarnessChecks.peakRSSFilename),
                         atomically: true, encoding: .utf8)
                 }
                 self.extensionContext?.completeRequest(returningItems: [], completionHandler: nil)

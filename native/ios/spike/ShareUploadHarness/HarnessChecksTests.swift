@@ -10,6 +10,15 @@ import Foundation
         assert(HarnessChecks.hasSpace(HarnessChecks.requiredFreeBytes))
         assert(!HarnessChecks.hasSpace(HarnessChecks.requiredFreeBytes - 1))
         assert(!HarnessChecks.hasSpace(nil))
+        assert(HarnessChecks.peakRSSFilename == "peak-rss-bytes.txt")
+        assert(HarnessChecks.peakRSSDescription("196820992") ==
+               "Share Extension peak RSS: 187.70 MiB (196820992 bytes)")
+        assert(HarnessChecks.peakRSSDescription(" 1048576\n") ==
+               "Share Extension peak RSS: 1.00 MiB (1048576 bytes)")
+        assert(HarnessChecks.peakRSSDescription("0") == "Share Extension peak RSS: 0.00 MiB (0 bytes)")
+        assert(HarnessChecks.peakRSSDescription("-1") == nil)
+        assert(HarnessChecks.peakRSSDescription("not-a-number") == nil)
+        assert(HarnessChecks.peakRSSDescription(nil) == nil)
 
         let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)

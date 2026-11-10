@@ -3,6 +3,14 @@ import Foundation
 enum HarnessChecks {
     static let byteCount: UInt64 = 4 * 1024 * 1024 * 1024
     static let requiredFreeBytes: Int64 = 16 * 1024 * 1024 * 1024
+    static let peakRSSFilename = "peak-rss-bytes.txt"
+
+    static func peakRSSDescription(_ text: String?) -> String? {
+        guard let text = text,
+              let bytes = UInt64(text.trimmingCharacters(in: .whitespacesAndNewlines)) else { return nil }
+        return String(format: "Share Extension peak RSS: %.2f MiB (%llu bytes)",
+                      locale: Locale(identifier: "en_US_POSIX"), Double(bytes) / 1_048_576, bytes)
+    }
 
     static func hasSpace(_ available: Int64?) -> Bool {
         guard let available = available else { return false }
