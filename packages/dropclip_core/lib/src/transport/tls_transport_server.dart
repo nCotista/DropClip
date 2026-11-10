@@ -8,6 +8,9 @@ import 'package:dropclip_protocol/dropclip_protocol.dart';
 import 'package:shelf/shelf.dart';
 import 'package:shelf/shelf_io.dart' as shelf_io;
 
+import '../security/device_identity.dart';
+import '../security/trusted_device_store.dart';
+
 /// First port of the DropClip transport range (PROTO §3.1, T1.4).
 const int kTransportPortFirst = 53317;
 
@@ -118,6 +121,41 @@ class TlsTransportServer {
       }
     }
     throw TransportBindException(firstPort, lastPort, lastError);
+  }
+
+  /// Binds with this device's identity and the active peers of [store].
+  /// The private key is read from envelope storage (§4.2) and the decrypted
+  /// copy is zeroed once BoringSSL has parsed it.
+  static Future<TlsTransportServer> bindForIdentity({
+    required DeviceIdentityManager identity,
+    required TrustedDeviceStore store,
+    required Handler pinnedHandler,
+    Handler? pairingHandler,
+    Object? address,
+    int firstPort = kTransportPortFirst,
+    int lastPort = kTransportPortLast,
+  }) async {
+    final keyPem = await identity.loadPrivateKeyPem();
+    final SecurityContext ctx;
+    try {
+      ctx = buildTls13Context(
+        certPem: identity.identity.certPem,
+        keyPem: keyPem,
+        trustedPeerCertsPem:
+            store.activeDevices.map((d) => d.certPem).whereType<Uint8List>(),
+      );
+    } finally {
+      keyPem.fillRange(0, keyPem.length, 0);
+    }
+    return bind(
+      context: ctx,
+      isTrusted: store.isActiveFingerprint,
+      pinnedHandler: pinnedHandler,
+      pairingHandler: pairingHandler,
+      address: address,
+      firstPort: firstPort,
+      lastPort: lastPort,
+    );
   }
 
   /// Trusts a newly paired peer's cert for future handshakes (no restart).
