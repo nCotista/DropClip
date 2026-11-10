@@ -1,5 +1,16 @@
 library dropclip_clipboard;
 
+export 'src/channel/clip_snapshot.dart';
+export 'src/channel/clipboard_channel.dart';
+export 'src/channel/native_clipboard.dart';
+export 'src/image/dib.dart';
+export 'src/image/dibv5_encoder.dart';
+export 'src/image/png_decoder.dart';
+export 'src/image/png_encoder.dart';
+export 'src/image/tiff_decoder.dart';
+export 'src/sync/sync_engine.dart';
+export 'src/sync/sync_types.dart';
+
 /// Data class representing an item on the native clipboard
 class ClipboardItem {
   final String mime;

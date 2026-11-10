@@ -23,10 +23,12 @@ jobs:
       - name: Checkout Repository
         uses: actions/checkout@v4
 
-      - name: Setup Dart SDK
-        uses: dart-lang/setup-dart@v1
+      # Flutter bundles Dart; needed since dropclip_ui is a Flutter package (T1.12).
+      - name: Setup Flutter SDK
+        uses: subosito/flutter-action@v2
         with:
-          sdk: stable
+          channel: stable
+          cache: true
 
       - name: Install Melos
         run: dart pub global activate melos ^6.0.0
@@ -42,6 +44,19 @@ jobs:
 
       - name: Run Package Tests
         run: melos run test
+
+  native-windows-core:
+    name: Native Windows Clipboard Core Tests (T1.7)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Build and Run clipboard_core Tests (g++)
+        working-directory: native/windows/test
+        run: |
+          g++ -std=c++17 -Wall -Wextra -Werror -I.. -o clipboard_core_test clipboard_core_test.cpp
+          ./clipboard_core_test
 
   security-audit:
     name: Security & Secret Audit
