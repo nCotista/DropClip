@@ -1,0 +1,21 @@
+name: dropclip_windows
+description: Windows native layer of DropClip (T1.7) - the Win32 clipboard watcher behind the PROTO-DC-V2.0 section 14.1 clipboard channels.
+version: 1.0.0
+publish_to: none
+
+environment:
+  sdk: '>=3.2.0 <4.0.0'
+  flutter: '>=3.16.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+dev_dependencies:
+  lints: ^3.0.0
+
+flutter:
+  plugin:
+    platforms:
+      windows:
+        pluginClass: DropclipWindowsPluginCApi
