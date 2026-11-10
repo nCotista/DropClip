@@ -53,16 +53,21 @@ class MobileConstraintDeviceTest {
         )
         assertTrue(info.exported)
         assertEquals("android.permission.DUMP", info.permission)
+        val manager = context.getSystemService(Context.ACTIVITY_SERVICE) as ActivityManager
+        context.stopService(Intent(context, SpikeConnectedService::class.java))
+        assertTrue("Previous service did not stop", waitFor {
+            manager.getRunningServices(50).none {
+                it.service.className == SpikeConnectedService::class.java.name
+            }
+        })
+        val results = context.getSharedPreferences("spike_results", Context.MODE_PRIVATE)
+        results.edit().remove("multicast_lock_held").commit()
         val activity = instrumentation.startActivitySync(
             Intent(context, SpikeHarnessActivity::class.java)
                 .setAction(SpikeHarnessActivity.START_ENDURANCE)
                 .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         )
         try {
-            val results = context.getSharedPreferences("spike_results", Context.MODE_PRIVATE)
-            results.edit().remove("multicast_lock_held").commit()
-            context.startForegroundService(Intent(context, SpikeConnectedService::class.java))
-            val manager = context.getSystemService(Context.ACTIVITY_SERVICE) as ActivityManager
             assertTrue("Service did not enter foreground", waitFor {
                 manager.getRunningServices(50).any {
                     it.service.className == SpikeConnectedService::class.java.name && it.foreground
