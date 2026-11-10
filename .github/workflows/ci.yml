@@ -67,6 +67,24 @@ jobs:
           g++ -std=c++17 -Wall -Wextra -Werror -I.. -I. -o channel_codec_test channel_codec_test.cpp
           ./channel_codec_test
 
+  windows-desktop-build:
+    name: Windows Desktop Build (T1.7 dropclip_windows plugin)
+    runs-on: windows-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup Flutter SDK
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      # Compiles the plugin with MSVC /W4 /WX and links it into the real app.
+      - name: Build apps/desktop for Windows
+        working-directory: apps/desktop
+        run: flutter build windows --debug
+
   security-audit:
     name: Security & Secret Audit
     runs-on: ubuntu-latest
