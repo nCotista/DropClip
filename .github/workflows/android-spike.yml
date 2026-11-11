@@ -66,4 +66,5 @@ jobs:
           path: |
             native/android/spike/build/reports/androidTests/connected/
             native/android/spike/build/reports/coverage/
+            native/android/spike/build/outputs/apk/**/*.apk
           if-no-files-found: ignore

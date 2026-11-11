@@ -3,6 +3,7 @@ package com.dropclip.spike
 import android.app.ActivityManager
 import android.content.ClipData
 import android.content.ClipboardManager
+import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.os.PersistableBundle
@@ -10,6 +11,7 @@ import androidx.test.platform.app.InstrumentationRegistry
 import androidx.test.uiautomator.By
 import androidx.test.uiautomator.UiDevice
 import androidx.test.uiautomator.Until
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -30,6 +32,43 @@ class MobileConstraintDeviceTest {
             context.startForegroundService(Intent(context, SpikeConnectedService::class.java))
             val manager = context.getSystemService(Context.ACTIVITY_SERVICE) as ActivityManager
             assertTrue(waitFor {
+                manager.getRunningServices(50).any {
+                    it.service.className == SpikeConnectedService::class.java.name && it.foreground
+                }
+            })
+            assertTrue("MulticastLock was not acquired", waitFor {
+                results.getBoolean("multicast_lock_held", false)
+            })
+        } finally {
+            context.stopService(Intent(context, SpikeConnectedService::class.java))
+            activity.finish()
+        }
+    }
+
+    /** The shell-only activity starts the service without leaving it exposed to apps. */
+    @Suppress("DEPRECATION")
+    @Test fun enduranceEntryPointStartsForegroundService() {
+        val info = context.packageManager.getActivityInfo(
+            ComponentName(context, SpikeHarnessActivity::class.java), 0
+        )
+        assertTrue(info.exported)
+        assertEquals("android.permission.DUMP", info.permission)
+        val manager = context.getSystemService(Context.ACTIVITY_SERVICE) as ActivityManager
+        context.stopService(Intent(context, SpikeConnectedService::class.java))
+        assertTrue("Previous service did not stop", waitFor {
+            manager.getRunningServices(50).none {
+                it.service.className == SpikeConnectedService::class.java.name
+            }
+        })
+        val results = context.getSharedPreferences("spike_results", Context.MODE_PRIVATE)
+        results.edit().remove("multicast_lock_held").commit()
+        val activity = instrumentation.startActivitySync(
+            Intent(context, SpikeHarnessActivity::class.java)
+                .setAction(SpikeHarnessActivity.START_ENDURANCE)
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        )
+        try {
+            assertTrue("Service did not enter foreground", waitFor {
                 manager.getRunningServices(50).any {
                     it.service.className == SpikeConnectedService::class.java.name && it.foreground
                 }
