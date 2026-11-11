@@ -30,8 +30,8 @@
 |---|:---:|:---:|
 | **สถานะเฟสปัจจุบัน** | **Phase 0 Completed $\to$ Phase 1–4 Core, Clipboard & Desktop UI Merged** | สัปดาห์ 3–24 (All LEAD/DESK Core Modules Merged) |
 | **จำนวน Tickets ทั้งหมด** | 34 Tickets + 4 Gates | 24 สัปดาห์ |
-| **Tickets ที่เสร็จสิ้นแล้ว** | **19 / 34** (55.9%) + **S0.1 & S0.2 Done** | All Phase 0 Spikes & `LEAD`/`DESK` Core Tickets Merged |
-| **Tickets ที่กำลังดำเนินการ** | **2 / 34** | T1.7 (`NET`), T1.9 (`DESK`) |
+| **Tickets ที่เสร็จสิ้นแล้ว** | **21 / 34** (61.8%) + **S0.1 Done; S0.2 Done by LEAD exception** | All Phase 0 Spikes & `LEAD`/`DESK` + `T1.4`/`T1.7` (`NET`) Merged |
+| **Tickets ที่กำลังดำเนินการ** | **1 / 34** | T1.9 (`DESK`) |
 | **สถานะ CI Automation** | **Passing บน `main`** — `format`, `analyze --fatal-infos`, `test`, `fuzzer`, และ Secret Scan ผ่านครบ 100% | Melos Monorepo Lint, Analyze & Test |
 | **ความพร้อมของเอกสารสเปก** | **Draft / Aligned (PCR-03)** | Protocol Spec v2.0, SRS v1.2, Threat Model |
 
@@ -41,7 +41,7 @@
 
 ### 🔹 PHASE 0 — FOUNDATION & TECHNICAL SPIKES (สัปดาห์ 1–2)
 - [x] **S0.1** Cross-Platform mTLS ECDSA P-256 Spike (`LEAD`) — **DONE**
-- [x] **S0.2** Mobile Background Constraints Spike (`MOB`) — **DONE** (`spike/S0.2-mobile-transient-focus`, `spike/S0.2-android-ci` & `spike/S0.2-ios-share-extension` merged to `main`; Android API 34/35 CI + Android 14 device & iOS Personal Team matrix approved by `LEAD`)
+- [x] **S0.2** Mobile Background Constraints Spike (`MOB`) — **DONE by LEAD-approved exception (2026-11-09)**: Simulator 4 GiB upload/RSS, Android API 34/35 CI and Samsung Android 15 hardware 7/7 tests; overnight SIGKILL/restart observed (`START_STICKY` recovery verified), uninterrupted service criterion not met; physical iOS background/RSS remains unverified (see worklog and ADR-007)
 - [x] **T0.1** Monorepo Architecture Setup & CI/CD Pipeline (`LEAD`) — **DONE** (`4d8270f`)
 - [x] **T0.2** Protocol Package & Data Envelopes (HLC, SAS Engine) (`LEAD`) — **DONE**
 - [x] **T0.3** Logging & Telemetry Scrubber Framework (`DESK`) — **DONE**
@@ -55,13 +55,13 @@
 - **Milestone M1: Discovery, Identity & Pairing (สัปดาห์ 3–5)**
   - [x] **T1.1** Zero-Configuration mDNS Advertiser & Browser Engine (`DESK`) — **DONE** (PR 1a, 1b, 2a, 2b merged to `main`)
   - [x] **T1.2** Per-Device Key Identity & Encrypted Store (`LEAD`) — **DONE**
-  - [x] **T1.3** Pairing Engine, Commit-then-Reveal SAS & QR Flow (`LEAD` + `MOB`) — **DONE** (Host `PairingEngine` + Client `PairingClientProof` merged & aligned on §5.4 `method`/`mode` contract)
+  - [x] **T1.3** Pairing Engine, Commit-then-Reveal SAS & QR Flow (`LEAD` + `MOB`) — Core/client **merged**; follow-ups [#57](https://github.com/nCotista/DropClip/pull/57)/[#58](https://github.com/nCotista/DropClip/pull/58) reviewed, CI 5/5 each; combined local core suite 110 passed; LEAD security approval and production/UI/PCAP acceptance remain pending
 - **Milestone M2: Secure Transport & Control Plane (สัปดาห์ 5–7)**
-  - [ ] **T1.4** Mutual TLS 1.3 Transport Server & Pinned Client (`NET`)
+  - [x] **T1.4** Mutual TLS 1.3 Transport Server & Pinned Client (`NET`) — **DONE** (`feat/T1.4-tls-server-transport` & `feat/T1.4-pinned-client` merged to `main`)
   - [ ] **T1.5** WebSocket Control Plane & Reconnect Engine (`NET`)
 - **Milestone M3: Cross-OS Clipboard Engine (สัปดาห์ 7–10)**
   - [x] **T1.6** macOS Native Clipboard Watcher & Concealed Detector (`DESK`) — **DONE** (PR 1a, 1b, 1c `dropclip_macos` plugin merged to `main`)
-  - [ ] **T1.7** Windows Native Clipboard Watcher & Win32 Integration (`NET`) — *In Progress (PR 1a, 1b, 2a, 2b Merged)*: `ClipSnapshot`, `NativeClipboard`, Win32 C++ read/write core & CI merged to `main`;เหลือ PR 3 ผูก channel เข้า Windows runner (`apps/desktop/windows`)
+  - [x] **T1.7** Windows Native Clipboard Watcher & Win32 Integration (`NET`) — **DONE** (`ClipSnapshot`, `NativeClipboard`, Win32 C++ read/write core, `channel_codec.h` & `dropclip_windows` plugin merged to `main`)
   - [x] **T1.8** Cross-OS Clipboard Image Format Normalizer (`DESK`) — **DONE** (PR 1a PNG encoder, 1b DIB→PNG, 2a PNG decoder, 2b PNG→CF_DIBV5, 3a TIFF decoder, 3b TIFF codecs merged to `main`)
   - [ ] **T1.9** Distributed Clipboard Sync Engine & Loop Prevention (`DESK`) — *In Progress (Core Engine A1, A2, B1, B2 Merged)*: `SyncEngine` ขาออก/ขารับ และ convergence 1,000 events merged to `main`; รอ `T1.5`/`T1.10` เพื่อต่อ transport จริง
 - **Milestone M4: Streaming File Engine (สัปดาห์ 10–12)**
@@ -179,7 +179,14 @@
 | 2026-11-03 | **T1.7** (2a) | `feat/T1.7-win32-clipboard-core` | `NET` (ปัน) | `MERGED` | `41acfd5` | **Win32 clipboard read core (C++):** `ClipboardApi` แยกจาก Win32, เช็ก marker ก่อนอ่านเนื้อหา + fail closed (§10.4), retry 50/100/200 ms → `kLocked` (§16), UTF-16 → UTF-8, CI job `native-windows-core`; Verification: g++ `-Werror` 12 ชุดผ่าน, gcov 100%, MinGW compile ผ่าน, 374 บรรทัด | T1.7 (2b) |
 | 2026-11-03 | **T1.7** (2b) | `feat/T1.7-win32-clipboard-binding` | `NET` (ปัน) | `MERGED` | `654266e` | **Write path + Win32 binding:** `WriteItems` (transaction เดียว, PNG + CF_DIBV5), `Clear`, `Utf8ToUtf16`, `Win32ClipboardApi` ใน `ClipboardWatcher.cpp`; stacked บน 2a; Verification: 15 ชุดผ่าน, gcov 100%, MinGW compile + link ผ่าน; ยังไม่ได้รันบน Windows จริง | T1.7 (3), T1.8, T1.9 |
 | 2026-11-09 | **MERGE** | `main` (Waves 1–5) | `LEAD` (เจ) | `MERGED` | `6e83670` | **Full Monorepo Wave 1–5 PR Review & Merge Integration:** รวม 60+ branches (`T0.2`, `T0.3`, `S0.1`, `S0.2`, `T1.1`, `T1.2`, `T1.3`, `T1.6`, `T1.7`, `T1.8`, `T1.9`, `T1.12`, `T1.13`, `T2.1`, `T3.1`, `T3.2`, `T4.2`, `T4.5`, `docs/task-progress-tracker`) เข้าสู่ `main` พร้อมซิงก์สัญญา `PairingEngine` ↔ `PairingClientProof` (§5.4 `method`/`mode` & `/pair` rate-limit) | T1.4, T1.5, T1.10, T1.11 |
-| 2026-11-09 | **S0.2** | `spike/S0.2-mobile-transient-focus` (+ `android-ci`, `ios-share-extension`) | `MOB` (เกื้อ) + `LEAD` (เจ) | `MERGED` | `2e1ce17` / `7f5c26d` | **Mobile Background Constraints Spike (`S0.2`):** Android `connectedDevice` FGS, `MulticastLock`, sensitive clip suppression & QS `PendingIntent` ผ่านบน GitHub Actions CI (API 34 & API 35, JaCoCo coverage 94.6%) คู่กับเครื่องจริง Android 14; iOS ยืนยัน `NWBrowser` บน iPhone 16 Pro เครื่องจริง, `ShareUploadHarness` (Host + Share Extension + `getrusage` Peak RSS) บน Simulator (coverage 92.31%), และสตรีมไฟล์ 4 GiB ผ่าน TLS 1.3 (SHA-256 ตรง 100%); `LEAD` อนุมัติปิด S0.2 ภายใต้ข้อจำกัด Personal Team Signing | T2.1, T2.2, T3.1, T3.2 |
+| 2026-11-09 | **S0.2** closure | `docs/S0.2-acceptance-exception` + `docs/task-progress-tracker` | `MOB` (เกื้อ), `LEAD` approved | `DONE — exception` | `feb2b4f` ([PR #54](https://github.com/nCotista/DropClip/pull/54)) | LEAD accepted combined proxy evidence for spike closure: iPhone `NWBrowser` ready; Simulator host/extension build and 4 GiB staging; Mac-only 4 GiB TLS loopback; Android API 34/35 CI, 6 tests each, 94.6% coverage | No measured extension RSS/4 GiB upload or Android overnight hardware artifact; original device criteria remain open for later validation |
+| 2026-11-10 | **S0.2** Simulator follow-up | `spike/S0.2-ios-simulator-no-app-group` | `MOB` (เกื้อ) | `MERGED` | `03e7f3f` ([PR #55](https://github.com/nCotista/DropClip/pull/55)) | Share Extension → local TLS 1.3 receiver: 4 GiB, SHA-256 match, HTTP 200; peak RSS 187.70 MiB on Simulator, +7.48 MiB over pre-upload high-water; 3.58 s; RSS byte-unit correction and parsing tests; helper coverage 94.92%; latest CI 5/5 | Foreground Simulator-only path; does not validate physical-device <30 MB or background/App Group behavior |
+| 2026-11-10 | **T0.1** CI follow-up | `fix/T0.1-mobile-flutter-bootstrap` | `MOB` (เกื้อ); T0.1 owned by `LEAD` | `MERGED` | `2ffd255` ([PR #56](https://github.com/nCotista/DropClip/pull/56)) | Direct Flutter SDK declaration fixes Windows bootstrap; all five checks passed before user-authorized squash merge | Synced #53/#54/#55/#57/#58 with main; latest CI all green |
+| 2026-11-10 | **T1.3** pairing regression | `feat/T1.3-pairing-regression` | `MOB` (เกื้อ) | `MERGED` | `0320b34` ([PR #57](https://github.com/nCotista/DropClip/pull/57)) | Add Host/Client PIN happy path and three failure/boundary tests; core 98 tests pass, analyze/format pass, LCOV 92.24% | In-process evidence; latest CI 5/5; combined #57/#58 suite 110 passed |
+| 2026-11-10 | **T1.3** TLS integration | `feat/T1.3-tls-pairing-integration` | `MOB` (เกื้อ) | `MERGED` | `a37548b` ([PR #58](https://github.com/nCotista/DropClip/pull/58)) | Accept no client cert for pairing per §4.4; retain supplied-fp check; 12 TLS/regression cases, TLS 1.2 rejection, Zero-PIN field assertions; core 106 tests, 92.50%, engine 94.87%; 397-line diff | CI 5/5 including Windows TLS tests; combined #57/#58 suite 110 passed |
+| 2026-11-10 | **S0.2** Android 15 hardware | `spike/S0.2-android-ci` | `MOB` (เกื้อ) | `MERGED` | `cfae1cb` ([PR #53](https://github.com/nCotista/DropClip/pull/53), base `main`, 60 lines) | Corrected entry-point test; Samsung SM-G990E/API 35 suite 7/7 in 31.819 s; API 34/35 CI green, API 35 coverage 95.1%; recovered foreground service and actual multicast lock observed after SIGKILL | PID 3044 exited at 06:15:51, reason SIGNALED/status 9; PID 9205/restartCount=1 next day (`START_STICKY` recovery verified) |
+| 2026-11-10 | **T1.4** (1a/1b) | `feat/T1.4-tls-server-transport` → `feat/T1.4-pinned-client` | `NET` (ปัน) | `MERGED` | `07bb899` / `a804cfb` | **Mutual TLS 1.3 Server & Pinned Client (`T1.4`):** `TlsTransportServer` (TLS 1.3 only, bind port 53317–53417, re-check peer fp per request, `403 E_NOT_PAIRED` on revoke, cert-less `/api/v1/pair*` per §4.4) และ `PinnedTransportClient` (HTTPS + `wss://`, fp pinning, `forIdentity` zeroing decrypted key copy per §4.2); Verification: unit/integration tests pass | T1.5, T1.10 |
+| 2026-11-10 | **T1.7** (3a/3b) | `feat/T1.7-channel-codec` → `feat/T1.7-windows-plugin` | `NET` (ปัน) | `MERGED` | `e80c51f` / `c41702c` | **Windows Clipboard Channel Codec & `dropclip_windows` Plugin (`T1.7`):** `channel_codec.h` (`Snapshot` → `ClipSnapshot` map, concealed drops items, all-or-nothing write), `dropclip_windows` plugin serving `dropclip/clipboard` + `/events` registered in `apps/desktop/windows` + MSVC `/W4 /WX` CI | T1.9, GATE-1 |
 | *(เพิ่มต่อที่นี่)*| ... | ... | ... | ... | ... | ... | ... |
 
 ---
@@ -194,3 +201,12 @@
 - [x] มีการบันทึก Work Log ลงใน `docs/worklogs/` เรียบร้อยแล้ว
 - [x] ได้เข้ามาติ๊กสถานะและกรอกข้อมูลในตาราง Registry ของไฟล์นี้ (`docs/TASK-PROGRESS-AND-UPDATES.md`) แล้ว
 
+
+## 2026-11-10 — MOB PR review and CI resolution
+
+- PR #56 merged as `2ffd255`; #53/#54/#55/#57/#58 synced with `main` and all latest checks passed. Technical review comments are posted; other PRs remain open. Security work still requires LEAD approval under CONTRIBUTING §2.1.
+- Review fixed Darwin RSS byte/KiB labeling in #55 (`03e7f3f`) and the 30 MB versus 30 MiB requirement in #54 (`916ad1e`). Swift helper coverage 94.92%; unsigned Simulator/device build and analyze passed.
+- Combined #57/#58 locally: 110 core tests passed, analyze no issues, format zero changes. This local combination is not a new PR.
+- Production pairing transport/UI is absent in inspected `main`: mobile entry point only prints startup messages; desktop Pair action is a placeholder. T1.4 (NET) and T2.5 (MOB) integration, full user timing and formal PCAP inspection remain pending.
+- Android SIGKILL/recovery evidence is ready for LEAD review, not an uninterrupted-endurance pass. S0.2 remains DONE by the existing exception; no new physical iOS test is assigned in this follow-up.
+- [Detailed review record](worklogs/PR-REVIEW-MOB-2026-11-10.md).

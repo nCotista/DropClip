@@ -1,0 +1,163 @@
+# S0.2 Android 15 evidence — 2026-11-10 (Asia/Bangkok)
+Device: Samsung SM-G990E, Android 15/API 35; source commit 7c362a3.
+The package below is the disposable com.dropclip.spike probe.
+
+## Overnight monitor (all four retained samples; monitor was stopped at restart and did not resume)
+time_bkk	adb	pid	foreground	multicast_lock	battery_pct	doze
+2026-11-09T20:35:53+0700	device	3044	yes	yes	58	mState=ACTIVE
+2026-11-09T20:36:54+0700	device	3044	yes	yes	59	mState=ACTIVE
+2026-11-09T20:37:55+0700	device	3044	yes	yes	59	mState=ACTIVE
+2026-11-09T20:38:55+0700	device	3044	yes	yes	59	mState=ACTIVE
+
+## Service snapshot before deliberate cleanup at about 13:34
+  * ServiceRecord{c7ed040 u0 com.dropclip.spike/.SpikeConnectedService c:com.dropclip.spike}
+    targetSdkVersion=35
+    app=ProcessRecord{3153edd 9205:com.dropclip.spike/u0a462}
+    isForeground=true foregroundId=53317 types=0x00000010 foregroundNoti=Notification(channel=dropclip_spike shortcut=null contentView=null vibrate=null sound=null defaults=0 flags=FOREGROUND_SERVICE color=0x00000000 vis=PRIVATE semFlags=0x0 semPriority=0 semMissedCount=0)
+    createTime=-17h4m9s806ms startingBgTimeout=--
+    lastActivity=-5h45m29s73ms restartTime=-5h45m29s73ms createdFromFg=false
+    startRequested=true delayedStop=false stopIfKilled=false callStart=true lastStartId=2
+ startCommandResult=1
+    restartCount=1 restartDelay=-11h56m57s451ms nextRestartTime=-5h45m29s417ms crashCount=0
+
+## Latest historical exit captured before cleanup
+ACTIVITY MANAGER PROCESS EXIT INFO (dumpsys activity exit-info)
+Last Timestamp of Persistence Into Persistent Storage: 2026-11-10 12:44:38.966
+  package: com.dropclip.spike
+    Historical Process Exit for uid=10462
+        ApplicationExitInfo #0:
+          timestamp=2026-11-10 06:15:51.964 pid=3044 realUid=10462 packageUid=10462 definingUid=10462 user=0
+          process=com.dropclip.spike reason=2 (SIGNALED) subreason=0 (UNKNOWN) status=9
+          importance=125 pss=0.00 rss=69MB description=null state=empty trace=null
+
+## Hardware suite rerun with keyguard unlocked
+INSTRUMENTATION_STATUS: class=com.dropclip.spike.MobileConstraintDeviceTest
+INSTRUMENTATION_STATUS: current=1
+INSTRUMENTATION_STATUS: id=AndroidJUnitRunner
+INSTRUMENTATION_STATUS: numtests=7
+INSTRUMENTATION_STATUS: stream=
+com.dropclip.spike.MobileConstraintDeviceTest:
+INSTRUMENTATION_STATUS: test=enduranceEntryPointStartsForegroundService
+INSTRUMENTATION_STATUS_CODE: 1
+INSTRUMENTATION_STATUS: class=com.dropclip.spike.MobileConstraintDeviceTest
+INSTRUMENTATION_STATUS: current=1
+INSTRUMENTATION_STATUS: id=AndroidJUnitRunner
+INSTRUMENTATION_STATUS: numtests=7
+INSTRUMENTATION_STATUS: stream=.
+INSTRUMENTATION_STATUS: test=enduranceEntryPointStartsForegroundService
+INSTRUMENTATION_STATUS_CODE: 0
+INSTRUMENTATION_STATUS: class=com.dropclip.spike.MobileConstraintDeviceTest
+INSTRUMENTATION_STATUS: current=2
+INSTRUMENTATION_STATUS: id=AndroidJUnitRunner
+INSTRUMENTATION_STATUS: numtests=7
+INSTRUMENTATION_STATUS: stream=
+INSTRUMENTATION_STATUS: test=tileReadsOrdinaryAndSuppressesSensitiveClipboard
+INSTRUMENTATION_STATUS_CODE: 1
+INSTRUMENTATION_STATUS: class=com.dropclip.spike.MobileConstraintDeviceTest
+INSTRUMENTATION_STATUS: current=2
+INSTRUMENTATION_STATUS: id=AndroidJUnitRunner
+INSTRUMENTATION_STATUS: numtests=7
+INSTRUMENTATION_STATUS: stream=.
+INSTRUMENTATION_STATUS: test=tileReadsOrdinaryAndSuppressesSensitiveClipboard
+INSTRUMENTATION_STATUS_CODE: 0
+INSTRUMENTATION_STATUS: class=com.dropclip.spike.MobileConstraintDeviceTest
+INSTRUMENTATION_STATUS: current=3
+INSTRUMENTATION_STATUS: id=AndroidJUnitRunner
+INSTRUMENTATION_STATUS: numtests=7
+INSTRUMENTATION_STATUS: stream=
+INSTRUMENTATION_STATUS: test=connectedDeviceServiceStartsInForeground
+INSTRUMENTATION_STATUS_CODE: 1
+INSTRUMENTATION_STATUS: class=com.dropclip.spike.MobileConstraintDeviceTest
+INSTRUMENTATION_STATUS: current=3
+INSTRUMENTATION_STATUS: id=AndroidJUnitRunner
+INSTRUMENTATION_STATUS: numtests=7
+INSTRUMENTATION_STATUS: stream=.
+INSTRUMENTATION_STATUS: test=connectedDeviceServiceStartsInForeground
+INSTRUMENTATION_STATUS_CODE: 0
+INSTRUMENTATION_STATUS: class=com.dropclip.spike.MobileConstraintProbeTest
+INSTRUMENTATION_STATUS: current=4
+INSTRUMENTATION_STATUS: id=AndroidJUnitRunner
+INSTRUMENTATION_STATUS: numtests=7
+INSTRUMENTATION_STATUS: stream=
+com.dropclip.spike.MobileConstraintProbeTest:
+INSTRUMENTATION_STATUS: test=android13KeepsLegacyTilePath
+INSTRUMENTATION_STATUS_CODE: 1
+INSTRUMENTATION_STATUS: class=com.dropclip.spike.MobileConstraintProbeTest
+INSTRUMENTATION_STATUS: current=4
+INSTRUMENTATION_STATUS: id=AndroidJUnitRunner
+INSTRUMENTATION_STATUS: numtests=7
+INSTRUMENTATION_STATUS: stream=.
+INSTRUMENTATION_STATUS: test=android13KeepsLegacyTilePath
+INSTRUMENTATION_STATUS_CODE: 0
+INSTRUMENTATION_STATUS: class=com.dropclip.spike.MobileConstraintProbeTest
+INSTRUMENTATION_STATUS: current=5
+INSTRUMENTATION_STATUS: id=AndroidJUnitRunner
+INSTRUMENTATION_STATUS: numtests=7
+INSTRUMENTATION_STATUS: stream=
+INSTRUMENTATION_STATUS: test=ordinaryAndMissingMetadataAreNotSensitive
+INSTRUMENTATION_STATUS_CODE: 1
+INSTRUMENTATION_STATUS: class=com.dropclip.spike.MobileConstraintProbeTest
+INSTRUMENTATION_STATUS: current=5
+INSTRUMENTATION_STATUS: id=AndroidJUnitRunner
+INSTRUMENTATION_STATUS: numtests=7
+INSTRUMENTATION_STATUS: stream=.
+INSTRUMENTATION_STATUS: test=ordinaryAndMissingMetadataAreNotSensitive
+INSTRUMENTATION_STATUS_CODE: 0
+INSTRUMENTATION_STATUS: class=com.dropclip.spike.MobileConstraintProbeTest
+INSTRUMENTATION_STATUS: current=6
+INSTRUMENTATION_STATUS: id=AndroidJUnitRunner
+INSTRUMENTATION_STATUS: numtests=7
+INSTRUMENTATION_STATUS: stream=
+INSTRUMENTATION_STATUS: test=sensitiveClipIsBlocked
+INSTRUMENTATION_STATUS_CODE: 1
+INSTRUMENTATION_STATUS: class=com.dropclip.spike.MobileConstraintProbeTest
+INSTRUMENTATION_STATUS: current=6
+INSTRUMENTATION_STATUS: id=AndroidJUnitRunner
+INSTRUMENTATION_STATUS: numtests=7
+INSTRUMENTATION_STATUS: stream=.
+INSTRUMENTATION_STATUS: test=sensitiveClipIsBlocked
+INSTRUMENTATION_STATUS_CODE: 0
+INSTRUMENTATION_STATUS: class=com.dropclip.spike.MobileConstraintProbeTest
+INSTRUMENTATION_STATUS: current=7
+INSTRUMENTATION_STATUS: id=AndroidJUnitRunner
+INSTRUMENTATION_STATUS: numtests=7
+INSTRUMENTATION_STATUS: stream=
+INSTRUMENTATION_STATUS: test=android14UsesPendingIntent
+INSTRUMENTATION_STATUS_CODE: 1
+INSTRUMENTATION_STATUS: class=com.dropclip.spike.MobileConstraintProbeTest
+INSTRUMENTATION_STATUS: current=7
+INSTRUMENTATION_STATUS: id=AndroidJUnitRunner
+INSTRUMENTATION_STATUS: numtests=7
+INSTRUMENTATION_STATUS: stream=.
+INSTRUMENTATION_STATUS: test=android14UsesPendingIntent
+INSTRUMENTATION_STATUS_CODE: 0
+INSTRUMENTATION_RESULT: stream=
+
+Time: 40.54
+
+OK (7 tests)
+
+
+INSTRUMENTATION_CODE: -1
+
+## Forced-Doze attempt (entry refused; this is not a Doze pass)
+Unable to go deep idle; stopped at INACTIVE
+2026-11-10T13:39:24+0700
+  mState=ACTIVE mLightState=ACTIVE
+11485
+    isForeground=true foregroundId=53317 types=0x00000010 foregroundNoti=Notification(channel=dropclip_spike shortcut=null contentView=null vibrate=null sound=null defaults=0 flags=FOREGROUND_SERVICE color=0x00000000 vis=PRIVATE semFlags=0x0 semPriority=0 semMissedCount=0)
+    startRequested=true delayedStop=false stopIfKilled=false callStart=true lastStartId=1
+    Multicaster{dropclip_spike_mdns uid=10462}
+2026-11-10T13:39:45+0700
+  mState=ACTIVE mLightState=ACTIVE
+11485
+    isForeground=true foregroundId=53317 types=0x00000010 foregroundNoti=Notification(channel=dropclip_spike shortcut=null contentView=null vibrate=null sound=null defaults=0 flags=FOREGROUND_SERVICE color=0x00000000 vis=PRIVATE semFlags=0x0 semPriority=0 semMissedCount=0)
+    startRequested=true delayedStop=false stopIfKilled=false callStart=true lastStartId=1
+    Multicaster{dropclip_spike_mdns uid=10462}
+Light state: ACTIVE, deep state: ACTIVE
+mForceModeManagerQuickDozeRequest: false
+mForceModeManagerOffBodyState: false
+  mState=ACTIVE mLightState=ACTIVE
+
+## Interpretation
+The initial PID 3044 received SIGKILL (reason=2, status=9, subreason UNKNOWN) at 06:15:51.964. The sender/cause is not identified. The morning service was foreground in PID 9205 with restartCount=1. Uninterrupted overnight survival is not established. Wi-Fi dumpsys independently showed a dropclip_spike_mdns MulticastLock held by uid 10462 after recovery. The hardware suite rerun passed all seven tests. Forced Doze never reached IDLE. Cleanup stopped the probe, confirmed no active service, and confirmed mForceIdle=false.
