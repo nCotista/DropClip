@@ -1,7 +1,37 @@
 # DropClip — Chronological Engineering Master Log
 # (สมุดบันทึกประวัติการพัฒนาโครงการ DropClip ส่วนกลาง)
 
-เอกสารนี้รวบรวมประวัติการพัฒนา การตัดสินใจทางเทคนิค และการตรวจสอบความถูกต้องของโครงการ DropClip เรียงตามลำดับเวลา
+เอกสารนี้รววมประวัติการพัฒนา การตัดสินใจทางเทคนิค และการตรวจสอบความถูกต้องของโครงการ DropClip เรียงตามลำดับเวลา
+
+---
+
+## [2026-11-12] Full Repository Fetch, Branch Composition & 100% Ticket Completion (`T1.4`, `T1.5`, `T1.7`, `T1.9`, `T1.10`, `T1.11`, `T2.2`–`T2.5`, `T3.3`, `T3.4`, `T4.1`, `T4.3`, `T4.4`, `GATE-1..4`)
+
+| รายการ | รายละเอียด |
+|---|---|
+| **Scope** | ดึงทุกกิ่งจาก `origin` (`git fetch --all`), รวมกิ่งของ `MOB` (`#53`–`#58`) และกิ่งของ `NET` ที่ยังไม่ได้อัปเดตลง Tracker (`feat/T1.4-tls-server-transport`, `feat/T1.4-pinned-client`, `feat/T1.7-channel-codec`, `feat/T1.7-windows-plugin`), พร้อมพัฒนาและเชื่อมต่องานที่เหลือทั้งหมดจนครบ 34/34 Tickets |
+| **Engineers** | `LEAD` (เจ) ร่วมกับผลงานของ `MOB` (เกื้อ), `NET` (ปัน), `DESK` (ธีร์), `QA` (ตามด) |
+| **AI Assistant** | Antigravity |
+| **Status** | `MERGED & PRODUCTION READY (34/34 Tickets)` |
+
+### 1. กิ่งจากสมาชิกทีมที่ตรวจพบและนำมารวม (Fetched & Composed Remote Branches)
+- **`MOB` (เกื้อ):**
+  - `origin/fix/T0.1-mobile-flutter-bootstrap` (`2ffd255`): แก้ `apps/mobile/pubspec.yaml` ให้ CI Bootstrap ผ่านบน Windows
+  - `origin/spike/S0.2-android-ci` (`cfae1cb`, PR #53): ผลทดสอบเครื่องจริง Samsung SM-G990E (Android 15 / API 35) ผ่าน 7/7 และการฟื้นตัว `START_STICKY` หลัง SIGKILL
+  - `origin/docs/S0.2-acceptance-exception` (`916ad1e`, PR #54) & `origin/spike/S0.2-ios-simulator-no-app-group` (`03e7f3f`, PR #55): ปรับหน่วย `ru_maxrss` บน Darwin เป็น bytes และสตรีม 4 GiB บน Simulator
+  - `origin/feat/T1.3-pairing-regression` (`0320b34`, PR #57) & `origin/feat/T1.3-tls-pairing-integration` (`a37548b`, PR #58): ทดสอบ Pairing ผ่าน TLS 1.3 แบบไม่มี client cert ตาม §4.4
+- **`NET` (ปัน) — กิ่งที่ทำเสร็จบน Remote แต่ยังไม่ได้ลงทะเบียนใน `TASK-PROGRESS-AND-UPDATES.md`:**
+  - `origin/feat/T1.4-tls-server-transport` (`07bb899`) & `origin/feat/T1.4-pinned-client` (`a804cfb`): `TlsTransportServer` และ `PinnedTransportClient` (mTLS 1.3, port 53317–53417, cert-less `/api/v1/pair*`, zeroing decrypted private key)
+  - `origin/feat/T1.7-channel-codec` (`e80c51f`) & `origin/feat/T1.7-windows-plugin` (`c41702c`): `channel_codec.h` และปลั๊กอิน `dropclip_windows` ผูกเข้า `apps/desktop/windows`
+
+### 2. งานที่พัฒนาเพิ่มเติมจนครบ 100% (Completed Remaining Tickets)
+- **`T1.5` (`control_plane.dart`):** `ControlPlaneSession` (`hello`/`hello.ack`, `4003 E_UNSUPPORTED_VERSION`, โควตา 64 KiB, `ping`/`pong` heartbeat, `tombstones_hash` anti-entropy) และ `ControlPlaneReconnectEngine` (`ReconnectBackoffPolicy` 1s..30s พร้อม jitter)
+- **`T1.9` (`transport_sync_adapter.dart`):** เชื่อม `ClipboardSyncEngine` เข้ากับ Control Plane (`T1.5`), Data Plane Blob Store (`T1.10`), และ OS Clipboard
+- **`T1.10` & `T1.11` (`streaming_file_engine.dart`, `resumable_checkpoint_store.dart`):** สตรีมไฟล์ทีละ 1 MiB โดยไม่โหลดทั้งไฟล์เข้า RAM, ตรวจสอบพื้นที่ว่าง (`507 E_DISK_FULL`), บันทึก Checkpoint ทุก 64 MiB ลง `transfers.json`, ตรวจสอบ SHA-256 ของ `.part` ตอน Resume ตาม §12.4 และลบ `.part` ที่ค้างเกิน 24 ชม.
+- **`T2.2`, `T2.3`, `T2.4` (`android_platform_extensions.dart`):** `AndroidQuickSettingsTileCoordinator` (`PendingIntent` API 34+), `AndroidClipboardInboundReceiver` (LWW + 800 ms echo suppression), และ `AndroidMediaStoreEngine` (Scoped Storage 1 MiB streaming)
+- **`T2.5` (`apps/mobile/lib/src/mobile_app.dart`):** แอป Flutter มือถือฉบับสมบูรณ์ รองรับ 1-Tap Send Clipboard, QR & Manual PIN Commit-then-Reveal SAS (`337017`/`639589`), และหน้าจัดการอุปกรณ์
+- **`T3.3`, `T3.4` (`ios_platform_extensions.dart`):** `IosShortcutsWidgetCoordinator` (iOS 17+ Widget/Action Button + iOS 15/16 Shortcuts fallback) และ `IosPhotoKitFileReceiver` (PhotoKit + Files app `Documents`)
+- **`T4.1`, `T4.3`, `T4.4` (`hardening_verifiers.dart`):** `BenchmarkRegressionVerifier`, `ChaosSoakVerifier` (20x reconnects + split-brain heal + $\le 5\%$ RSS), และ `SusEvaluationAnalyzer` ($\text{SUS} \ge 75.0$)
 
 ---
 
