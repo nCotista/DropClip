@@ -1,9 +1,7 @@
-import 'dart:io';
+import 'package:flutter/material.dart';
 
-import 'package:dropclip_protocol/dropclip_protocol.dart';
-import 'package:dropclip_ui/dropclip_ui.dart';
+import 'src/mobile_app.dart';
 
-void main(List<String> args) {
-  stdout.writeln('Starting ${DropClipThemeTokens.appName} Mobile Client...');
-  stdout.writeln('Protocol Version: ${ProtocolConstants.protocolVersion}');
+void main() {
+  runApp(const DropClipMobileApp());
 }

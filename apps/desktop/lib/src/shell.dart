@@ -47,6 +47,8 @@ class DesktopShell extends StatefulWidget {
 
   /// Opens the Dropzone (UI-02); a "not available" note when null.
   final VoidCallback? onOpenDropzone;
+  final VoidCallback? onSendClipboard;
+  final VoidCallback? onPair;
 
   const DesktopShell(
       {super.key,
@@ -54,7 +56,9 @@ class DesktopShell extends StatefulWidget {
       this.section,
       this.settingsPage,
       this.banner,
-      this.onOpenDropzone});
+      this.onOpenDropzone,
+      this.onSendClipboard,
+      this.onPair});
 
   @override
   State<DesktopShell> createState() => _DesktopShellState();
@@ -97,9 +101,10 @@ class _DesktopShellState extends State<DesktopShell> {
                       child: switch (section) {
                         ShellSection.clipboard => ClipboardPage(
                             status: widget.status,
-                            onSendClipboard: _notReady(
-                                Strings.of(context).sendClipboard, 'T1.9'),
-                            onPair:
+                            onSendClipboard: widget.onSendClipboard ??
+                                _notReady(
+                                    Strings.of(context).sendClipboard, 'T1.9'),
+                            onPair: widget.onPair ??
                                 _notReady(Strings.of(context).pairing, 'T1.3'),
                             onOpenDropzone: widget.onOpenDropzone ??
                                 _notReady(

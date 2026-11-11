@@ -1,5 +1,8 @@
 library dropclip_transfer;
 
+export 'src/resumable_checkpoint_store.dart';
+export 'src/streaming_file_engine.dart';
+
 /// Transfer item state definition
 enum TransferState {
   pending,

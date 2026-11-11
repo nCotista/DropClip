@@ -10,6 +10,7 @@ export 'src/image/png_encoder.dart';
 export 'src/image/tiff_decoder.dart';
 export 'src/sync/sync_engine.dart';
 export 'src/sync/sync_types.dart';
+export 'src/sync/transport_sync_adapter.dart';
 
 /// Data class representing an item on the native clipboard
 class ClipboardItem {
