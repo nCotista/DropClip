@@ -3,6 +3,14 @@ import Foundation
 enum HarnessChecks {
     static let byteCount: UInt64 = 4 * 1024 * 1024 * 1024
     static let requiredFreeBytes: Int64 = 16 * 1024 * 1024 * 1024
+    static let peakRSSFilename = "peak-rss-bytes.txt"
+
+    static func peakRSSDescription(_ text: String?) -> String? {
+        guard let text = text,
+              let bytes = UInt64(text.trimmingCharacters(in: .whitespacesAndNewlines)) else { return nil }
+        return String(format: "Share Extension peak RSS: %.2f MiB (%llu bytes)",
+                      locale: Locale(identifier: "en_US_POSIX"), Double(bytes) / 1_048_576, bytes)
+    }
 
     static func hasSpace(_ available: Int64?) -> Bool {
         guard let available = available else { return false }
@@ -32,5 +40,26 @@ enum HarnessChecks {
         defer { try? handle.close() }
         try handle.truncate(atOffset: byteCount)
         return file
+    }
+}
+
+/// Simulator-only transport check. Foreground session avoids App Group provisioning.
+enum SimulatorUpload {
+    static let endpoint = URL(string: "https://127.0.0.1:53317/upload")!
+
+    static func configuration() -> URLSessionConfiguration {
+        let config = URLSessionConfiguration.ephemeral
+        config.tlsMinimumSupportedProtocolVersion = .TLSv13
+        return config
+    }
+
+    static func request(_ endpoint: URL, file: URL) -> URLRequest? {
+        guard endpoint.scheme == "https", endpoint.host == "127.0.0.1",
+              endpoint.port == 53317, endpoint.path == "/upload",
+              file.isFileURL, FileManager.default.fileExists(atPath: file.path) else { return nil }
+        var request = URLRequest(url: endpoint)
+        request.httpMethod = "POST"
+        request.setValue("application/octet-stream", forHTTPHeaderField: "Content-Type")
+        return request
     }
 }
