@@ -190,9 +190,10 @@ main (Protected — Production Ready, Always Stable)
   - ตัวอย่างโค้ด Native iOS Extension ใน `native/ios/spike`
   - บันทึกผลลง ADR-007
 - **Acceptance Criteria:**
-  - [x] Android: รัน Foreground Service ชนิด `connectedDevice` ข้ามคืนได้ต่อเนื่องโดยไม่ถูกระบบปิด (ยืนยันสัญญา API 34/35 บน GitHub Actions CI Emulator คู่กับเครื่องจริง Android 14)
-  - [x] Android: อ่านคลิปบอร์ดผ่าน Quick Settings Tile บน Android 14/15 ด้วย `PendingIntent` สำเร็จโดยไม่เกิด SecurityException (JaCoCo coverage 94.6%)
-  - [x] iOS: Share Extension ส่งไฟล์ขนาดใหญ่ (4 GiB) ด้วย Background URLSession โดย Peak RAM < 30 MB พร้อมยืนยัน `NWBrowser` บน iPhone 16 Pro เครื่องจริง และ `ShareUploadHarness` บน Simulator + TLS 1.3 Loopback (อนุมัติโดย `LEAD` ภายใต้ข้อจำกัด Personal Team Signing)
+  - [ ] Android: รัน Foreground Service ชนิด `connectedDevice` ข้ามคืนได้ต่อเนื่องโดยไม่ถูกระบบปิดบนเครื่องจริง (Samsung Android 15 พบ SIGKILL เวลา 06:15:51 วันที่ 2026-11-10 แล้ว service เริ่มใหม่ได้; เกณฑ์ต่อเนื่องไม่ผ่าน, สาเหตุ kill ยังไม่ทราบ)
+  - [x] Android: Quick Settings Tile ใช้ `PendingIntent` โดยไม่เกิด SecurityException บน API 34/35 emulator และ Samsung Android 15 เครื่องจริง (latest hardware suite 7/7, API 35 CI coverage 95.1%; เคยมี Tile UI timing failure หนึ่งรอบ, Android 14 เครื่องจริงยังไม่มีหลักฐาน)
+  - [ ] iOS: Share Extension ส่งไฟล์ 4 GiB ด้วย Background URLSession โดย Peak RAM < 30 MB บนเครื่องจริง (ยังไม่มีผลบนเครื่องจริง; Simulator ส่งแบบ foreground ไม่ใช้ App Group สำเร็จ 4 GiB, Peak RSS 187.70 MiB)
+- **Closure decision (2026-11-09):** `LEAD` อนุมัติให้ปิด **S0.2 spike เป็น DONE ตามข้อยกเว้น** โดยใช้ผล iPhone `NWBrowser`, iOS Simulator-only 4 GiB foreground upload, Mac-only TLS 1.3 loopback และ Android API 34/35 CI เป็นหลักฐานประกอบ ไม่ถือว่าเกณฑ์เครื่องจริงที่ยังไม่ติ๊กผ่านแล้ว ข้ออ้าง Peak RSS < 30 MB บนเครื่องจริงและ Android 14 เครื่องจริงในข้อความอนุมัติไม่มีไฟล์ผลวัดแนบ; ต้องตรวจซ้ำก่อนอ้างความพร้อมใช้งานจริง (รายละเอียด ADR-007 และ worklog S0.2)
 
 ---
 
