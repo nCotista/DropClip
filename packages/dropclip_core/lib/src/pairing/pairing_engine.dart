@@ -61,6 +61,7 @@ enum PairingState { idle, open, committed, awaitingSas, paired, failed }
 
 /// Host-side Commit-then-Reveal SAS & Zero-PIN-on-Wire Pairing Engine (§5, §9.2, T1.3).
 class PairingEngine {
+  static final _hex256 = RegExp(r'^[0-9a-f]{64}$');
   static const int pairNonceTtlMs = 60000, pairConfirmTimeoutMs = 120000;
   static const int pairRateLimitPerIp = 5, pairMaxFailures = 3;
   static const int pairLockoutDurationMs = 300000;
@@ -113,9 +114,11 @@ class PairingEngine {
     return (qr: qr, pin: pin, nonceA: Uint8List.fromList(nonceA));
   }
 
+  /// Unpaired clients omit TLS certificates (§4.4); commitment/SAS bind their fp.
+  /// If a certificate is supplied, its fingerprint must still match the claim.
   Map<String, dynamic> handlePairRequest(Map<String, dynamic> body,
       {required String clientIp,
-      required String tlsClientCertFp,
+      String? tlsClientCertFp,
       Uint8List? tlsClientCertPem}) {
     final now = _clockMs();
     _enforceLockoutAndRateLimit(clientIp, now);
@@ -136,9 +139,10 @@ class PairingEngine {
     final claimedFp = (body['fp'] as String? ?? '').toLowerCase();
     final commitmentB = (body['commitment_B'] as String? ?? '').toLowerCase();
     final mode = (body['method'] ?? body['mode']) as String? ?? '';
-    if (claimedFp.length != 64 ||
-        claimedFp != tlsClientCertFp.toLowerCase() ||
-        commitmentB.length != 64 ||
+    if (!_hex256.hasMatch(claimedFp) ||
+        (tlsClientCertFp != null &&
+            claimedFp != tlsClientCertFp.toLowerCase()) ||
+        !_hex256.hasMatch(commitmentB) ||
         (mode != 'qr' && mode != 'pin')) {
       _fail(clientIp, now, ProtocolErrorCode.pairingInvalid, 'Invalid request');
     }
