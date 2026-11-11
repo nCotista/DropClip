@@ -286,7 +286,7 @@ dropclip/
 │   └── mobile/                 # iOS + Android
 ├── native/
 │   ├── macos/ClipboardWatcher.swift
-│   ├── windows/ClipboardWatcher.cpp
+│   ├── windows/ClipboardWatcher.h
 │   ├── android/ClipboardService.kt
 │   └── ios/ShareExtension/
 └── tools/

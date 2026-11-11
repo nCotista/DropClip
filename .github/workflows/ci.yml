@@ -58,6 +58,33 @@ jobs:
           g++ -std=c++17 -Wall -Wextra -Werror -I.. -o clipboard_core_test clipboard_core_test.cpp
           ./clipboard_core_test
 
+      # channel_codec.h needs Flutter's header-only <flutter/encodable_value.h>.
+      - name: Build and Run channel_codec Tests (g++)
+        working-directory: native/windows/test
+        run: |
+          mkdir -p flutter
+          curl -sSfLo flutter/encodable_value.h https://raw.githubusercontent.com/flutter/flutter/3.47.9/engine/src/flutter/shell/platform/common/client_wrapper/include/flutter/encodable_value.h
+          g++ -std=c++17 -Wall -Wextra -Werror -I.. -I. -o channel_codec_test channel_codec_test.cpp
+          ./channel_codec_test
+
+  windows-desktop-build:
+    name: Windows Desktop Build (T1.7 dropclip_windows plugin)
+    runs-on: windows-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup Flutter SDK
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      # Compiles the plugin with MSVC /W4 /WX and links it into the real app.
+      - name: Build apps/desktop for Windows
+        working-directory: apps/desktop
+        run: flutter build windows --debug
+
   security-audit:
     name: Security & Secret Audit
     runs-on: ubuntu-latest
