@@ -136,7 +136,19 @@ class DesktopNode {
   }
 
   /// GETs [path] from paired [peerId] over pinned mTLS (e.g. a blob, §9.3).
-  Future<Uint8List> fetchFrom(String peerId, String path) async {
+  Future<Uint8List> fetchFrom(String peerId, String path) =>
+      _call(peerId, 'GET', path);
+
+  /// Streams [body] to [path] on paired [peerId]; [onSent] counts bytes.
+  Future<Uint8List> postTo(String peerId, String path, Stream<List<int>> body,
+          {Map<String, String> headers = const {},
+          void Function(int bytes)? onSent}) =>
+      _call(peerId, 'POST', path, body: body, headers: headers, onSent: onSent);
+
+  Future<Uint8List> _call(String peerId, String method, String path,
+      {Stream<List<int>>? body,
+      Map<String, String> headers = const {},
+      void Function(int bytes)? onSent}) async {
     final at = _addresses[peerId];
     final peer = store.activeDevices.where((d) => d.deviceId == peerId);
     if (at == null || peer.isEmpty) {
@@ -146,8 +158,16 @@ class DesktopNode {
     final client = await PinnedTransportClient.forIdentity(
         identity: ids, store: store, expectedFp: peer.first.fp);
     try {
-      final req = await client.httpClient
-          .getUrl(Uri(scheme: 'https', host: at.$1, port: at.$2, path: path));
+      final req = await client.httpClient.openUrl(
+          method, Uri(scheme: 'https', host: at.$1, port: at.$2, path: path));
+      headers.forEach(req.headers.set);
+      if (body != null) {
+        req.headers.contentType = ContentType.binary;
+        await req.addStream(body.map((b) {
+          onSent?.call(b.length);
+          return b;
+        }));
+      }
       final res = await req.close();
       final bytes = await res.fold<BytesBuilder>(
           BytesBuilder(copy: false), (b, d) => b..add(d));
