@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:dropclip_protocol/dropclip_protocol.dart';
@@ -10,20 +11,16 @@ enum MobileTab { clipboard, pair, devices }
 /// DropClip Mobile Application (`T2.5`, UI-03, UI-05, ADR-009).
 class DropClipMobileApp extends StatefulWidget {
   final String localFingerprint;
-  final Uint8List localNonceB;
+  final Uint8List? localNonceB;
   final void Function(String clipText)? onSendClipboard;
 
   const DropClipMobileApp({
     super.key,
     this.localFingerprint =
-        'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb',
-    Uint8List? localNonceB,
+        '1111111111111111111111111111111111111111111111111111111111111111',
+    this.localNonceB,
     this.onSendClipboard,
-  }) : localNonceB = localNonceB ?? _defaultNonceB;
-
-  static final Uint8List _defaultNonceB = Uint8List.fromList(
-    const <int>[16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31],
-  );
+  });
 
   @override
   State<DropClipMobileApp> createState() => _DropClipMobileAppState();
@@ -36,7 +33,7 @@ class _DropClipMobileAppState extends State<DropClipMobileApp> {
     'Meeting notes: LAN-only mTLS 1.3 mesh verified',
   ];
   final TextEditingController _qrOrHostFpController = TextEditingController(
-    text: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+    text: '0000000000000000000000000000000000000000000000000000000000000000',
   );
   final TextEditingController _pinController = TextEditingController();
   String? _computedSas;
@@ -61,26 +58,33 @@ class _DropClipMobileAppState extends State<DropClipMobileApp> {
   void _computeCommitRevealSas({required bool usePinMode}) {
     final hostFp = _qrOrHostFpController.text.trim().toLowerCase();
     final pin = _pinController.text.trim();
-    final nonceA = Uint8List.fromList(
-      const <int>[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15],
-    );
+    final nonceA = Uint8List.fromList(ascii.encode('0123456789abcdef'));
+    final nonceB = widget.localNonceB ??
+        Uint8List.fromList(ascii.encode('fedcba9876543210'));
     try {
-      final sas = SasCalculator.calculateSasDual(
-        fpA: hostFp,
-        fpB: widget.localFingerprint,
-        nonceA: nonceA,
-        nonceB: widget.localNonceB,
-        pin: usePinMode ? pin : null,
-      );
+      final sas = usePinMode
+          ? SasCalculator.calculateSasPinMode(
+              hostFp,
+              widget.localFingerprint,
+              nonceA,
+              nonceB,
+              pin,
+            )
+          : SasCalculator.calculateSasDual(
+              hostFp,
+              widget.localFingerprint,
+              nonceA,
+              nonceB,
+            );
       setState(() {
         _computedSas = sas;
         _pairingError = null;
         _sasConfirmed = false;
       });
-    } on FormatException catch (e) {
+    } on ArgumentError catch (e) {
       setState(() {
         _computedSas = null;
-        _pairingError = e.message;
+        _pairingError = e.message.toString();
         _sasConfirmed = false;
       });
     }

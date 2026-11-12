@@ -1,5 +1,8 @@
+import 'dart:convert';
+import 'dart:io';
 import 'dart:typed_data';
 
+import 'package:dropclip_core/dropclip_core.dart';
 import 'package:dropclip_protocol/dropclip_protocol.dart';
 import 'package:dropclip_ui/dropclip_ui.dart';
 import 'package:flutter/material.dart';
@@ -149,11 +152,13 @@ class DesktopTransfersPage extends StatelessWidget {
 /// Interactive Devices & Revocation page for Desktop (T1.2, T1.3, T1.12).
 class DesktopDevicesPage extends StatefulWidget {
   final List<NearbyDevice> nearby;
+  final PairingEngine? pairingEngine;
   final VoidCallback? onDeviceVerified;
 
   const DesktopDevicesPage({
     super.key,
     required this.nearby,
+    this.pairingEngine,
     this.onDeviceVerified,
   });
 
@@ -162,8 +167,15 @@ class DesktopDevicesPage extends StatefulWidget {
 }
 
 class _DesktopDevicesPageState extends State<DesktopDevicesPage> {
+  static const String _defaultHostFp =
+      '0000000000000000000000000000000000000000000000000000000000000000';
+  static const String _defaultClientFp =
+      '1111111111111111111111111111111111111111111111111111111111111111';
+
   final TextEditingController _pinController =
-      TextEditingController(text: '492817');
+      TextEditingController(text: '123456');
+  late final PairingEngine _engine;
+  String? _activePairId;
   String _sasCode = '639589';
   bool _peerConfirmed = false;
   final Map<String, String> _trustState = {
@@ -175,7 +187,8 @@ class _DesktopDevicesPageState extends State<DesktopDevicesPage> {
   @override
   void initState() {
     super.initState();
-    _recomputeSas();
+    _engine = widget.pairingEngine ?? _buildDefaultEngine();
+    _runCommitRevealSession();
   }
 
   @override
@@ -184,22 +197,76 @@ class _DesktopDevicesPageState extends State<DesktopDevicesPage> {
     super.dispose();
   }
 
-  void _recomputeSas() {
+  static PairingEngine _buildDefaultEngine() {
+    final hostIdentity = DeviceIdentity(
+      deviceId: '00000000-0000-4000-8000-000000000001',
+      name: 'Desktop-Host',
+      os: 'macos',
+      certDer: Uint8List(0),
+      certPem: Uint8List(0),
+      fp: _defaultHostFp,
+      createdAt: 1700000000000,
+    );
+    final store = TrustedDeviceStore(
+      storageDir: Directory.systemTemp,
+      keyStore: InMemorySecureKeyStore(),
+    );
+    return PairingEngine(hostIdentity: hostIdentity, trustedStore: store);
+  }
+
+  void _runCommitRevealSession() {
     final pin = _pinController.text.trim();
     if (!RegExp(r'^\d{6}$').hasMatch(pin)) return;
-    final fpA = Uint8List.fromList(List<int>.generate(32, (i) => i));
-    final fpB = Uint8List.fromList(List<int>.generate(32, (i) => 255 - i));
-    final nonceA = Uint8List.fromList(List<int>.generate(32, (i) => i + 1));
-    final nonceB = Uint8List.fromList(List<int>.generate(32, (i) => i + 65));
+    final nonceA = Uint8List.fromList(ascii.encode('0123456789abcdef'));
+    final nonceB = Uint8List.fromList(ascii.encode('fedcba9876543210'));
+
+    _engine.startSession(
+      hostIp: '192.168.1.24',
+      hostPort: 53317,
+      nonceAOverride: nonceA,
+      pinOverride: pin,
+    );
+    final commitB = SasCalculator.createCommitment(nonceB, _defaultClientFp);
+    final reqResp = _engine.handlePairRequest(
+      <String, dynamic>{
+        'v': ProtocolConstants.protocolVersion,
+        'min_supported_v': ProtocolConstants.minSupportedProtocolVersion,
+        'device_id': '00000000-0000-4000-8000-000000000002',
+        'name': 'Mobile-Client',
+        'os': 'android',
+        'tier': 2,
+        'fp': _defaultClientFp,
+        'method': 'pin',
+        'commitment_B': commitB,
+      },
+      clientIp: '192.168.1.30',
+    );
+    final pairId = reqResp['pair_id'] as String;
+    _engine.handlePairConfirm(
+      <String, dynamic>{
+        'pair_id': pairId,
+        'nonce_B': base64Encode(nonceB),
+      },
+      clientIp: '192.168.1.30',
+    );
     setState(() {
-      _sasCode = SasGenerator.computePinSas(
-        fpA: fpA,
-        fpB: fpB,
-        nonceA: nonceA,
-        nonceB: nonceB,
-        pin: pin,
-      );
+      _activePairId = pairId;
+      _sasCode = _engine.currentSasCode ?? '639589';
     });
+  }
+
+  Future<void> _confirmSasMatch() async {
+    final pairId = _activePairId;
+    if (pairId != null && _engine.state == PairingState.awaitingSas) {
+      await _engine.handlePairFinalize(
+        <String, dynamic>{'pair_id': pairId, 'result': 'match'},
+        clientIp: '192.168.1.30',
+        hostUserConfirmedMatch: true,
+      );
+    }
+    if (!mounted) return;
+    setState(() => _peerConfirmed = true);
+    widget.onDeviceVerified?.call();
   }
 
   @override
@@ -251,7 +318,7 @@ class _DesktopDevicesPageState extends State<DesktopDevicesPage> {
                           labelText: '6-Digit OOB PIN',
                           counterText: '',
                         ),
-                        onChanged: (_) => _recomputeSas(),
+                        onChanged: (_) => _runCommitRevealSession(),
                       ),
                     ),
                     Container(
@@ -275,10 +342,7 @@ class _DesktopDevicesPageState extends State<DesktopDevicesPage> {
                     ),
                     FilledButton.icon(
                       key: const Key('btn-desktop-confirm-sas'),
-                      onPressed: () {
-                        setState(() => _peerConfirmed = true);
-                        widget.onDeviceVerified?.call();
-                      },
+                      onPressed: _confirmSasMatch,
                       icon: const Icon(Icons.verified_user_rounded, size: 18),
                       label: const Text('Confirm SAS Match'),
                     ),

@@ -17,15 +17,11 @@ class ReconnectBackoffPolicy {
   final double jitterFraction;
   final Random _random;
 
-  ReconnectBackoffPolicy({
-    this.jitterFraction = 0.2,
-    Random? random,
-  }) : _random = random ?? Random();
+  ReconnectBackoffPolicy({this.jitterFraction = 0.2, Random? random})
+      : _random = random ?? Random();
 
   Duration delayForAttempt(int attempt) {
-    final idx = attempt < 0
-        ? 0
-        : (attempt >= baseSeconds.length ? baseSeconds.length - 1 : attempt);
+    final idx = attempt.clamp(0, baseSeconds.length - 1);
     final baseMs = baseSeconds[idx] * 1000;
     if (jitterFraction <= 0) {
       return Duration(milliseconds: baseMs);
@@ -102,7 +98,7 @@ class ControlPlaneSession {
       );
     }
     final now = _nowMs();
-    _clock = _clock.send(now);
+    _clock = _clock.tick(now);
     final env = Envelope(
       v: _negotiatedVersion ?? localHello.v,
       type: type,
@@ -137,7 +133,7 @@ class ControlPlaneSession {
     final Envelope env;
     try {
       env = Envelope.decodeWire(rawFrame);
-      _clock = _clock.receive(env.hlc, _nowMs());
+      _clock = _clock.merge(env.hlc, _nowMs());
     } on ClockDriftException catch (e) {
       await _sendErrorAndMaybeClose(
         const ProtocolException(
@@ -192,10 +188,10 @@ class ControlPlaneSession {
         remoteMinV: remote.minV,
       );
     } on ProtocolException catch (e) {
+      final fallback = VersionNegotiator.wsCloseUnsupportedVersion;
       await _sendErrorAndMaybeClose(
         e,
-        forceCloseCode:
-            e.wsCloseCode ?? VersionNegotiator.wsCloseUnsupportedVersion,
+        forceCloseCode: e.wsCloseCode ?? fallback,
       );
       return;
     }
@@ -303,4 +299,3 @@ class ControlPlaneReconnectEngine {
     }
   }
 }
-

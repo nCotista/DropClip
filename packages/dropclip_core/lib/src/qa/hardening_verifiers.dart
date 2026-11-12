@@ -52,7 +52,7 @@ class BenchmarkRegressionVerifier {
       d: '11111111-1111-4111-8111-111111111111',
     );
     for (var i = 0; i < iterations; i++) {
-      hlc = hlc.send(1700000000000 + i);
+      hlc = hlc.tick(1700000000000 + i);
       PathSanitizer.sanitize('folder/sub_${i}_report.pdf');
     }
     sw.stop();
@@ -105,29 +105,49 @@ class ChaosSoakVerifier {
     if (baselineRssMb <= 0) {
       throw ArgumentError.value(baselineRssMb, 'baselineRssMb', 'must be > 0');
     }
-    final cluster = TestCluster.spawn(4);
+    final cluster = await TestCluster.spawn(4);
     try {
-      // 1. 20x rapid Wi-Fi drop/reconnect cycles on node 0 <-> node 1
+      // 1. 20x rapid Wi-Fi drop/reconnect cycles on node-0 <-> rest of cluster
       for (var i = 0; i < reconnectCycles; i++) {
-        cluster.partition(<int>{0}, <int>{1, 2, 3});
+        cluster.partition(
+          <String>['node-0'],
+          <String>['node-1', 'node-2', 'node-3'],
+        );
         cluster.heal();
-        cluster.nodes[0].broadcastClipboard('cycle-$i');
+        await cluster.broadcast(
+          fromId: 'node-0',
+          packet: <String, dynamic>{'clip': 'cycle-$i'},
+        );
         await cluster.settle();
       }
 
       // 2. Split-brain partition & heal convergence (NFR-RE02)
-      cluster.partition(<int>{0, 1}, <int>{2, 3});
-      cluster.nodes[0].broadcastClipboard('group-A-clip');
-      cluster.advanceClock(const Duration(milliseconds: 50));
-      cluster.nodes[2].broadcastClipboard('group-B-newer-clip');
+      cluster.partition(
+        <String>['node-0', 'node-1'],
+        <String>['node-2', 'node-3'],
+      );
+      await cluster.broadcast(
+        fromId: 'node-0',
+        packet: <String, dynamic>{'clip': 'group-A-clip'},
+      );
+      await cluster.broadcast(
+        fromId: 'node-2',
+        packet: <String, dynamic>{'clip': 'group-B-newer-clip'},
+      );
       await cluster.settle();
 
       cluster.heal();
-      cluster.nodes[2].broadcastClipboard('group-B-newer-clip');
+      await cluster.broadcast(
+        fromId: 'node-2',
+        packet: <String, dynamic>{'clip': 'group-B-newer-clip'},
+      );
       await cluster.settle();
 
-      final converged = cluster.nodes.every(
-        (n) => n.currentClipboard == 'group-B-newer-clip',
+      final otherNodes = cluster.nodes.where((n) => n.id != 'node-2');
+      final converged = otherNodes.every(
+        (n) =>
+            n.receivedHistory.isNotEmpty &&
+            n.receivedHistory.last['clip'] == 'group-B-newer-clip',
       );
       final growthPct =
           ((finalSoakRssMb - baselineRssMb) / baselineRssMb) * 100;
@@ -137,7 +157,7 @@ class ChaosSoakVerifier {
         soakRssGrowthPercent: growthPct < 0 ? 0.0 : growthPct,
       );
     } finally {
-      cluster.dispose();
+      await cluster.dispose();
     }
   }
 }
@@ -197,9 +217,9 @@ class SusEvaluationAnalyzer {
     final allPairedUnder30s = records.every(
       (r) => r.pairingDurationSeconds <= maxPairingSeconds,
     );
-    final oneClickRate =
-        records.where((r) => r.completedOneClickTransfer).length /
-            records.length;
+    final completedCount =
+        records.where((r) => r.completedOneClickTransfer).length;
+    final oneClickRate = completedCount / records.length;
     return meanSus >= minRequiredMeanSus &&
         allPairedUnder30s &&
         oneClickRate >= 0.9;

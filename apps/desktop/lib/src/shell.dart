@@ -117,8 +117,7 @@ class _DesktopShellState extends State<DesktopShell> {
                         ShellSection.transfers
                             when widget.transfersPage != null =>
                           widget.transfersPage!,
-                        ShellSection.devices
-                            when widget.devicesPage != null =>
+                        ShellSection.devices when widget.devicesPage != null =>
                           widget.devicesPage!,
                         ShellSection.settings
                             when widget.settingsPage != null =>

@@ -20,11 +20,10 @@ Future<String> computeFileSha256(
 }) async {
   final output = AccumulatorSink<Digest>();
   final input = sha256.startChunkedConversion(output);
-  var remaining = maxBytes;
   await for (final chunk in readFileInChunks(
     file,
     offset: 0,
-    maxBytes: remaining,
+    maxBytes: maxBytes,
     chunkSize: chunkSize,
   )) {
     input.add(chunk);
@@ -139,9 +138,7 @@ class StreamingFileReceiver {
 
   /// Validates an entire offer batch for path traversal, reserved names,
   /// case-insensitive collisions, and available disk space.
-  Future<void> validateOffer({
-    required List<FileOfferItem> items,
-  }) async {
+  Future<void> validateOffer({required List<FileOfferItem> items}) async {
     try {
       PathSanitizer.validateOfferPaths(items.map((e) => e.path).toList());
     } on InvalidPathException catch (e) {
@@ -149,9 +146,8 @@ class StreamingFileReceiver {
     }
     if (availableDiskBytes != null) {
       final freeBytes = await availableDiskBytes!();
-      final requiredBytes =
-          items.fold<int>(0, (sum, item) => sum + item.size);
-      if (freeBytes < requiredBytes) {
+      final needed = items.fold<int>(0, (sum, item) => sum + item.size);
+      if (freeBytes < needed) {
         throw const ProtocolException(
           ProtocolErrorCode.diskFull,
           'insufficient free disk space for file offer',
@@ -226,4 +222,3 @@ class StreamingFileReceiver {
     return false;
   }
 }
-

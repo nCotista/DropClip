@@ -68,8 +68,7 @@ class ResumableCheckpointStore {
   final int checkpointIntervalBytes;
   final int Function() _nowMs;
 
-  final Map<String, ResumableTransferCheckpoint> _checkpoints =
-      <String, ResumableTransferCheckpoint>{};
+  final _checkpoints = <String, ResumableTransferCheckpoint>{};
 
   ResumableCheckpointStore({
     required this.stateDirectory,
@@ -82,14 +81,17 @@ class ResumableCheckpointStore {
 
   String _key(String transferId, String itemId) => '$transferId::$itemId';
 
+  File _partFile(String rel) => File('${downloadDirectory.path}/$rel.part');
+
   List<ResumableTransferCheckpoint> get allCheckpoints =>
       _checkpoints.values.toList(growable: false);
 
   ResumableTransferCheckpoint? getCheckpoint(
     String transferId,
     String itemId,
-  ) =>
-      _checkpoints[_key(transferId, itemId)];
+  ) {
+    return _checkpoints[_key(transferId, itemId)];
+  }
 
   Future<void> load() async {
     _checkpoints.clear();
@@ -131,7 +133,7 @@ class ResumableCheckpointStore {
       return null;
     }
     final safeRel = PathSanitizer.sanitize(item.path);
-    final partFile = File('${downloadDirectory.path}/$safeRel.part');
+    final partFile = _partFile(safeRel);
     if (!await partFile.exists()) return null;
 
     final prefixSha = await computeFileSha256(
@@ -162,7 +164,7 @@ class ResumableCheckpointStore {
   }) async {
     final cp = getCheckpoint(transferId, item.itemId);
     final safeRel = PathSanitizer.sanitize(item.path);
-    final partFile = File('${downloadDirectory.path}/$safeRel.part');
+    final partFile = _partFile(safeRel);
     if (cp == null || !await partFile.exists()) {
       return 0;
     }
@@ -197,8 +199,7 @@ class ResumableCheckpointStore {
   }) async {
     final removed = _checkpoints.remove(_key(transferId, itemId));
     if (deletePartFile && removed != null) {
-      final partFile =
-          File('${downloadDirectory.path}/${removed.relativePath}.part');
+      final partFile = _partFile(removed.relativePath);
       if (await partFile.exists()) {
         await partFile.delete();
       }
@@ -217,8 +218,7 @@ class ResumableCheckpointStore {
     }
     for (final key in expiredKeys) {
       final cp = _checkpoints.remove(key)!;
-      final partFile =
-          File('${downloadDirectory.path}/${cp.relativePath}.part');
+      final partFile = _partFile(cp.relativePath);
       if (await partFile.exists()) {
         await partFile.delete();
       }
@@ -229,4 +229,3 @@ class ResumableCheckpointStore {
     return expiredKeys.length;
   }
 }
-

@@ -46,13 +46,15 @@ class TransportSyncAdapter implements SyncPorts {
       ClipType.url => 'text/uri-list',
       ClipType.image => 'image/png',
     };
+    final inlineText =
+        update.inline != null ? base64Encode(update.inline!) : null;
     final payload = ClipboardUpdatePayload(
       contentType: contentType,
       hash: update.hash,
       size: update.size,
       isConcealed: update.isConcealed,
       ttlSeconds: update.ttlSeconds,
-      inline: update.inline != null ? base64Encode(update.inline!) : null,
+      inline: inlineText,
       blobId: update.blobId,
     );
     return Envelope(
@@ -65,6 +67,16 @@ class TransportSyncAdapter implements SyncPorts {
     );
   }
 
+  static ClipType _parseContentType(String mime) {
+    if (mime == 'text/plain') return ClipType.text;
+    if (mime == 'text/uri-list') return ClipType.url;
+    if (mime == 'image/png' || mime == 'image/jpeg') return ClipType.image;
+    throw const ProtocolException(
+      ProtocolErrorCode.unsupportedType,
+      'unsupported clipboard content_type',
+    );
+  }
+
   /// Parses a `clipboard.update` [Envelope] into a [ClipUpdate].
   static ClipUpdate envelopeToClipUpdate(Envelope env) {
     if (env.type != MessageType.clipboardUpdate) {
@@ -74,15 +86,10 @@ class TransportSyncAdapter implements SyncPorts {
       );
     }
     final parsed = ClipboardUpdatePayload.fromJson(env.payload);
-    final clipType = switch (parsed.contentType) {
-      'text/plain' => ClipType.text,
-      'text/uri-list' => ClipType.url,
-      'image/png' || 'image/jpeg' => ClipType.image,
-      _ => throw const ProtocolException(
-          ProtocolErrorCode.unsupportedType,
-          'unsupported clipboard content_type',
-        ),
-    };
+    final clipType = _parseContentType(parsed.contentType);
+    final inlineBytes = parsed.inline != null
+        ? Uint8List.fromList(base64Decode(parsed.inline!))
+        : null;
     return ClipUpdate(
       msgId: env.msgId,
       origin: env.origin,
@@ -93,9 +100,7 @@ class TransportSyncAdapter implements SyncPorts {
       size: parsed.size,
       isConcealed: parsed.isConcealed,
       ttlSeconds: parsed.ttlSeconds,
-      inline: parsed.inline != null
-          ? Uint8List.fromList(base64Decode(parsed.inline!))
-          : null,
+      inline: inlineBytes,
       blobId: parsed.blobId,
     );
   }
@@ -195,4 +200,3 @@ class _StoredBlob {
 
   const _StoredBlob({required this.bytes, required this.expiresAtMs});
 }
-

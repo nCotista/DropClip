@@ -4,8 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   group('DropClipMobileApp (T2.5)', () {
-    testWidgets('1-Tap Send Clipboard adds clip and invokes callback',
-        (tester) async {
+    testWidgets('1-Tap Send Clipboard adds clip', (tester) async {
       String? sent;
       await tester.pumpWidget(
         DropClipMobileApp(onSendClipboard: (clip) => sent = clip),
@@ -22,8 +21,7 @@ void main() {
       );
     });
 
-    testWidgets('QR & Manual PIN SAS verification matches conformance vectors',
-        (tester) async {
+    testWidgets('QR and PIN SAS match test vectors', (tester) async {
       await tester.pumpWidget(const DropClipMobileApp());
 
       await tester.tap(find.text('Pair (QR/PIN)'));
@@ -62,4 +60,3 @@ void main() {
     });
   });
 }
-

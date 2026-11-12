@@ -6,9 +6,7 @@ import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   group('DesktopTransfersPage & DesktopDevicesPage (T1.3, T1.10–T1.12)', () {
-    testWidgets('DesktopTransfersPage streams sample and resumes .part file', (
-      WidgetTester tester,
-    ) async {
+    testWidgets('streams sample and resumes .part file', (tester) async {
       var sampleSent = 0;
       var dropzoneOpened = 0;
       String? resumedId;
@@ -46,43 +44,39 @@ void main() {
       expect(resumedId, 'tx-part');
     });
 
-    testWidgets(
-      'DesktopDevicesPage computes 639589 SAS and handles quarantine/revoke',
-      (WidgetTester tester) async {
-        var verified = 0;
-        await tester.pumpWidget(
-          MaterialApp(
-            theme: buildDropClipTheme(Brightness.dark),
-            home: Scaffold(
-              body: DesktopDevicesPage(
-                nearby: demoShellStatus.nearby,
-                onDeviceVerified: () => verified++,
-              ),
+    testWidgets('computes 639589 SAS and handles quarantine', (tester) async {
+      var verified = 0;
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: buildDropClipTheme(Brightness.dark),
+          home: Scaffold(
+            body: DesktopDevicesPage(
+              nearby: demoShellStatus.nearby,
+              onDeviceVerified: () => verified++,
             ),
           ),
-        );
+        ),
+      );
 
-        expect(find.text('SAS: 639589'), findsOneWidget);
-        await tester.tap(find.byKey(const Key('btn-desktop-confirm-sas')));
-        await tester.pumpAndSettle();
-        expect(verified, 1);
-        expect(
-          find.textContaining('Peer pinned in Trusted Peer Store'),
-          findsOneWidget,
-        );
+      expect(find.text('SAS: 639589'), findsOneWidget);
+      await tester.tap(find.byKey(const Key('btn-desktop-confirm-sas')));
+      await tester.pumpAndSettle();
+      expect(verified, 1);
+      expect(
+        find.textContaining('Peer pinned in Trusted Peer Store'),
+        findsOneWidget,
+      );
 
-        await tester.tap(find.byKey(const Key('btn-quarantine-Pixel 8')));
-        await tester.pumpAndSettle();
-        expect(
-          find.byKey(const Key('btn-confirm-revoke-Pixel 8')),
-          findsOneWidget,
-        );
+      await tester.tap(find.byKey(const Key('btn-quarantine-Pixel 8')));
+      await tester.pumpAndSettle();
+      expect(
+        find.byKey(const Key('btn-confirm-revoke-Pixel 8')),
+        findsOneWidget,
+      );
 
-        await tester.tap(find.byKey(const Key('btn-confirm-revoke-Pixel 8')));
-        await tester.pumpAndSettle();
-        expect(find.text('Status: REVOKED'), findsOneWidget);
-      },
-    );
+      await tester.tap(find.byKey(const Key('btn-confirm-revoke-Pixel 8')));
+      await tester.pumpAndSettle();
+      expect(find.text('Status: REVOKED'), findsOneWidget);
+    });
   });
 }
-

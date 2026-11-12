@@ -44,9 +44,9 @@ class IosShortcutsWidgetCoordinator {
 
   /// Resolves the best trigger mechanism for the running iOS version.
   IosActionTrigger preferredTrigger(IosActionTrigger requested) {
-    if (iosMajorVersion < 17 &&
-        (requested == IosActionTrigger.interactiveWidget ||
-            requested == IosActionTrigger.actionButton)) {
+    final isInteractive = requested == IosActionTrigger.interactiveWidget ||
+        requested == IosActionTrigger.actionButton;
+    if (iosMajorVersion < 17 && isInteractive) {
       return IosActionTrigger.shortcutsBackTapFallback;
     }
     return requested;
@@ -64,8 +64,11 @@ class IosShortcutsWidgetCoordinator {
     }
     final raw = utf8.encode(pasteboardText);
     final hash = sha256.convert(raw).toString();
-    _clock = _clock.send(nowMs);
-    await appGroupSync.writeCurrentHlc(_clock);
+    final hlcHeader = await appGroupSync.nextHlcHeader(
+      deviceId: _clock.d,
+      nowMs: nowMs,
+    );
+    _clock = Hlc.parse(hlcHeader);
 
     final payload = ClipboardUpdatePayload(
       contentType: 'text/plain',
@@ -97,6 +100,8 @@ enum IosStorageDestination {
   const IosStorageDestination(this.subdir);
 }
 
+bool _defaultPhotoPermission() => true;
+
 /// iOS PhotoKit & File Receiver Engine (`T3.4`, FR-08, SW-03, PROTO §12.3).
 ///
 /// Streams incoming files in 1 MiB chunks, verifies SHA-256, and routes photos
@@ -111,9 +116,8 @@ class IosPhotoKitFileReceiver {
 
   IosPhotoKitFileReceiver({
     required this.containerRoot,
-    bool Function()? hasPhotoLibraryAddPermission,
-  }) : hasPhotoLibraryAddPermission =
-            hasPhotoLibraryAddPermission ?? (() => true);
+    this.hasPhotoLibraryAddPermission = _defaultPhotoPermission,
+  });
 
   List<String> get importedPhotoLibraryAssets =>
       List<String>.unmodifiable(_importedPhotoLibraryAssets);
@@ -134,12 +138,12 @@ class IosPhotoKitFileReceiver {
     required Stream<Uint8List> chunks,
   }) async {
     final safeRel = PathSanitizer.sanitize(item.path);
-    final preferredDest = destinationForMime(item.mime);
-    final actualDest =
-        preferredDest == IosStorageDestination.photoKitLibrary &&
-                !hasPhotoLibraryAddPermission()
-            ? IosStorageDestination.filesAppDocuments
-            : preferredDest;
+    final preferred = destinationForMime(item.mime);
+    var actualDest = preferred;
+    if (preferred == IosStorageDestination.photoKitLibrary &&
+        !hasPhotoLibraryAddPermission()) {
+      actualDest = IosStorageDestination.filesAppDocuments;
+    }
 
     final partFile = File(
       '${containerRoot.path}/${actualDest.subdir}/$safeRel.part',

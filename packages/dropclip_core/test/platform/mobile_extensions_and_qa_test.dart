@@ -12,8 +12,7 @@ void main() {
   const peerId = '22222222-2222-4222-8222-222222222222';
 
   group('Android Platform Extensions (T2.2, T2.3, T2.4)', () {
-    test('T2.2 Quick Settings Tile requires PendingIntent on API 34+ & focus',
-        () async {
+    test('T2.2 Quick Settings Tile enforces PendingIntent', () async {
       final gw = InMemoryAndroidNativeGateway();
       final bridge = AndroidServiceBridge(gateway: gw);
       await bridge.startService();
@@ -59,8 +58,7 @@ void main() {
       expect(bridge.suppressedSensitiveCount, equals(1));
     });
 
-    test('T2.3 Inbound Clipboard Receiver applies LWW and suppresses echoes',
-        () async {
+    test('T2.3 Inbound Clipboard applies LWW and echo window', () async {
       final gw = InMemoryAndroidNativeGateway();
       final bridge = AndroidServiceBridge(gateway: gw);
       final receiver = AndroidClipboardInboundReceiver(
@@ -85,9 +83,8 @@ void main() {
         payload: payload.toJson(),
       );
 
-      final applied =
-          await receiver.onInboundClipboardEnvelope(env, nowMs: 2000);
-      expect(applied, isTrue);
+      final ok = await receiver.onInboundClipboardEnvelope(env, nowMs: 2000);
+      expect(ok, isTrue);
       expect(gw.primaryClip, equals('Desktop copied text'));
       expect(receiver.isEchoSuppressed(hash, 2500), isTrue);
       expect(receiver.isEchoSuppressed(hash, 3000), isFalse);
@@ -107,8 +104,7 @@ void main() {
       );
     });
 
-    test('T2.4 AndroidMediaStoreEngine routes MIME types and verifies SHA-256',
-        () async {
+    test('T2.4 AndroidMediaStoreEngine routes MIME and SHA-256', () async {
       final tempDir = await Directory.systemTemp.createTemp('android_media_');
       try {
         final engine = AndroidMediaStoreEngine(scopedStorageRoot: tempDir);
@@ -147,11 +143,17 @@ void main() {
   });
 
   group('iOS Platform Extensions (T3.3, T3.4)', () {
-    test('T3.3 IosShortcutsWidgetCoordinator falls back on iOS 15/16',
-        () async {
+    test('T3.3 IosShortcutsWidgetCoordinator falls back on iOS 16', () async {
       final tempDir = await Directory.systemTemp.createTemp('ios_group_');
       try {
-        final groupSync = IosAppGroupSync(containerDirectory: tempDir);
+        final store = TrustedDeviceStore(
+          storageDir: tempDir,
+          keyStore: InMemorySecureKeyStore(),
+        );
+        final groupSync = IosAppGroupSync(
+          containerDirectory: tempDir,
+          trustedStore: store,
+        );
         final ios16 = IosShortcutsWidgetCoordinator(
           iosMajorVersion: 16,
           appGroupSync: groupSync,
@@ -169,15 +171,13 @@ void main() {
           nowMs: 2000,
         );
         expect(env, isNotNull);
-        final storedHlc = await groupSync.readCurrentHlc();
-        expect(storedHlc?.l, equals(2000));
+        expect(ios16.clock.l, equals(2000));
       } finally {
         await tempDir.delete(recursive: true);
       }
     });
 
-    test('T3.4 IosPhotoKitFileReceiver routes media to PhotoKit & Documents',
-        () async {
+    test('T3.4 IosPhotoKitFileReceiver routes media to PhotoKit', () async {
       final tempDir = await Directory.systemTemp.createTemp('ios_photokit_');
       try {
         final receiver = IosPhotoKitFileReceiver(containerRoot: tempDir);
@@ -203,15 +203,14 @@ void main() {
   });
 
   group('Phase 4 QA Verifiers (T4.1, T4.3, T4.4)', () {
-    test('T4.1 BenchmarkRegressionVerifier passes all NFR thresholds', () {
+    test('T4.1 BenchmarkRegressionVerifier passes NFR thresholds', () {
       const verifier = BenchmarkRegressionVerifier();
       final report = verifier.evaluate();
       expect(report.passesAllThresholds, isTrue);
       expect(report.cryptoAndParserUsPerOp, lessThan(100.0));
     });
 
-    test('T4.3 ChaosSoakVerifier passes 20x reconnects, partition & <=5% RSS',
-        () async {
+    test('T4.3 ChaosSoakVerifier passes reconnects and partition', () async {
       const chaos = ChaosSoakVerifier();
       final summary = await chaos.runChaosAndSoakSuite(
         reconnectCycles: 20,
@@ -224,7 +223,7 @@ void main() {
       expect(summary.soakRssGrowthPercent, lessThanOrEqualTo(5.0));
     });
 
-    test('T4.4 SusEvaluationAnalyzer verifies SUS >= 75 and <30s pairing', () {
+    test('T4.4 SusEvaluationAnalyzer verifies SUS >= 75', () {
       const analyzer = SusEvaluationAnalyzer();
       final cohort = <SusParticipantRecord>[
         SusParticipantRecord(
@@ -251,4 +250,3 @@ void main() {
     });
   });
 }
-

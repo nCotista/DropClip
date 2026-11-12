@@ -64,10 +64,13 @@ class AndroidQuickSettingsTileCoordinator {
     _pendingIntentLaunchCount++;
     _lastActionLatencyMs = focusedAtMs - startedAtMs;
 
-    final forwarded = serviceBridge.onQuickSettingsClipboardSample(
-      text: clipboardText ?? '',
-      isSensitive: isSensitive,
-      timestampMs: focusedAtMs,
+    final forwarded = serviceBridge.handleNativeEvent(
+      AndroidBridgeEvent(
+        action: 'quick_settings_send_clipboard',
+        isSensitive: isSensitive,
+        text: clipboardText,
+        timestampMs: focusedAtMs,
+      ),
     );
     if (!forwarded || clipboardText == null || clipboardText.isEmpty) {
       return null;
@@ -75,7 +78,7 @@ class AndroidQuickSettingsTileCoordinator {
 
     final raw = utf8.encode(clipboardText);
     final hash = sha256.convert(raw).toString();
-    _clock = _clock.send(focusedAtMs);
+    _clock = _clock.tick(focusedAtMs);
     final payload = ClipboardUpdatePayload(
       contentType: 'text/plain',
       hash: hash,
@@ -137,7 +140,7 @@ class AndroidClipboardInboundReceiver {
     if (envelope.hlc.compareTo(_clock) <= 0 && _lastAppliedHash != null) {
       return false;
     }
-    _clock = _clock.receive(envelope.hlc, nowMs);
+    _clock = _clock.merge(envelope.hlc, nowMs);
 
     final Uint8List rawBytes;
     if (payload.inline != null) {
@@ -161,7 +164,7 @@ class AndroidClipboardInboundReceiver {
 
     if (payload.contentType == 'text/plain' ||
         payload.contentType == 'text/uri-list') {
-      await serviceBridge.applyInboundClipboard(utf8.decode(rawBytes));
+      await serviceBridge.writeInboundClipboard(utf8.decode(rawBytes));
     } else if (payload.contentType == 'image/png' ||
         payload.contentType == 'image/jpeg') {
       _lastImagePng = rawBytes;
