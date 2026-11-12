@@ -57,3 +57,17 @@ ADB: List of devices attached (empty)
 Simulator: no booted devices
 Capture preflight: sudo: a password is required
 No PCAP or complete human UI timing result. No TLS keys/payloads logged.
+
+GitHub PR #87: 7/8 checks passed.
+Windows quality failure: desktop_node_test.dart:16 teardown
+PathAccessException: Deletion failed, file in use by another process, errno 32.
+Same failure observed on main run 43201035193.
+Android APK / unsigned iOS / Windows desktop builds passed.
+
+Isolated native build workaround:
+Local generated copy of cross_file_darwin only; global pub cache unchanged.
+Removed trailing comma in Package.swift and ProxyAPIRegistrar.swift.
+Direct xcodebuild Debug/macOS arm64, CODE_SIGN_IDENTITY=-: exit 0.
+** BUILD SUCCEEDED **
+Computer Use app request: Computer Use permissions are not granted
+No UI/launch/Keychain/manual confirmation result claimed.
