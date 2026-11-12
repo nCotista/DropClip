@@ -20,11 +20,15 @@ dependencies:
     path: ../../packages/dropclip_transfer
   dropclip_ui:
     path: ../../packages/dropclip_ui
+  flutter_secure_storage: ^11.2.0
+  path_provider: ^2.1.6
 
 dev_dependencies:
+  crypto: ^3.0.8
   flutter_test:
     sdk: flutter
   lints: ^3.0.0
+  shelf: ^1.4.3
 
 flutter:
   uses-material-design: true
