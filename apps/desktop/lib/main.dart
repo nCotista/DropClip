@@ -14,6 +14,8 @@ import 'src/dropzone/dropzone_controller.dart';
 import 'src/dropzone/dropzone_host.dart';
 import 'src/l10n/strings.dart';
 import 'src/native_host.dart';
+import 'src/node/desktop_node.dart';
+import 'src/node/os_key_store.dart';
 import 'src/onboarding.dart';
 import 'src/settings/auto_start.dart';
 import 'src/settings/config.dart';
@@ -57,11 +59,17 @@ Future<void> main(List<String> args) async {
         : WindowsRunKeyAutoStart(Platform.resolvedExecutable),
   );
 
-  // Real mDNS discovery (T1.1) feeds Nearby devices; the rest is demo data.
-  final local = placeholderLocalRecord(
+  // Persistent identity, Trusted Store, mTLS server, pairing and the
+  // Control Plane (T1.2–T1.5), keys in DPAPI / Keychain (§4.2).
+  final configDir = store.file.parent;
+  final node = await DesktopNode.start(
+    dir: configDir,
+    keys: osKeyStore(Directory('${configDir.path}/keys')),
     name: store.config.value.deviceName,
     os: isMacOS ? DeviceOs.macos : DeviceOs.windows,
+    log: (m) => warn(m),
   );
+  final local = node.record;
   // Structured JSON logs (T0.3): <config dir>/logs, 10 MB × 5 files, every
   // line scrubbed (NFR-S02). Ctrl+Shift+D / ⌘⇧D shows them in the app.
   final log = StructuredLogger(
@@ -73,14 +81,18 @@ Future<void> main(List<String> args) async {
   );
   warn = (m) => log.warn('config', m);
   early.forEach(warn);
-  // No Trusted Store yet (T1.2), so every peer shows as ready to pair.
+  // Paired peers are recognised by fingerprint and dialed automatically.
   final discovery = DiscoveryController(
     backend: BonsoirMdnsBackend(),
     cache: PeerCache(
-        localDeviceId: local.deviceId, trustedFingerprint: (_) => null),
+        localDeviceId: local.deviceId,
+        trustedFingerprint: node.store.fingerprintOf),
     local: local,
     onDebug: (m) => log.debug('discovery', m),
   );
+  discovery.cache.changes.listen(node.onPeers);
+  node.mesh.peerChanges
+      .listen((ids) => log.info('mesh', 'connected', {'peers': ids.length}));
   final status = ValueNotifier(demoShellStatus);
   final transfers = ValueNotifier<List<DesktopTransferRecord>>([
     const DesktopTransferRecord(
