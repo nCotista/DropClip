@@ -66,4 +66,46 @@ void main() {
     await host.forget(client.me.deviceId);
     expect(host.trusted.value, isEmpty);
   });
+
+  test('closing immediately after peer revocation deletes directory cleanly',
+      () async {
+    for (var i = 0; i < 3; i++) {
+      final hostDir = await Directory.systemTemp.createTemp('dc_host_');
+      final clientDir = await Directory.systemTemp.createTemp('dc_client_');
+      final host = await DesktopNode.start(
+          dir: hostDir,
+          keys: InMemorySecureKeyStore(),
+          name: 'Host-$i',
+          os: DeviceOs.windows);
+      final client = await DesktopNode.start(
+          dir: clientDir,
+          keys: InMemorySecureKeyStore(),
+          name: 'Client-$i',
+          os: DeviceOs.windows);
+
+      final session = await host.openPairing();
+      final pairing = host.pairing.events;
+      final sub = pairing.listen((e) {
+        if (e is PairingSasReady) host.pairing.confirm(true);
+      });
+      final done = pairing.firstWhere((e) => e is PairingCompleted);
+      await client.pairWith(_seen(host, PeerTrust.untrusted), session.pin,
+          (_, __) async => true);
+      await done;
+
+      final up = host.mesh.peerChanges.firstWhere((p) => p.isNotEmpty);
+      client.onPeers([_seen(host, PeerTrust.trusted)]);
+      host.onPeers([_seen(client, PeerTrust.trusted)]);
+      await up.timeout(const Duration(seconds: 5));
+
+      await host.forget(client.me.deviceId);
+      await sub.cancel();
+      await client.close();
+      await host.close();
+      await clientDir.delete(recursive: true);
+      await hostDir.delete(recursive: true);
+      expect(clientDir.existsSync(), isFalse);
+      expect(hostDir.existsSync(), isFalse);
+    }
+  });
 }

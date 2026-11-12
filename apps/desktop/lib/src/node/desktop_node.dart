@@ -25,6 +25,8 @@ class DesktopNode {
   /// Peers another device revoked; the user confirms or keeps them (§13).
   final quarantined = ValueNotifier<List<TrustedDevice>>(const []);
   StreamSubscription<PeerMessage>? _revocations;
+  Future<void> _revocationWork = Future<void>.value();
+  bool _closed = false;
 
   /// Paired-only HTTP routes by path prefix, e.g. `api/v1/blob/` (§9.1).
   final routes = <String, Handler>{};
@@ -35,21 +37,26 @@ class DesktopNode {
       this.revocation)
       : trusted = ValueNotifier(store.activeDevices.toList()) {
     _refresh();
-    _revocations = mesh.messages.listen((m) async {
-      final env = m.envelope;
-      if (env.type == MessageType.deviceRevoked) {
-        // The peer removed this device: forget it too (§13.1).
-        await store.removeByDeviceId(m.peerId);
-        await mesh.drop(m.peerId, VersionNegotiator.wsCloseNotPairedOrRevoked);
-      } else if (env.type == MessageType.clusterRevocation) {
-        await revocation.onClusterRevocation(
-            RevocationBroadcastToken.fromJson(env.payload),
-            senderPeerId: m.peerId);
-      } else {
-        return;
-      }
-      _refresh();
+    _revocations = mesh.messages.listen((m) {
+      _revocationWork = _revocationWork.then((_) => _handlePeerMessage(m));
     });
+  }
+
+  Future<void> _handlePeerMessage(PeerMessage m) async {
+    if (_closed) return;
+    final env = m.envelope;
+    if (env.type == MessageType.deviceRevoked) {
+      // The peer removed this device: forget it too (§13.1).
+      await store.removeByDeviceId(m.peerId);
+      await mesh.drop(m.peerId, VersionNegotiator.wsCloseNotPairedOrRevoked);
+    } else if (env.type == MessageType.clusterRevocation) {
+      await revocation.onClusterRevocation(
+          RevocationBroadcastToken.fromJson(env.payload),
+          senderPeerId: m.peerId);
+    } else {
+      return;
+    }
+    if (!_closed) _refresh();
   }
 
   DeviceIdentity get me => ids.identity;
@@ -181,7 +188,9 @@ class DesktopNode {
   }
 
   Future<void> close() async {
+    _closed = true;
     await _revocations?.cancel();
+    await _revocationWork;
     await mesh.close();
     await pairing.close();
     await server.close(force: true);

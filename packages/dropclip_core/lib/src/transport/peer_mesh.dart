@@ -26,6 +26,7 @@ class PeerMesh {
   final _dialing = <String>{};
   final _failures = <String, int>{};
   final _addresses = <String, (String, int)>{};
+  final _reconnectTimers = <String, Timer>{};
   final _messages = StreamController<PeerMessage>.broadcast();
   final _peers = StreamController<Set<String>>.broadcast();
   bool _closed = false;
@@ -94,11 +95,15 @@ class PeerMesh {
       final ws = await client.connectWebSocket(
           Uri(scheme: 'wss', host: host, port: port, path: '/api/v1/ws'));
       unawaited(ws.done.whenComplete(client.close));
+      if (_closed) {
+        await ws.close();
+        return;
+      }
       _failures.remove(peerId);
       await _start(peer.first, ws, initiator: true);
     } on Object {
       final n = _failures.update(peerId, (v) => v + 1, ifAbsent: () => 0);
-      Timer(backoff.delayForAttempt(n), () => reach(peerId, host, port));
+      _scheduleReconnect(peerId, host, port, n);
     } finally {
       _dialing.remove(peerId);
     }
@@ -144,8 +149,7 @@ class PeerMesh {
           _sessions.remove(peer.deviceId);
           final at = _addresses[peer.deviceId];
           if (initiator && at != null && !_closed) {
-            Timer(backoff.delayForAttempt(0),
-                () => reach(peer.deviceId, at.$1, at.$2));
+            _scheduleReconnect(peer.deviceId, at.$1, at.$2, 0);
           }
         }
         _emit();
@@ -173,11 +177,30 @@ class PeerMesh {
   }
 
   /// Closes the link to [peerId] with [code] (e.g. 4004 after a revoke).
-  Future<void> drop(String peerId, int code) async =>
-      _sessions.remove(peerId)?.shutdown(code, 'dropped');
+  Future<void> drop(String peerId, int code) async {
+    _reconnectTimers.remove(peerId)?.cancel();
+    await _sessions.remove(peerId)?.shutdown(code, 'dropped');
+  }
+
+  void _scheduleReconnect(String peerId, String host, int port, int attempt) {
+    if (_closed) return;
+    _reconnectTimers.remove(peerId)?.cancel();
+    _reconnectTimers[peerId] = Timer(backoff.delayForAttempt(attempt),
+        () => _onReconnectTimer(peerId, host, port));
+  }
+
+  Future<void> _onReconnectTimer(String peerId, String host, int port) async {
+    _reconnectTimers.remove(peerId);
+    if (_closed) return;
+    await reach(peerId, host, port);
+  }
 
   Future<void> close() async {
     _closed = true;
+    for (final timer in _reconnectTimers.values) {
+      timer.cancel();
+    }
+    _reconnectTimers.clear();
     for (final s in _sessions.values.toList()) {
       await s.shutdown(1000, 'closing');
     }
