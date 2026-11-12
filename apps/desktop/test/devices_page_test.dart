@@ -45,6 +45,8 @@ void main() {
     addTearDown(live.close);
     var pairNew = 0;
     final pairedWith = <String>[], forgot = <String>[];
+    final settled = <String>[];
+    final quarantined = ValueNotifier([_trusted(c, 'MacBook')]);
 
     await tester.pumpWidget(MaterialApp(
         theme: buildDropClipTheme(Brightness.dark),
@@ -58,7 +60,10 @@ void main() {
                 nearby: nearby,
                 onPairNew: () => pairNew++,
                 onPairWith: (p) => pairedWith.add(p.deviceId),
-                onForget: (d) => forgot.add(d.deviceId)))));
+                onForget: (d) => forgot.add(d.deviceId),
+                quarantined: quarantined,
+                onSettle: (d, remove) =>
+                    settled.add('${d.deviceId}:$remove')))));
 
     expect(find.text('This PC'), findsOneWidget);
     expect(find.text('Connected'), findsOneWidget);
@@ -72,6 +77,11 @@ void main() {
     expect(pairNew, 1);
     expect(pairedWith, [c]);
     expect(forgot, [b]);
+
+    expect(find.text('Another device removed MacBook. Remove it here too?'),
+        findsOneWidget);
+    await tester.tap(find.byKey(const Key('revoke-$c')));
+    expect(settled, ['$c:true']);
 
     live.add({a, b});
     await tester.pump();

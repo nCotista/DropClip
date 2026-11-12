@@ -243,6 +243,9 @@ Future<void> main(List<String> args) async {
         ),
       ),
       onForget: (d) => node.forget(d.deviceId),
+      quarantined: node.quarantined,
+      onSettle: (d, remove) =>
+          node.settleQuarantine(d.deviceId, remove: remove),
     ),
     // §3.1: explain the Windows Firewall prompt once, on first run.
     banner: isMacOS

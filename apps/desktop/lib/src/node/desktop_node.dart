@@ -17,17 +17,40 @@ class DesktopNode {
   final PairingHost pairing;
   final PeerMesh mesh;
   final TlsTransportServer server;
+  final RevocationManager revocation;
 
   /// Paired devices, refreshed after every change to the Trusted Store.
   final ValueNotifier<List<TrustedDevice>> trusted;
+
+  /// Peers another device revoked; the user confirms or keeps them (§13).
+  final quarantined = ValueNotifier<List<TrustedDevice>>(const []);
+  StreamSubscription<PeerMessage>? _revocations;
 
   /// Paired-only HTTP routes by path prefix, e.g. `api/v1/blob/` (§9.1).
   final routes = <String, Handler>{};
 
   final _addresses = <String, (String, int)>{};
 
-  DesktopNode._(this.ids, this.store, this.pairing, this.mesh, this.server)
-      : trusted = ValueNotifier(store.activeDevices.toList());
+  DesktopNode._(this.ids, this.store, this.pairing, this.mesh, this.server,
+      this.revocation)
+      : trusted = ValueNotifier(store.activeDevices.toList()) {
+    _refresh();
+    _revocations = mesh.messages.listen((m) async {
+      final env = m.envelope;
+      if (env.type == MessageType.deviceRevoked) {
+        // The peer removed this device: forget it too (§13.1).
+        await store.removeByDeviceId(m.peerId);
+        await mesh.drop(m.peerId, VersionNegotiator.wsCloseNotPairedOrRevoked);
+      } else if (env.type == MessageType.clusterRevocation) {
+        await revocation.onClusterRevocation(
+            RevocationBroadcastToken.fromJson(env.payload),
+            senderPeerId: m.peerId);
+      } else {
+        return;
+      }
+      _refresh();
+    });
+  }
 
   DeviceIdentity get me => ids.identity;
 
@@ -53,6 +76,19 @@ class DesktopNode {
       onPaired: (d) => node._added(d),
     );
     final mesh = PeerMesh(identity: ids, store: store, hello: () => node.hello);
+    final revocation = RevocationManager(
+      identityManager: ids,
+      trustedStore: store,
+      storageDir: Directory('${dir.path}/revocation'),
+      sendFrame: (peer, env) => mesh.broadcast(env, to: peer),
+      disconnectPeer: mesh.drop,
+      broadcastCluster: (env, {excludePeerId}) async {
+        for (final p in mesh.connected) {
+          if (p != excludePeerId) await mesh.broadcast(env, to: p);
+        }
+      },
+    );
+    await revocation.load();
     final server = await TlsTransportServer.bindForIdentity(
       identity: ids,
       store: store,
@@ -61,7 +97,7 @@ class DesktopNode {
       webSocket: (req, fp) => unawaited(mesh.accept(req, fp)),
     );
     log?.call('listening on ${server.port}');
-    return node = DesktopNode._(ids, store, pairing, mesh, server);
+    return node = DesktopNode._(ids, store, pairing, mesh, server, revocation);
   }
 
   /// The mDNS TXT record (§3.2) with the real port and cert fingerprint.
@@ -81,8 +117,8 @@ class DesktopNode {
         tier: 1,
         appVersion: '1.0.0',
         capabilities: record.capabilities,
-        tombstonesHash: '',
-        tombstoneCount: 0,
+        tombstonesHash: revocation.tombstonesHash,
+        tombstoneCount: revocation.tombstoneCount,
       );
 
   /// Dials every trusted peer discovery currently sees (§6.2 decides who).
@@ -118,18 +154,34 @@ class DesktopNode {
     return device;
   }
 
-  /// Removes a peer; the server refuses it on its next request (§4.4).
+  /// Revokes a peer (§13): tells it, signs a `cluster.revocation` for the
+  /// other peers and drops the link; the server refuses it from now on.
   Future<void> forget(String deviceId) async {
-    await store.removeByDeviceId(deviceId);
+    await revocation.revokePeerLocally(deviceId);
+    _refresh();
+  }
+
+  /// Answer to a quarantined revocation from another device.
+  Future<void> settleQuarantine(String deviceId, {required bool remove}) async {
+    await (remove
+        ? revocation.confirmQuarantinedRevocation(deviceId)
+        : revocation.rejectQuarantinedRevocation(deviceId));
+    _refresh();
+  }
+
+  void _refresh() {
     trusted.value = store.activeDevices.toList();
+    quarantined.value =
+        store.allDevices.where((d) => d.status == 'quarantined').toList();
   }
 
   void _added(TrustedDevice d) {
     if (d.certPem != null) server.addTrustedPeerCert(d.certPem!);
-    trusted.value = store.activeDevices.toList();
+    _refresh();
   }
 
   Future<void> close() async {
+    await _revocations?.cancel();
     await mesh.close();
     await pairing.close();
     await server.close(force: true);

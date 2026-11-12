@@ -18,6 +18,10 @@ class DevicesPage extends StatelessWidget {
   final void Function(DiscoveredPeer peer) onPairWith;
   final void Function(TrustedDevice device) onForget;
 
+  /// Peers another device revoked (§13), waiting for this user.
+  final ValueListenable<List<TrustedDevice>> quarantined;
+  final void Function(TrustedDevice device, bool remove) onSettle;
+
   const DevicesPage({
     super.key,
     required this.myName,
@@ -29,6 +33,8 @@ class DevicesPage extends StatelessWidget {
     required this.onPairNew,
     required this.onPairWith,
     required this.onForget,
+    required this.quarantined,
+    required this.onSettle,
   });
 
   @override
@@ -61,6 +67,27 @@ class DevicesPage extends StatelessWidget {
                 title: Text(myName),
                 subtitle: Text('${t.thisDevice} · SHA-256 $fp',
                     style: TextStyle(color: c.textSecondary)))),
+        ValueListenableBuilder<List<TrustedDevice>>(
+          valueListenable: quarantined,
+          builder: (_, list, __) => Column(children: [
+            for (final d in list)
+              Card(
+                  color: c.warning.withValues(alpha: 0.12),
+                  child: ListTile(
+                    leading: Icon(Icons.gpp_maybe, color: c.warning),
+                    title: Text(t.revokedElsewhere(d.name)),
+                    trailing: Wrap(spacing: 8, children: [
+                      TextButton(
+                          onPressed: () => onSettle(d, false),
+                          child: Text(t.keep)),
+                      FilledButton(
+                          key: Key('revoke-${d.deviceId}'),
+                          onPressed: () => onSettle(d, true),
+                          child: Text(t.remove)),
+                    ]),
+                  )),
+          ]),
+        ),
         const SizedBox(height: DropClipSpacing.lg),
         Text(t.pairedDevices, style: Theme.of(context).textTheme.titleMedium),
         StreamBuilder<Set<String>>(

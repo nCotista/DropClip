@@ -91,6 +91,8 @@ abstract class Strings {
   String receiveFrom(String name);
   String get accept;
   String get decline;
+  String revokedElsewhere(String name);
+  String get keep;
   String get waitingForPeer;
   String get dropFiles;
   String get dropFilesSub;
@@ -278,6 +280,11 @@ class EnStrings extends Strings {
   String get accept => 'Accept';
   @override
   String get decline => 'Decline';
+  @override
+  String revokedElsewhere(String name) =>
+      'Another device removed $name. Remove it here too?';
+  @override
+  String get keep => 'Keep';
   @override
   String get waitingForPeer => 'Waiting for the other device…';
   @override
@@ -487,6 +494,11 @@ class ThStrings extends Strings {
   String get accept => 'รับ';
   @override
   String get decline => 'ปฏิเสธ';
+  @override
+  String revokedElsewhere(String name) =>
+      'อุปกรณ์อื่นลบ $name แล้ว จะลบที่เครื่องนี้ด้วยไหม';
+  @override
+  String get keep => 'เก็บไว้';
   @override
   String get waitingForPeer => 'กำลังรออุปกรณ์อีกเครื่อง…';
   @override
