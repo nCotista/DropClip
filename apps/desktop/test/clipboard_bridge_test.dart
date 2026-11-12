@@ -45,7 +45,8 @@ class _FakeOs implements PlatformClipboard {
 
 typedef _Device = ({DesktopNode node, _FakeOs os, ClipboardBridge bridge});
 
-Future<_Device> _device(String name) async {
+Future<_Device> _device(String name,
+    {void Function(ClipEvent)? onClip, SyncPolicy Function()? policy}) async {
   final dir = await Directory.systemTemp.createTemp('dc_clip_');
   final node = await DesktopNode.start(
       dir: dir,
@@ -58,8 +59,8 @@ Future<_Device> _device(String name) async {
       native: os,
       changes: os.changes.stream,
       windows: true,
-      onClip: (_) {},
-      policy: () => const SyncPolicy());
+      onClip: onClip ?? (_) {},
+      policy: policy ?? () => const SyncPolicy());
   await bridge.start();
   addTearDown(() async {
     await bridge.stop();
@@ -78,6 +79,81 @@ DiscoveredPeer _seen(DesktopNode n, [PeerTrust trust = PeerTrust.trusted]) =>
         trust: trust);
 
 void main() {
+  Future<void> copy(_Device d, String text) async {
+    d.os.copy([ClipboardItem(mime: 'text/plain', data: utf8.encode(text))]);
+    await Future<void>.delayed(Duration.zero);
+  }
+
+  test('accepted local copies appear once in history', () async {
+    final events = <ClipEvent>[];
+    final d = await _device('local', onClip: events.add);
+    await copy(d, 'hello');
+    expect(events, [(type: ClipType.text, preview: 'hello', from: 'me')]);
+  });
+
+  test('a suppressed native write echo adds no local history entry', () async {
+    final events = <ClipEvent>[];
+    final d = await _device('echo', onClip: events.add);
+    await copy(d, 'hello');
+    d.bridge.engine.noteOwnWrite(d.bridge.engine.head!.update.hash);
+    await copy(d, 'hello');
+    expect(events, hasLength(1));
+  });
+
+  test('a different copy during suppression is still shown', () async {
+    final events = <ClipEvent>[];
+    final d = await _device('different', onClip: events.add);
+    await copy(d, 'hello');
+    d.bridge.engine.noteOwnWrite(d.bridge.engine.head!.update.hash);
+    await copy(d, 'new copy');
+    expect(events.map((e) => e.preview), ['hello', 'new copy']);
+  });
+
+  test('an intentional recopy after suppression is still shown', () async {
+    final events = <ClipEvent>[];
+    final d = await _device('recopy', onClip: events.add);
+    await copy(d, 'hello');
+    d.bridge.engine.noteOwnWrite(d.bridge.engine.head!.update.hash);
+    await Future<void>.delayed(const Duration(milliseconds: 850));
+    await copy(d, 'hello');
+    expect(events, hasLength(2));
+  });
+
+  test('the same native change token is not shown twice', () async {
+    final events = <ClipEvent>[];
+    final d = await _device('token', onClip: events.add);
+    await copy(d, 'hello');
+    d.os.changes.add(ClipSnapshot(
+        changeToken: d.os.changeToken(),
+        isConcealed: false,
+        items: d.os.items!,
+        ts: 0));
+    await Future<void>.delayed(Duration.zero);
+    expect(events, hasLength(1));
+  });
+
+  test('disabled sync and disallowed types add no history', () async {
+    for (final policy in [
+      const SyncPolicy(enabled: false),
+      const SyncPolicy(types: {ClipType.image}),
+    ]) {
+      final events = <ClipEvent>[];
+      final d =
+          await _device('policy', onClip: events.add, policy: () => policy);
+      await copy(d, 'hello');
+      expect(events, isEmpty);
+    }
+  });
+
+  test('concealed snapshots add no history', () async {
+    final events = <ClipEvent>[];
+    final d = await _device('concealed', onClip: events.add);
+    d.os.changes.add(ClipSnapshot(
+        changeToken: 1, isConcealed: true, items: const [], ts: 0));
+    await Future<void>.delayed(Duration.zero);
+    expect(events, isEmpty);
+  });
+
   test('Settings decide what syncs and for how long (FR-05)', () {
     final p = syncPolicyFor(const AppConfig(
         deviceName: 'PC', syncTypes: {SyncType.text}, clipboardTtlSeconds: 60));
