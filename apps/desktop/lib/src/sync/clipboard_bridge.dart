@@ -7,6 +7,7 @@ import 'package:flutter/services.dart';
 import 'package:shelf/shelf.dart';
 
 import '../node/desktop_node.dart';
+import '../settings/config.dart';
 
 /// The native watchers' channels (§14.1, dropclip_windows/_macos).
 class FlutterClipboardChannel implements ClipboardChannel {
@@ -174,3 +175,10 @@ class ClipboardBridge {
     await native.stop();
   }
 }
+
+/// Settings → engine: sync on/off, types and TTL (FR-05, §15.6).
+SyncPolicy syncPolicyFor(AppConfig c) => SyncPolicy(
+      enabled: c.clipboardSyncEnabled,
+      types: {for (final t in c.syncTypes) ClipType.values.byName(t.name)},
+      ttlSeconds: c.clipboardTtlSeconds,
+    );

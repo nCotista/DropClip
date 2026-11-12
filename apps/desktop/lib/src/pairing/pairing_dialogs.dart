@@ -2,13 +2,14 @@ import 'dart:async';
 
 import 'package:dropclip_core/dropclip_core.dart';
 import 'package:flutter/material.dart';
+import 'package:qr_flutter/qr_flutter.dart';
 
 import '../l10n/strings.dart';
 
 /// Host side of UI-03: shows the PIN, then the SAS for the user to compare.
 class HostPairingDialog extends StatefulWidget {
   /// Opens a session; returns the PIN and the address to show.
-  final Future<({String pin, String address})> Function() open;
+  final Future<({String pin, String address, String qr})> Function() open;
   final Stream<PairingHostEvent> events;
   final void Function(bool match) confirm;
 
@@ -23,7 +24,7 @@ class HostPairingDialog extends StatefulWidget {
 }
 
 class _HostPairingDialogState extends State<HostPairingDialog> {
-  ({String pin, String address})? _session;
+  ({String pin, String address, String qr})? _session;
   String? _sas, _result;
   bool _answered = false;
   StreamSubscription<PairingHostEvent>? _sub;
@@ -70,6 +71,16 @@ class _HostPairingDialogState extends State<HostPairingDialog> {
               : s == null
                   ? const LinearProgressIndicator()
                   : Column(mainAxisSize: MainAxisSize.min, children: [
+                      // §5.3: the phone scans this; level M.
+                      SizedBox.square(
+                        dimension: 180,
+                        child: QrImageView(
+                            key: const Key('pair-qr'),
+                            data: s.qr,
+                            errorCorrectionLevel: QrErrorCorrectLevel.M,
+                            backgroundColor: Colors.white),
+                      ),
+                      const SizedBox(height: 12),
                       Text(t.pinOnOtherDevice),
                       const SizedBox(height: 16),
                       _BigCode(s.pin, key: const Key('pair-pin')),

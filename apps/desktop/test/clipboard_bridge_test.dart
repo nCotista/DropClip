@@ -7,6 +7,7 @@ import 'dart:typed_data';
 import 'package:dropclip_clipboard/dropclip_clipboard.dart';
 import 'package:dropclip_core/dropclip_core.dart';
 import 'package:dropclip_desktop/src/node/desktop_node.dart';
+import 'package:dropclip_desktop/src/settings/config.dart';
 import 'package:dropclip_desktop/src/sync/clipboard_bridge.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -77,6 +78,19 @@ DiscoveredPeer _seen(DesktopNode n, [PeerTrust trust = PeerTrust.trusted]) =>
         trust: trust);
 
 void main() {
+  test('Settings decide what syncs and for how long (FR-05)', () {
+    final p = syncPolicyFor(const AppConfig(
+        deviceName: 'PC', syncTypes: {SyncType.text}, clipboardTtlSeconds: 60));
+    expect(p.allows(ClipType.text), isTrue);
+    expect(p.allows(ClipType.image), isFalse);
+    expect(p.ttlSeconds, 60);
+    expect(
+        syncPolicyFor(
+                const AppConfig(deviceName: 'PC', clipboardSyncEnabled: false))
+            .allows(ClipType.text),
+        isFalse);
+  });
+
   test('Windows DIB and macOS TIFF become PNG; text stays UTF-8', () {
     final png = encodePng(RgbaImage(
         2, 1, Uint8List.fromList([10, 20, 30, 255, 40, 50, 60, 255])));

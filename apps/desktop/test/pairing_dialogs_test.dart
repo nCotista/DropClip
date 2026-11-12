@@ -25,12 +25,14 @@ void main() {
     await _show(
         tester,
         HostPairingDialog(
-            open: () async => (pin: '482910', address: '192.168.1.5:53317'),
+            open: () async =>
+                (pin: '482910', address: '192.168.1.5:53317', qr: '{}'),
             events: events.stream,
             confirm: answers.add));
     await tester.pump();
     expect(find.text('482 910'), findsOneWidget);
     expect(find.text('192.168.1.5:53317'), findsOneWidget);
+    expect(find.byKey(const Key('pair-qr')), findsOneWidget);
 
     events.add(const PairingSasReady('639589', 'Office PC', 'windows'));
     await tester.pump();

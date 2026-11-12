@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:dropclip_clipboard/dropclip_clipboard.dart';
@@ -185,7 +186,7 @@ Future<void> main(List<String> args) async {
     changes: native.changes,
     windows: !isMacOS,
     onClip: showClip,
-    policy: () => const SyncPolicy(),
+    policy: () => syncPolicyFor(store.config.value),
   );
 
   // UI-03: this device hosts a session; the other types its PIN.
@@ -199,7 +200,11 @@ Future<void> main(List<String> args) async {
       builder: (_) => HostPairingDialog(
         open: () async {
           final s = await node.openPairing();
-          return (pin: s.pin, address: '${s.qr.ip}:${s.qr.port}');
+          return (
+            pin: s.pin,
+            address: '${s.qr.ip}:${s.qr.port}',
+            qr: jsonEncode(s.qr.toJson()),
+          );
         },
         events: node.pairing.events,
         confirm: node.pairing.confirm,
