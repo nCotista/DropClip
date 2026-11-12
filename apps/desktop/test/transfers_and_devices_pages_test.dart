@@ -60,6 +60,13 @@ void main() {
 
       expect(find.text('SAS: 639589'), findsOneWidget);
       await tester.tap(find.byKey(const Key('btn-desktop-confirm-sas')));
+      // Confirming pins the peer in the Trusted Store on disk; real file I/O
+      // only completes outside the fake test clock.
+      for (var i = 0; i < 100 && verified == 0; i++) {
+        await tester.runAsync(
+            () => Future<void>.delayed(const Duration(milliseconds: 10)));
+        await tester.pump();
+      }
       await tester.pumpAndSettle();
       expect(verified, 1);
       expect(

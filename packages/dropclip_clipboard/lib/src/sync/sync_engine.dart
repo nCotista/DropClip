@@ -231,9 +231,15 @@ class ClipboardSyncEngine {
         Duration(seconds: seconds), () => unawaited(ports.clearIfStill(hash))));
   }
 
-  String _newMsgId() => [for (var i = 0; i < 16; i++) _random.nextInt(256)]
-      .map((b) => b.toRadixString(16).padLeft(2, '0'))
-      .join();
+  /// A random UUIDv4, as every Envelope `msg_id` must be (§4.1).
+  String _newMsgId() {
+    final b = [for (var i = 0; i < 16; i++) _random.nextInt(256)];
+    b[6] = (b[6] & 0x0f) | 0x40; // version 4
+    b[8] = (b[8] & 0x3f) | 0x80; // RFC 4122 variant
+    final h = b.map((x) => x.toRadixString(16).padLeft(2, '0')).join();
+    return '${h.substring(0, 8)}-${h.substring(8, 12)}-${h.substring(12, 16)}-'
+        '${h.substring(16, 20)}-${h.substring(20)}';
+  }
 
   /// Cancels pending TTL timers.
   void dispose() {

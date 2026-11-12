@@ -188,7 +188,7 @@ class ControlPlaneSession {
         remoteMinV: remote.minV,
       );
     } on ProtocolException catch (e) {
-      final fallback = VersionNegotiator.wsCloseUnsupportedVersion;
+      const fallback = VersionNegotiator.wsCloseUnsupportedVersion;
       await _sendErrorAndMaybeClose(
         e,
         forceCloseCode: e.wsCloseCode ?? fallback,

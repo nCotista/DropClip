@@ -11,10 +11,14 @@ class _LoopbackChunkSink implements TransferChunkSink {
   final ResumableCheckpointStore? checkpointStore;
   final List<int> chunkSizes = <int>[];
 
+  /// Simulates a dropped connection: the chunk at this offset never arrives.
+  final int? dropAtOffset;
+
   _LoopbackChunkSink({
     required this.receiver,
     required this.item,
     this.checkpointStore,
+    this.dropAtOffset,
   });
 
   @override
@@ -24,6 +28,9 @@ class _LoopbackChunkSink implements TransferChunkSink {
     required int offset,
     required Uint8List bytes,
   }) async {
+    if (offset == dropAtOffset) {
+      throw const SocketException('connection dropped');
+    }
     chunkSizes.add(bytes.length);
     final completed = await receiver.writeChunk(
       item: item,
@@ -237,6 +244,66 @@ void main() {
       clockMs += kPartFileMaxAgeMs + 1000;
       final purged = await reloaded.purgeExpiredPartFiles();
       expect(purged, equals(1));
+    });
+
+    test('dropped streaming transfer resumes from the last checkpoint',
+        () async {
+      final srcFile = File('${tempDir.path}/big.bin');
+      final payload = Uint8List.fromList(
+        List<int>.generate(2500000, (i) => (i * 7) & 0xff),
+      );
+      await srcFile.writeAsBytes(payload, flush: true);
+      final item = FileOfferItem(
+        itemId: '44444444-4444-4444-8444-444444444444',
+        path: 'video.mp4',
+        size: payload.length,
+        sha256: await computeFileSha256(srcFile),
+        mime: 'video/mp4',
+        modifiedAt: 1700000000000,
+      );
+      final downDir = Directory('${tempDir.path}/down');
+      final store = ResumableCheckpointStore(
+        stateDirectory: Directory('${tempDir.path}/state'),
+        downloadDirectory: downDir,
+        checkpointIntervalBytes: kStreamingChunkSize,
+      );
+      final receiver = StreamingFileReceiver(destinationRoot: downDir);
+      const sender = StreamingFileSender();
+
+      // The third chunk never arrives; two 1 MiB checkpoints were saved.
+      await expectLater(
+        sender.sendFile(
+          transferId: 'tx-drop',
+          item: item,
+          sourceFile: srcFile,
+          sink: _LoopbackChunkSink(
+            receiver: receiver,
+            item: item,
+            checkpointStore: store,
+            dropAtOffset: 2 * kStreamingChunkSize,
+          ),
+        ),
+        throwsA(isA<SocketException>()),
+      );
+      final resumeAt =
+          await store.prepareResumeOffset(transferId: 'tx-drop', item: item);
+      expect(resumeAt, equals(2 * kStreamingChunkSize));
+
+      final resumed = _LoopbackChunkSink(
+        receiver: receiver,
+        item: item,
+        checkpointStore: store,
+      );
+      await sender.sendFile(
+        transferId: 'tx-drop',
+        item: item,
+        sourceFile: srcFile,
+        sink: resumed,
+        startOffset: resumeAt,
+      );
+      expect(resumed.chunkSizes, equals(<int>[402848]));
+      final finalFile = receiver.finalFileFor(item);
+      expect(await computeFileSha256(finalFile), equals(item.sha256));
     });
   });
 }
