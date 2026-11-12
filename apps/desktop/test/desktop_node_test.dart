@@ -13,7 +13,7 @@ Future<DesktopNode> _node(String name) async {
       os: DeviceOs.windows);
   addTearDown(() async {
     await node.close();
-    await dir.delete(recursive: true);
+    await dir.delete(recursive: true).catchError((Object _) => dir);
   });
   return node;
 }
@@ -28,7 +28,8 @@ DiscoveredPeer _seen(DesktopNode n, PeerTrust trust) => DiscoveredPeer(
 void main() {
   test('identity, port and fingerprint survive a restart', () async {
     final dir = await Directory.systemTemp.createTemp('dc_node_');
-    addTearDown(() => dir.delete(recursive: true));
+    addTearDown(
+        () => dir.delete(recursive: true).catchError((Object _) => dir));
     final keys = InMemorySecureKeyStore();
     Future<DesktopNode> boot() => DesktopNode.start(
         dir: dir, keys: keys, name: 'PC', os: DeviceOs.windows);

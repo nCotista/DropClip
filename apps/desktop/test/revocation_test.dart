@@ -13,7 +13,7 @@ Future<DesktopNode> _node(String name) async {
       os: DeviceOs.windows);
   addTearDown(() async {
     await n.close();
-    await dir.delete(recursive: true);
+    await dir.delete(recursive: true).catchError((Object _) => dir);
   });
   return n;
 }

@@ -40,7 +40,7 @@ void main() {
   tearDown(() async {
     browser.close(force: true);
     await server.close(force: true);
-    await dir.delete(recursive: true);
+    await dir.delete(recursive: true).catchError((Object _) => dir);
   });
 
   Future<({int status, String body})> call(String method, String path,

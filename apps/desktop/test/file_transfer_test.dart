@@ -31,7 +31,7 @@ Future<_Device> _device(String name, {bool accept = true}) async {
   addTearDown(() async {
     await files.close();
     await node.close();
-    await dir.delete(recursive: true);
+    await dir.delete(recursive: true).catchError((Object _) => dir);
   });
   return (node: node, files: files, dir: dir, updates: updates);
 }

@@ -22,6 +22,9 @@ class DevicesPage extends StatelessWidget {
   final ValueListenable<List<TrustedDevice>> quarantined;
   final void Function(TrustedDevice device, bool remove) onSettle;
 
+  /// Opens the QR that links a phone browser (Tier 3 web).
+  final VoidCallback? onLinkWeb;
+
   const DevicesPage({
     super.key,
     required this.myName,
@@ -35,6 +38,7 @@ class DevicesPage extends StatelessWidget {
     required this.onForget,
     required this.quarantined,
     required this.onSettle,
+    this.onLinkWeb,
   });
 
   @override
@@ -54,6 +58,14 @@ class DevicesPage extends StatelessWidget {
                       .textTheme
                       .headlineSmall
                       ?.copyWith(fontWeight: FontWeight.w700))),
+          if (onLinkWeb != null) ...[
+            OutlinedButton.icon(
+                key: const Key('link-web'),
+                onPressed: onLinkWeb,
+                icon: const Icon(Icons.qr_code, size: 18),
+                label: Text(t.linkPhoneWeb)),
+            const SizedBox(width: 8),
+          ],
           FilledButton.icon(
               key: const Key('pair-new'),
               onPressed: onPairNew,

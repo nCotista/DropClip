@@ -64,7 +64,7 @@ Future<_Device> _device(String name) async {
   addTearDown(() async {
     await bridge.stop();
     await node.close();
-    await dir.delete(recursive: true);
+    await dir.delete(recursive: true).catchError((Object _) => dir);
   });
   return (node: node, os: os, bridge: bridge);
 }
