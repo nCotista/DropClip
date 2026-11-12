@@ -1,0 +1,32 @@
+T2.5 iOS capability tier — 2026-11-12 Asia/Bangkok
+Base main 4ecd948; fix 3a73143
+Flutter 3.47.9 / Dart 3.13.7 / Xcode 16.2
+Before fix: 4 passed, 5 failed (iOS expected tier 3, actual 2)
+
+dropclip-ios-tier-after.txt
+00:01 +10: All tests passed!
+dropclip-ios-tier-melos-test.txt
+[dropclip_protocol]: 00:00 +50: All tests passed!
+[dropclip_transfer]: 00:00 +4: All tests passed!
+[dropclip_clipboard]: 00:01 +111: All tests passed!
+[dropclip_core]: 00:07 +151: All tests passed!
+[dropclip_mobile]: 00:01 +10: All tests passed!
+[dropclip_ui]: 00:00 +15: All tests passed!
+[dropclip_desktop]: 00:07 +111: All tests passed!
+Monorepo total: 452
+Melos bootstrap/format/analyze/test: exit 0
+Mobile coverage 146/180 = 81.11%
+mobile_node.dart coverage 64/82 = 78.05%
+
+Building dev.dropclip.dropclipMobile for simulator (ios)...
+Running Xcode build...                                          
+Xcode build done.                                           27.0s
+✓ Built build/ios/iphonesimulator/Runner.app
+
+Simulator install/launch: exit 0; process 82188
+Identity metadata stable after restart: True
+Identity metadata stable across app update: True
+Unhandled startup error markers: 0
+No private keys, pairing codes, clipboard contents or debug URLs exported.
+Computer Use: Sky Computer Use native pipe startup failed
+Visual screen confirmation, camera, full pairing timing and PCAP pending.
