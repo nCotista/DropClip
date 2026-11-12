@@ -172,6 +172,10 @@ class PeerMesh {
     if (!_closed) _peers.add(connected);
   }
 
+  /// Closes the link to [peerId] with [code] (e.g. 4004 after a revoke).
+  Future<void> drop(String peerId, int code) async =>
+      _sessions.remove(peerId)?.shutdown(code, 'dropped');
+
   Future<void> close() async {
     _closed = true;
     for (final s in _sessions.values.toList()) {

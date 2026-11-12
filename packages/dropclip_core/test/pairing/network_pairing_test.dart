@@ -24,6 +24,7 @@ void main() {
   late PairingHost pairing;
   late TlsTransportServer server;
   late String pin;
+  late Map<String, dynamic> qr;
 
   setUp(() async {
     host = await _node('Host PC');
@@ -45,7 +46,9 @@ void main() {
       lastPort: 0,
     );
     addTearDown(() => server.close(force: true));
-    pin = pairing.open(ip: '127.0.0.1', port: server.port).pin;
+    final session = pairing.open(ip: '127.0.0.1', port: server.port);
+    pin = session.pin;
+    qr = session.qr.toJson();
   });
 
   Future<TrustedDevice> pair({
@@ -126,5 +129,38 @@ void main() {
     ));
     expect(res.statusCode, 401);
     expect(await res.readAsString(), contains('E_PAIRING_INVALID'));
+  });
+
+  test('QR pairing pins the fp from the code and stores both sides', () async {
+    final sas = <String>[];
+    pairing.events.listen((e) {
+      if (e is PairingSasReady) {
+        sas.add(e.sas);
+        pairing.confirm(true);
+      }
+    });
+    final done = pairing.events.firstWhere((e) => e is PairingCompleted);
+    await PairingClient.pairWithQr(
+        qr: qr,
+        me: client.ids.identity,
+        store: client.store,
+        confirmSas: (s, _) async {
+          sas.add(s);
+          return true;
+        });
+    await done;
+    expect(sas[0], sas[1]);
+    expect(host.store.isActiveFingerprint(client.ids.identity.fp), isTrue);
+  });
+
+  test('a QR whose fp is not the Host cert never connects', () async {
+    await expectLater(
+        PairingClient.pairWithQr(
+            qr: {...qr, 'fp': 'a' * 64},
+            me: client.ids.identity,
+            store: client.store,
+            confirmSas: (_, __) async => true),
+        throwsA(anything));
+    expect(client.store.activeDevices, isEmpty);
   });
 }

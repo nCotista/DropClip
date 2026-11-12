@@ -24,8 +24,39 @@ class PairingClient {
     required Future<bool> Function(String sas, String hostName) confirmSas,
     String? expectedHostFp,
     int tier = 1,
-  }) async {
-    final proof = PairingClientProof.forPin(pin: pin, clientFingerprint: me.fp);
+  }) =>
+      _pair(PairingClientProof.forPin(pin: pin, clientFingerprint: me.fp), host,
+          port, expectedHostFp, me, store, confirmSas, tier);
+
+  /// QR mode (§5.3): the scanned payload gives the address, pins the Host
+  /// cert to its `fp` and carries `nonce_A` out of band.
+  static Future<TrustedDevice> pairWithQr({
+    required Map<String, dynamic> qr,
+    required DeviceIdentity me,
+    required TrustedDeviceStore store,
+    required Future<bool> Function(String sas, String hostName) confirmSas,
+    int tier = 2,
+  }) {
+    final PairingClientProof proof;
+    try {
+      proof = PairingClientProof.fromQr(qr: qr, clientFingerprint: me.fp);
+    } on ArgumentError catch (e) {
+      throw PairingClientException('E_PAIRING_INVALID', '${e.message}');
+    }
+    return _pair(proof, qr['ip'] as String, qr['port'] as int,
+        qr['fp'] as String, me, store, confirmSas, tier);
+  }
+
+  static Future<TrustedDevice> _pair(
+    PairingClientProof proof,
+    String host,
+    int port,
+    String? expectedHostFp,
+    DeviceIdentity me,
+    TrustedDeviceStore store,
+    Future<bool> Function(String sas, String hostName) confirmSas,
+    int tier,
+  ) async {
     List<int>? serverDer;
     final http = HttpClient(
         context: SecurityContext(withTrustedRoots: false)

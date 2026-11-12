@@ -117,6 +117,9 @@ void main() {
     await other.mesh.broadcast(_clip(other.id));
     expect(
         (await atDialer.timeout(const Duration(seconds: 5))).peerId, other.id);
+
+    await dialer.mesh.drop(other.id, 4004);
+    expect(dialer.mesh.connected, isEmpty);
   });
 
   test('an unpaired device cannot open the Control Plane', () async {
