@@ -20,7 +20,8 @@ void main() {
 
   testWidgets('clicking the drop area adds the chosen files', (tester) async {
     final dir = Directory.systemTemp.createTempSync('dc_browse_');
-    addTearDown(() => dir.deleteSync(recursive: true));
+    addTearDown(
+        () => dir.delete(recursive: true).catchError((Object _) => dir));
     final file = File('${dir.path}/report.pdf')..writeAsBytesSync([1, 2, 3]);
     final dz = DropzoneController();
     var asked = 0;
@@ -39,25 +40,26 @@ void main() {
       home: const Scaffold(body: Text('app')),
     ));
 
-    // The sidebar's "Drop files" opens the overlay and the dialog at once.
-    dz.browse();
-    await tester
-        .runAsync(() => Future<void>.delayed(const Duration(milliseconds: 50)));
+    // Opening the Dropzone does not open the dialog by itself.
+    dz.show();
     await tester.pumpAndSettle();
+    expect(asked, 0);
+    expect(find.text('or click to choose files'), findsOneWidget);
+
+    // A click on the drop area does.
+    await tester.tap(find.byKey(const Key('dropzone-browse')));
+    await _settle(tester, () => dz.items.isNotEmpty);
     expect(asked, 1);
     expect(dz.items.single.name, 'report.pdf');
     expect(dz.items.single.bytes, 3);
-
-    // Inside the Dropzone, the area itself is clickable too.
-    dz.close();
-    dz.show();
-    await tester.pumpAndSettle();
-    expect(find.text('or click to choose files'), findsOneWidget);
-    await tester.tap(find.byKey(const Key('dropzone-browse')));
-    await tester
-        .runAsync(() => Future<void>.delayed(const Duration(milliseconds: 50)));
-    await tester.pumpAndSettle();
-    expect(asked, 2);
-    expect(dz.items, hasLength(1));
   });
+}
+
+/// Real file I/O (the size of the chosen file) runs outside the fake clock.
+Future<void> _settle(WidgetTester tester, bool Function() done) async {
+  for (var i = 0; i < 100 && !done(); i++) {
+    await tester
+        .runAsync(() => Future<void>.delayed(const Duration(milliseconds: 10)));
+    await tester.pump();
+  }
 }
