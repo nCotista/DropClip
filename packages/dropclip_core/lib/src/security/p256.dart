@@ -45,7 +45,8 @@ class P256 {
       ])
     ]);
     final serial = List<int>.generate(16, (_) => rng.nextInt(256));
-    serial[0] &= 0x7f; // positive INTEGER
+    // Positive and minimal DER (no 0x00 lead): BoringSSL rejects others.
+    serial[0] = 0x40 | (serial[0] & 0x3f);
     final tbs = _seq([
       _tlv(0xa0, _tlv(0x02, [2])), // v3
       _tlv(0x02, serial),
