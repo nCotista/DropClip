@@ -75,6 +75,15 @@ void main() {
       expect(P256.verify(host.certPem, msg, [1, 2, 3]), isFalse);
     });
 
+    test('every generated cert loads into BoringSSL (DER integers)', () {
+      for (var i = 0; i < 400; i++) {
+        final id = P256.generate(commonName: 'dropclip-$i');
+        expect(() => _ctx(id), returnsNormally, reason: 'cert #$i');
+        final msg = [i];
+        expect(P256.verify(id.certPem, msg, P256.sign(id.keyPem, msg)), isTrue);
+      }
+    });
+
     test('every certificate has a fresh key and serial', () {
       final again = P256.generate(commonName: 'dropclip-host');
       expect(again.certDer, isNot(host.certDer));
