@@ -65,13 +65,12 @@ const webCompanionPage = r'''<!doctype html>
       <button id="paste" class="ghost">วางจากคลิปบอร์ด</button>
       <button id="send">ส่ง</button>
     </div>
-    <label class="btn ghost" style="display:block;text-align:center;margin-top:8px;border:1px solid var(--line);background:transparent">ส่งรูปเข้าคลิปบอร์ดคอมพิวเตอร์
-      <input id="imgpick" type="file" accept="image/*" class="hidden"></label>
   </div>
   <div class="card">
-    <h2>ส่งไฟล์หรือรูป</h2>
-    <label class="btn" style="display:block;text-align:center">เลือกไฟล์
+    <h2>แชร์ไฟล์หรือรูป</h2>
+    <label class="btn" style="display:block;text-align:center">เลือกไฟล์หรือรูป
       <input id="file" type="file" multiple class="hidden"></label>
+    <p class="meta" style="margin:8px 0 0">เก็บในโฟลเดอร์ Downloads/DropClip ของคอมพิวเตอร์ ถ้าเป็นรูปจะใส่คลิปบอร์ดให้ด้วย</p>
     <progress id="prog" class="hidden" max="1" value="0"></progress>
   </div>
   <div class="card">
@@ -192,13 +191,9 @@ const webCompanionPage = r'''<!doctype html>
   function sendImage(blob) {
     toast('กำลังส่งรูป…');
     return toPng(blob).then(function (png) { return api('POST', 'image', png, 'image/png'); })
-      .then(function () { toast('ส่งรูปเข้าคลิปบอร์ดคอมพิวเตอร์แล้ว'); },
-        function () { toast('ส่งรูปไม่สำเร็จ'); });
+      .then(function () { toast('ส่งรูปเข้าคลิปบอร์ดคอมพิวเตอร์แล้ว'); return true; },
+        function () { toast('ส่งรูปเข้าคลิปบอร์ดไม่สำเร็จ'); return false; });
   }
-  $('imgpick').onchange = function (ev) {
-    var f = (ev.target.files || [])[0]; ev.target.value = '';
-    if (f) sendImage(f);
-  };
   $('paste').onclick = function () {
     var cb = navigator.clipboard;
     function text() {
@@ -223,9 +218,14 @@ const webCompanionPage = r'''<!doctype html>
       toast('คลิปบอร์ดว่าง');
     }, text);
   };
+  // One share button: every file is saved in Downloads/DropClip on the PC,
+  // and every image also goes onto the PC clipboard and its history (the
+  // clipboard ends on the last one).
   $('file').onchange = function (ev) {
     var files = Array.prototype.slice.call(ev.target.files || []), prog = $('prog');
+    var images = files.filter(function (f) { return f.type.indexOf('image/') === 0; });
     (function next() {
+      if (!files.length && images.length) { sendImage(images.shift()).then(next); return; }
       var f = files.shift(); if (!f) { prog.classList.add('hidden'); ev.target.value = ''; return; }
       prog.classList.remove('hidden'); prog.value = 0;
       var x = new XMLHttpRequest();
