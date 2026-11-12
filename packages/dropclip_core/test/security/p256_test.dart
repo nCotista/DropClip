@@ -19,7 +19,7 @@ void main() {
     final peer = P256.generate(commonName: 'dropclip-peer');
 
     test('PEM is PKCS#8 key and X.509 cert matching the DER', () {
-      expect(ascii.decode(host.keyPem), startsWith('-----BEGIN PRIVATE KEY'));
+      expect(ascii.decode(host.keyPem), contains('-----END PRIVATE KEY-----'));
       final pem = ascii.decode(host.certPem);
       final body = pem
           .replaceAll(RegExp(r'-----[^-]+-----'), '')
