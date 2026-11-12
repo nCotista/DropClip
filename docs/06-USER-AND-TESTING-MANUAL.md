@@ -233,3 +233,4 @@ python3 tools/s02_receiver/receiver_test.py
 | พิมพ์ `melos` แล้วขึ้นว่า `command not found` | รันคำสั่ง `dart pub global activate melos` แล้วปิด-เปิดหน้าต่าง Terminal ใหม่อีกครั้ง |
 | อุปกรณ์ 2 เครื่องมองไม่เห็นกันในรายการ Nearby | ตรวจสอบว่าทั้ง 2 เครื่องเชื่อมต่อ **Wi-Fi ชื่อเดียวกัน** และไม่ได้ใช้ Wi-Fi สาธารณะที่บล็อกการคุยกันระหว่างเครื่อง (Client Isolation) หรือใช้การจับคู่ด้วยรหัส PIN ในหน้า `Devices` ได้ทันที |
 | บน Windows มีหน้าต่าง Windows Defender Firewall เด้งถาม | ให้ติ๊กถูกที่ **Private networks (เครือข่ายส่วนตัว)** แล้วกด **Allow access** ตามคำแนะนำบนการ์ดแจ้งเตือนในโปรแกรม |
+
