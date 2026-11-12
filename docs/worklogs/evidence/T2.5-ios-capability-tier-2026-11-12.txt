@@ -30,3 +30,8 @@ Unhandled startup error markers: 0
 No private keys, pairing codes, clipboard contents or debug URLs exported.
 Computer Use: Sky Computer Use native pipe startup failed
 Visual screen confirmation, camera, full pairing timing and PCAP pending.
+
+User confirmed Simulator home screen and Pair/Send buttons.
+CI #89: six checks passed, Windows quality failed at existing desktop_node_test.dart:16 cleanup; iOS device build still running.
+Local iOS Simulator build/startup passed independently of CI.
+Full manual Desktop/Simulator pairing pending.
