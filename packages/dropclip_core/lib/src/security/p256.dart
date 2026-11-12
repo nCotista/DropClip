@@ -79,6 +79,9 @@ class P256 {
     );
   }
 
+  /// PEM for a certificate seen on the wire (e.g. `X509Certificate.der`).
+  static Uint8List certPemFromDer(List<int> der) => _pem('CERTIFICATE', der);
+
   /// ECDSA-SHA256 signature (DER `SEQUENCE {r, s}`) of [message] with the
   /// PKCS#8 key from [generate].
   static Uint8List sign(Uint8List keyPem, List<int> message) =>
