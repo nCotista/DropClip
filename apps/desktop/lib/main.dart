@@ -298,6 +298,11 @@ Future<void> main(List<String> args) async {
     onOpenDropzone: dropzone.show,
     onSendClipboard: clipboard.sendNow,
     onPair: pairNew,
+    onCopyClip: (c) {
+      if (c.kind == ClipKind.image) return;
+      clipboard.copyAgain(
+          c.kind == ClipKind.link ? ClipType.url : ClipType.text, c.preview);
+    },
     // UI-02: drop files anywhere, or open from the tray / ⌥⌘D, Ctrl+Alt+D.
     overlay: (context, child) => DebugConsoleHost(
       feed: _LoggerFeed(log),

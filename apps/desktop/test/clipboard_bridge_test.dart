@@ -43,9 +43,15 @@ class _FakeOs implements PlatformClipboard {
   Future<void> stop() async {}
 }
 
-typedef _Device = ({DesktopNode node, _FakeOs os, ClipboardBridge bridge});
+typedef _Device = ({
+  DesktopNode node,
+  _FakeOs os,
+  ClipboardBridge bridge,
+  List<ClipEvent> shown,
+});
 
 Future<_Device> _device(String name) async {
+  final shown = <ClipEvent>[];
   final dir = await Directory.systemTemp.createTemp('dc_clip_');
   final node = await DesktopNode.start(
       dir: dir,
@@ -58,7 +64,7 @@ Future<_Device> _device(String name) async {
       native: os,
       changes: os.changes.stream,
       windows: true,
-      onClip: (_) {},
+      onClip: shown.add,
       policy: () => const SyncPolicy());
   await bridge.start();
   addTearDown(() async {
@@ -66,7 +72,7 @@ Future<_Device> _device(String name) async {
     await node.close();
     await dir.delete(recursive: true).catchError((Object _) => dir);
   });
-  return (node: node, os: os, bridge: bridge);
+  return (node: node, os: os, bridge: bridge, shown: shown);
 }
 
 DiscoveredPeer _seen(DesktopNode n, [PeerTrust trust = PeerTrust.trusted]) =>
@@ -78,6 +84,20 @@ DiscoveredPeer _seen(DesktopNode n, [PeerTrust trust = PeerTrust.trusted]) =>
         trust: trust);
 
 void main() {
+  test('one copy reported 3 times shows once; copy again writes natively',
+      () async {
+    final d = await _device('A');
+    for (var i = 0; i < 3; i++) {
+      d.os.copy([ClipboardItem(mime: 'text/plain', data: utf8.encode('same'))]);
+    }
+    await Future<void>.delayed(const Duration(milliseconds: 50));
+    expect(d.shown.map((e) => e.preview), ['same']);
+
+    final written = d.os.writes.stream.first;
+    await d.bridge.copyAgain(ClipType.url, 'https://dropclip.dev');
+    expect((await written).map((i) => i.mime), ['text/plain', 'text/uri-list']);
+  });
+
   test('Settings decide what syncs and for how long (FR-05)', () {
     final p = syncPolicyFor(const AppConfig(
         deviceName: 'PC', syncTypes: {SyncType.text}, clipboardTtlSeconds: 60));
