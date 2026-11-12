@@ -143,6 +143,11 @@ class ClipboardBridge {
     if (clip != null) engine.onLocalChange(LocalClip(clip.type, clip.raw));
   }
 
+  /// "Copy again" from the history: written by the native plugin, the same
+  /// path as synced clips, so it reaches the OS clipboard and peers.
+  Future<void> copyAgain(ClipType type, String text) => native
+      .write(clipboardItemsFor(type, utf8.encode(text), windows: windows));
+
   Future<LocalClip?> _current() async {
     final items = await native.read();
     return items == null

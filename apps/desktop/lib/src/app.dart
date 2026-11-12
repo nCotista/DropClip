@@ -26,6 +26,9 @@ class DropClipDesktopApp extends StatelessWidget {
   final VoidCallback? onSendClipboard;
   final VoidCallback? onPair;
 
+  /// "Copy again" on a history item.
+  final ValueChanged<ClipItem>? onCopyClip;
+
   /// Lets callbacks outside the widget tree open dialogs.
   final GlobalKey<NavigatorState>? navigatorKey;
 
@@ -44,6 +47,7 @@ class DropClipDesktopApp extends StatelessWidget {
     this.onSendClipboard,
     this.onPair,
     this.navigatorKey,
+    this.onCopyClip,
   });
 
   @override
@@ -65,7 +69,8 @@ class DropClipDesktopApp extends StatelessWidget {
                 banner: banner,
                 onOpenDropzone: onOpenDropzone,
                 onSendClipboard: onSendClipboard,
-                onPair: onPair)
+                onPair: onPair,
+                onCopyClip: onCopyClip)
             : ValueListenableBuilder<ShellStatus>(
                 valueListenable: liveStatus!,
                 builder: (_, s, __) => DesktopShell(
@@ -77,7 +82,8 @@ class DropClipDesktopApp extends StatelessWidget {
                     banner: banner,
                     onOpenDropzone: onOpenDropzone,
                     onSendClipboard: onSendClipboard,
-                    onPair: onPair),
+                    onPair: onPair,
+                    onCopyClip: onCopyClip),
               ),
       );
 }

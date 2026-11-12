@@ -51,6 +51,7 @@ class DesktopShell extends StatefulWidget {
   final VoidCallback? onOpenDropzone;
   final VoidCallback? onSendClipboard;
   final VoidCallback? onPair;
+  final ValueChanged<ClipItem>? onCopyClip;
 
   const DesktopShell(
       {super.key,
@@ -62,7 +63,8 @@ class DesktopShell extends StatefulWidget {
       this.banner,
       this.onOpenDropzone,
       this.onSendClipboard,
-      this.onPair});
+      this.onPair,
+      this.onCopyClip});
 
   @override
   State<DesktopShell> createState() => _DesktopShellState();
@@ -108,6 +110,7 @@ class _DesktopShellState extends State<DesktopShell> {
                             onSendClipboard: widget.onSendClipboard ??
                                 _notReady(
                                     Strings.of(context).sendClipboard, 'T1.9'),
+                            onCopy: widget.onCopyClip,
                             onPair: widget.onPair ??
                                 _notReady(Strings.of(context).pairing, 'T1.3'),
                             onOpenDropzone: widget.onOpenDropzone ??
