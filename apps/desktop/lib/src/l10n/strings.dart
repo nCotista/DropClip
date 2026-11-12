@@ -73,6 +73,22 @@ abstract class Strings {
   String onlineCount(int n);
   String get noDevicesNearby;
   String get pairNewDevice;
+
+  // Pairing (T1.3, UI-03)
+  String get pairedDevices;
+  String get noPairedDevices;
+  String get connected;
+  String get offline;
+  String get pair;
+  String get remove;
+  String get pinOnOtherDevice;
+  String enterPinOf(String name);
+  String get sasQuestion;
+  String get sasMatch;
+  String get sasNoMatch;
+  String pairedWith(String name);
+  String pairFailed(String code);
+  String get waitingForPeer;
   String get dropFiles;
   String get dropFilesSub;
   String get online;
@@ -226,6 +242,35 @@ class EnStrings extends Strings {
   String get noDevicesNearby => 'No devices nearby';
   @override
   String get pairNewDevice => 'Pair new device';
+  @override
+  String get pairedDevices => 'Paired devices';
+  @override
+  String get noPairedDevices => 'No paired devices yet';
+  @override
+  String get connected => 'Connected';
+  @override
+  String get offline => 'Offline';
+  @override
+  String get pair => 'Pair';
+  @override
+  String get remove => 'Remove';
+  @override
+  String get pinOnOtherDevice =>
+      'On the other device, choose Pair and enter this PIN';
+  @override
+  String enterPinOf(String name) => 'Enter the PIN shown on $name';
+  @override
+  String get sasQuestion => 'Do both devices show this number?';
+  @override
+  String get sasMatch => 'They match';
+  @override
+  String get sasNoMatch => "They don't match";
+  @override
+  String pairedWith(String name) => 'Paired with $name';
+  @override
+  String pairFailed(String code) => 'Pairing failed ($code)';
+  @override
+  String get waitingForPeer => 'Waiting for the other device…';
   @override
   String get dropFiles => 'Drop files to send';
   @override
@@ -400,6 +445,35 @@ class ThStrings extends Strings {
   String get noDevicesNearby => 'ไม่พบอุปกรณ์ใกล้เคียง';
   @override
   String get pairNewDevice => 'จับคู่อุปกรณ์ใหม่';
+  @override
+  String get pairedDevices => 'อุปกรณ์ที่จับคู่แล้ว';
+  @override
+  String get noPairedDevices => 'ยังไม่มีอุปกรณ์ที่จับคู่';
+  @override
+  String get connected => 'เชื่อมต่ออยู่';
+  @override
+  String get offline => 'ออฟไลน์';
+  @override
+  String get pair => 'จับคู่';
+  @override
+  String get remove => 'ลบ';
+  @override
+  String get pinOnOtherDevice =>
+      'ที่อุปกรณ์อีกเครื่อง กด "จับคู่" แล้วกรอก PIN นี้';
+  @override
+  String enterPinOf(String name) => 'กรอก PIN ที่แสดงบน $name';
+  @override
+  String get sasQuestion => 'ทั้งสองเครื่องแสดงตัวเลขนี้ตรงกันไหม';
+  @override
+  String get sasMatch => 'ตรงกัน';
+  @override
+  String get sasNoMatch => 'ไม่ตรงกัน';
+  @override
+  String pairedWith(String name) => 'จับคู่กับ $name แล้ว';
+  @override
+  String pairFailed(String code) => 'จับคู่ไม่สำเร็จ ($code)';
+  @override
+  String get waitingForPeer => 'กำลังรออุปกรณ์อีกเครื่อง…';
   @override
   String get dropFiles => 'ลากไฟล์มาวางเพื่อส่ง';
   @override
