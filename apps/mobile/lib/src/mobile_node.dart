@@ -55,9 +55,15 @@ class MobileNode implements MobilePeer {
         osWriteClipboard: (_, raw) => writeClipboard(utf8.decode(raw)),
       ),
     );
-    _sub = mesh.messages
-        .where((m) => m.envelope.type == MessageType.clipboardUpdate)
-        .listen((m) async {
+    _sub = mesh.messages.listen((m) async {
+      if (m.envelope.type == MessageType.deviceRevoked) {
+        // The desktop removed this phone: forget it too (§13.1).
+        await store.removeByDeviceId(m.peerId);
+        await mesh.drop(m.peerId, VersionNegotiator.wsCloseNotPairedOrRevoked);
+        trusted.value = store.activeDevices.toList();
+        return;
+      }
+      if (m.envelope.type != MessageType.clipboardUpdate) return;
       final u = TransportSyncAdapter.envelopeToClipUpdate(m.envelope);
       if (u.inline != null && await _engine.onRemoteUpdate(u, m.peerId)) {
         final from = trusted.value.where((d) => d.deviceId == m.peerId);
@@ -107,6 +113,21 @@ class MobileNode implements MobilePeer {
   /// Pairs with the desktop at [host]:[port] using the PIN it shows (§5,
   /// manual IP + PIN), then connects to it.
   @override
+  Future<TrustedDevice> pairWithQr(String scanned,
+      Future<bool> Function(String sas, String hostName) confirm) async {
+    final Map<String, dynamic> qr;
+    try {
+      qr = jsonDecode(scanned) as Map<String, dynamic>;
+    } on Object {
+      throw const PairingClientException(
+          'E_PAIRING_INVALID', 'not a DropClip QR');
+    }
+    final d = await PairingClient.pairWithQr(
+        qr: qr, me: me, store: store, confirmSas: confirm);
+    return _connect(d, qr['ip'] as String, qr['port'] as int);
+  }
+
+  @override
   Future<TrustedDevice> pair(String host, int port, String pin,
       Future<bool> Function(String sas, String hostName) confirm) async {
     final d = await PairingClient.pairWithPin(
@@ -117,6 +138,11 @@ class MobileNode implements MobilePeer {
         store: store,
         confirmSas: confirm,
         tier: 2);
+    return _connect(d, host, port);
+  }
+
+  /// Remembers where the desktop is and dials it.
+  Future<TrustedDevice> _connect(TrustedDevice d, String host, int port) async {
     final hosts = await _savedHosts();
     hosts[d.deviceId] = '$host:$port';
     await _hosts.writeAsString(jsonEncode(hosts));

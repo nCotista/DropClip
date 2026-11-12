@@ -4,6 +4,7 @@ import 'package:dropclip_core/dropclip_core.dart';
 import 'package:dropclip_ui/dropclip_ui.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:mobile_scanner/mobile_scanner.dart';
 
 import 'mobile_peer.dart';
 
@@ -108,11 +109,25 @@ class _PairDialogState extends State<_PairDialog> {
   String? _sas, _result;
   Completer<bool>? _answer;
 
-  Future<void> _start() async {
+  Future<void> _start() => _run((confirm) => widget.node.pair(_host.text.trim(),
+      int.tryParse(_port.text) ?? 53317, _pin.text.trim(), confirm));
+
+  /// Scans the desktop's pairing QR (§5.3) and pairs from it.
+  Future<void> _scan() async {
+    final scanned = await Navigator.of(context)
+        .push<String>(MaterialPageRoute(builder: (_) => const ScanPage()));
+    if (scanned != null) {
+      await _run((confirm) => widget.node.pairWithQr(scanned, confirm));
+    }
+  }
+
+  Future<void> _run(
+      Future<TrustedDevice> Function(
+              Future<bool> Function(String sas, String hostName) confirm)
+          pair) async {
     setState(() => _result = '…');
     try {
-      final d = await widget.node.pair(_host.text.trim(),
-          int.tryParse(_port.text) ?? 53317, _pin.text.trim(), (sas, _) {
+      final d = await pair((sas, _) {
         setState(() => _sas = sas);
         return (_answer = Completer<bool>()).future;
       });
@@ -163,15 +178,43 @@ class _PairDialogState extends State<_PairDialog> {
                 key: const Key('match'),
                 onPressed: () => _reply(true),
                 child: const Text('Match')),
-          ] else if (_result == null)
+          ] else if (_result == null) ...[
+            TextButton.icon(
+                key: const Key('scan'),
+                onPressed: _scan,
+                icon: const Icon(Icons.qr_code_scanner),
+                label: const Text('Scan QR')),
             FilledButton(
                 key: const Key('go'),
                 onPressed: _start,
-                child: const Text('Pair'))
-          else
+                child: const Text('Pair')),
+          ] else
             TextButton(
                 onPressed: () => Navigator.pop(context),
                 child: const Text('Close')),
         ],
+      );
+}
+
+/// Camera view that returns the first QR code it reads.
+class ScanPage extends StatefulWidget {
+  const ScanPage({super.key});
+
+  @override
+  State<ScanPage> createState() => _ScanPageState();
+}
+
+class _ScanPageState extends State<ScanPage> {
+  bool _done = false;
+
+  @override
+  Widget build(BuildContext context) => Scaffold(
+        appBar: AppBar(title: const Text('Scan the QR on your computer')),
+        body: MobileScanner(onDetect: (capture) {
+          final value = capture.barcodes.firstOrNull?.rawValue;
+          if (value == null || _done) return;
+          _done = true;
+          Navigator.of(context).pop(value);
+        }),
       );
 }

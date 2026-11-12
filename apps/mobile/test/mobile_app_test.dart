@@ -34,6 +34,11 @@ class _FakePeer implements MobilePeer {
   }
 
   @override
+  Future<TrustedDevice> pairWithQr(String scanned,
+          Future<bool> Function(String sas, String hostName) confirm) =>
+      pair('qr', 0, scanned, confirm);
+
+  @override
   void sendText(String text) => sent.add(text);
 }
 

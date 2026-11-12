@@ -8,5 +8,9 @@ abstract interface class MobilePeer {
   Set<String> get connected;
   Future<TrustedDevice> pair(String host, int port, String pin,
       Future<bool> Function(String sas, String hostName) confirm);
+
+  /// Pairs from the scanned QR text of the desktop's pairing screen (§5.3).
+  Future<TrustedDevice> pairWithQr(String scanned,
+      Future<bool> Function(String sas, String hostName) confirm);
   void sendText(String text);
 }

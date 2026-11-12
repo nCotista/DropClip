@@ -109,4 +109,43 @@ void main() {
             .toJson()));
     expect(await toPhone.timeout(const Duration(seconds: 5)), 'from desktop');
   });
+
+  test('phone pairs by scanning the QR; a revoke makes it forget the desktop',
+      () async {
+    final dir = await Directory.systemTemp.createTemp('dc_mobile_qr_');
+    addTearDown(() => dir.delete(recursive: true));
+    final desk = await _desktop(dir);
+    final phone = await MobileNode.start(
+        dir: Directory('${dir.path}/phone'),
+        keys: InMemorySecureKeyStore(),
+        name: 'Pixel',
+        os: 'android',
+        writeClipboard: (_) async {},
+        onReceived: (_, __) {});
+    addTearDown(phone.close);
+
+    final qr = desk.pairing.open(ip: '127.0.0.1', port: desk.port).qr;
+    desk.pairing.events.listen((e) {
+      if (e is PairingSasReady) desk.pairing.confirm(true);
+    });
+    final linked = desk.mesh.peerChanges.firstWhere((p) => p.isNotEmpty);
+    await phone.pairWithQr(jsonEncode(qr.toJson()), (_, __) async => true);
+    await linked.timeout(const Duration(seconds: 5));
+    expect(phone.trusted.value.single.deviceId, desk.id);
+    await expectLater(phone.pairWithQr('not a qr', (_, __) async => true),
+        throwsA(isA<PairingClientException>()));
+
+    await Future<void>.delayed(const Duration(milliseconds: 200));
+    await desk.mesh.broadcast(Envelope(
+        type: MessageType.deviceRevoked,
+        msgId: '00000000-0000-4000-8000-0000000000bb',
+        origin: desk.id,
+        hlc: Hlc.now(desk.id),
+        ts: DateTime.now().millisecondsSinceEpoch,
+        payload: {'reason': 'user_initiated', 'by': desk.id}));
+    for (var i = 0; i < 100 && phone.trusted.value.isNotEmpty; i++) {
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+    }
+    expect(phone.trusted.value, isEmpty);
+  });
 }
