@@ -1,240 +1,177 @@
-import 'dart:convert';
-import 'dart:typed_data';
+import 'dart:async';
 
-import 'package:dropclip_protocol/dropclip_protocol.dart';
+import 'package:dropclip_core/dropclip_core.dart';
 import 'package:dropclip_ui/dropclip_ui.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
-/// Mobile navigation tabs for Android (Tier 2) and iOS (Tier 3) (`T2.5`).
-enum MobileTab { clipboard, pair, devices }
+import 'mobile_peer.dart';
 
-/// DropClip Mobile Application (`T2.5`, UI-03, UI-05, ADR-009).
-class DropClipMobileApp extends StatefulWidget {
-  final String localFingerprint;
-  final Uint8List? localNonceB;
-  final void Function(String clipText)? onSendClipboard;
+export 'mobile_peer.dart';
 
-  const DropClipMobileApp({
-    super.key,
-    this.localFingerprint =
-        '1111111111111111111111111111111111111111111111111111111111111111',
-    this.localNonceB,
-    this.onSendClipboard,
-  });
+/// Tier 2 phone screen (T2.5, UI-05): paired computers, pair by IP + PIN
+/// with the SAS check, 1-tap clipboard send and received clips.
+class DropClipMobileApp extends StatelessWidget {
+  final MobilePeer node;
+  final ValueListenable<List<String>> received;
+  final Future<String?> Function() readClipboard;
+
+  const DropClipMobileApp(
+      {super.key,
+      required this.node,
+      required this.received,
+      required this.readClipboard});
 
   @override
-  State<DropClipMobileApp> createState() => _DropClipMobileAppState();
+  Widget build(BuildContext context) => MaterialApp(
+        title: 'DropClip',
+        theme: buildDropClipTheme(Brightness.light),
+        darkTheme: buildDropClipTheme(Brightness.dark),
+        home: _Home(app: this),
+      );
 }
 
-class _DropClipMobileAppState extends State<DropClipMobileApp> {
-  MobileTab _tab = MobileTab.clipboard;
-  final List<String> _recentClips = <String>[
-    'https://github.com/nCotista/DropClip',
-    'Meeting notes: LAN-only mTLS 1.3 mesh verified',
-  ];
-  final TextEditingController _qrOrHostFpController = TextEditingController(
-    text: '0000000000000000000000000000000000000000000000000000000000000000',
-  );
-  final TextEditingController _pinController = TextEditingController();
-  String? _computedSas;
-  String? _pairingError;
-  bool _sasConfirmed = false;
+class _Home extends StatelessWidget {
+  final DropClipMobileApp app;
 
-  @override
-  void dispose() {
-    _qrOrHostFpController.dispose();
-    _pinController.dispose();
-    super.dispose();
-  }
+  const _Home({required this.app});
 
-  void _sendCurrentClipboard() {
-    const sample = 'Sent from DropClip Mobile 1-Tap Action';
-    setState(() {
-      _recentClips.insert(0, sample);
-    });
-    widget.onSendClipboard?.call(sample);
-  }
-
-  void _computeCommitRevealSas({required bool usePinMode}) {
-    final hostFp = _qrOrHostFpController.text.trim().toLowerCase();
-    final pin = _pinController.text.trim();
-    final nonceA = Uint8List.fromList(ascii.encode('0123456789abcdef'));
-    final nonceB = widget.localNonceB ??
-        Uint8List.fromList(ascii.encode('fedcba9876543210'));
-    try {
-      final sas = usePinMode
-          ? SasCalculator.calculateSasPinMode(
-              hostFp,
-              widget.localFingerprint,
-              nonceA,
-              nonceB,
-              pin,
-            )
-          : SasCalculator.calculateSasDual(
-              hostFp,
-              widget.localFingerprint,
-              nonceA,
-              nonceB,
-            );
-      setState(() {
-        _computedSas = sas;
-        _pairingError = null;
-        _sasConfirmed = false;
-      });
-    } on ArgumentError catch (e) {
-      setState(() {
-        _computedSas = null;
-        _pairingError = e.message.toString();
-        _sasConfirmed = false;
-      });
+  Future<void> _send(BuildContext context) async {
+    final text = await app.readClipboard();
+    if (text == null || text.isEmpty) return;
+    app.node.sendText(text);
+    if (context.mounted) {
+      ScaffoldMessenger.of(context)
+          .showSnackBar(const SnackBar(content: Text('Sent')));
     }
   }
 
   @override
-  Widget build(BuildContext context) => MaterialApp(
-        title: DropClipThemeTokens.appName,
-        debugShowCheckedModeBanner: false,
-        theme: buildDropClipTheme(Brightness.light),
-        darkTheme: buildDropClipTheme(Brightness.dark),
-        home: Scaffold(
-          appBar: AppBar(
-            title: const Text('${DropClipThemeTokens.appName} Mobile'),
+  Widget build(BuildContext context) => Scaffold(
+        appBar: AppBar(title: const Text('DropClip')),
+        floatingActionButton: FloatingActionButton.extended(
+            key: const Key('pair'),
+            onPressed: () => showDialog<void>(
+                context: context, builder: (_) => _PairDialog(app.node)),
+            icon: const Icon(Icons.add_link),
+            label: const Text('Pair with computer')),
+        body: ListView(padding: const EdgeInsets.all(16), children: [
+          FilledButton.icon(
+              key: const Key('send-clipboard'),
+              onPressed: () => _send(context),
+              icon: const Icon(Icons.send),
+              label: const Text('Send clipboard')),
+          const SizedBox(height: 16),
+          StreamBuilder<Set<String>>(
+            stream: app.node.connectedChanges,
+            initialData: app.node.connected,
+            builder: (_, live) => ValueListenableBuilder<List<TrustedDevice>>(
+              valueListenable: app.node.trusted,
+              builder: (_, list, __) => Column(children: [
+                if (list.isEmpty) const Text('No paired computers yet'),
+                for (final d in list)
+                  ListTile(
+                      leading: const Icon(Icons.computer),
+                      title: Text(d.name),
+                      subtitle: Text(live.data?.contains(d.deviceId) ?? false
+                          ? 'Connected'
+                          : 'Offline')),
+              ]),
+            ),
           ),
-          body: switch (_tab) {
-            MobileTab.clipboard => _buildClipboardTab(),
-            MobileTab.pair => _buildPairTab(),
-            MobileTab.devices => _buildDevicesTab(),
-          },
-          bottomNavigationBar: NavigationBar(
-            selectedIndex: _tab.index,
-            onDestinationSelected: (idx) =>
-                setState(() => _tab = MobileTab.values[idx]),
-            destinations: const <NavigationDestination>[
-              NavigationDestination(
-                icon: Icon(Icons.content_paste_rounded),
-                label: 'Clipboard',
-              ),
-              NavigationDestination(
-                icon: Icon(Icons.qr_code_scanner_rounded),
-                label: 'Pair (QR/PIN)',
-              ),
-              NavigationDestination(
-                icon: Icon(Icons.devices_rounded),
-                label: 'Devices',
-              ),
-            ],
+          const Divider(),
+          ValueListenableBuilder<List<String>>(
+            valueListenable: app.received,
+            builder: (_, clips, __) => Column(children: [
+              for (final c in clips)
+                ListTile(
+                    leading: const Icon(Icons.content_paste), title: Text(c)),
+            ]),
           ),
-        ),
+        ]),
       );
+}
 
-  Widget _buildClipboardTab() => ListView(
-        padding: const EdgeInsets.all(DropClipSpacing.lg),
-        children: <Widget>[
-          ElevatedButton.icon(
-            key: const Key('mobile_send_clipboard_btn'),
-            onPressed: _sendCurrentClipboard,
-            icon: const Icon(Icons.send_rounded),
-            label: const Text('Send Clipboard Now (1-Tap)'),
-          ),
-          const SizedBox(height: DropClipSpacing.lg),
-          const Text(
-            'Recent Synced Clips',
-            style: TextStyle(fontWeight: FontWeight.w700),
-          ),
-          const SizedBox(height: DropClipSpacing.sm),
-          for (final clip in _recentClips)
-            Card(
-              child: ListTile(
-                leading: const Icon(Icons.copy_rounded),
-                title: Text(clip),
-              ),
-            ),
-        ],
-      );
+class _PairDialog extends StatefulWidget {
+  final MobilePeer node;
 
-  Widget _buildPairTab() => ListView(
-        padding: const EdgeInsets.all(DropClipSpacing.lg),
-        children: <Widget>[
-          const Text(
-            'Commit-then-Reveal Pairing (Zero-PIN-on-Wire)',
-            style: TextStyle(fontWeight: FontWeight.w700),
-          ),
-          const SizedBox(height: DropClipSpacing.sm),
-          TextField(
-            key: const Key('host_fp_input'),
-            controller: _qrOrHostFpController,
-            decoration: const InputDecoration(
-              labelText: 'Scanned QR Host Fingerprint (64-hex)',
-            ),
-          ),
-          const SizedBox(height: DropClipSpacing.sm),
-          TextField(
-            key: const Key('pin_input'),
-            controller: _pinController,
-            decoration: const InputDecoration(
-              labelText: 'Optional 6-Digit Manual PIN (local OOB salt only)',
-            ),
-          ),
-          const SizedBox(height: DropClipSpacing.md),
-          Row(
-            children: <Widget>[
-              ElevatedButton(
-                key: const Key('verify_qr_sas_btn'),
-                onPressed: () => _computeCommitRevealSas(usePinMode: false),
-                child: const Text('Verify QR SAS'),
-              ),
-              const SizedBox(width: DropClipSpacing.sm),
-              ElevatedButton(
-                key: const Key('verify_pin_sas_btn'),
-                onPressed: () => _computeCommitRevealSas(usePinMode: true),
-                child: const Text('Verify PIN SAS'),
-              ),
-            ],
-          ),
-          if (_pairingError != null) ...<Widget>[
-            const SizedBox(height: DropClipSpacing.md),
-            Text(
-              'Error: $_pairingError',
-              key: const Key('pairing_error_text'),
-            ),
-          ],
-          if (_computedSas != null) ...<Widget>[
-            const SizedBox(height: DropClipSpacing.md),
-            Card(
-              child: ListTile(
-                title: Text(
-                  'SAS Code: $_computedSas',
-                  key: const Key('computed_sas_text'),
-                ),
-                subtitle: Text(
-                  _sasConfirmed
-                      ? 'Paired & Pinned (TLS 1.3)'
-                      : 'Confirm SAS matches Host screen',
-                ),
-                trailing: ElevatedButton(
-                  key: const Key('confirm_sas_match_btn'),
-                  onPressed: () => setState(() => _sasConfirmed = true),
-                  child: const Text('Match'),
-                ),
-              ),
-            ),
-          ],
-        ],
-      );
+  const _PairDialog(this.node);
 
-  Widget _buildDevicesTab() => ListView(
-        padding: const EdgeInsets.all(DropClipSpacing.lg),
-        children: const <Widget>[
-          ListTile(
-            leading: Icon(Icons.laptop_mac_rounded),
-            title: Text('MacBook-Pro.local'),
-            subtitle: Text('Online · TLS 1.3 P-256 Pinned'),
-          ),
-          ListTile(
-            leading: Icon(Icons.desktop_windows_rounded),
-            title: Text('Workstation-Win11.local'),
-            subtitle: Text('Online · TLS 1.3 P-256 Pinned'),
-          ),
+  @override
+  State<_PairDialog> createState() => _PairDialogState();
+}
+
+class _PairDialogState extends State<_PairDialog> {
+  final _host = TextEditingController();
+  final _port = TextEditingController(text: '53317');
+  final _pin = TextEditingController();
+  String? _sas, _result;
+  Completer<bool>? _answer;
+
+  Future<void> _start() async {
+    setState(() => _result = '…');
+    try {
+      final d = await widget.node.pair(_host.text.trim(),
+          int.tryParse(_port.text) ?? 53317, _pin.text.trim(), (sas, _) {
+        setState(() => _sas = sas);
+        return (_answer = Completer<bool>()).future;
+      });
+      setState(() => _result = 'Paired with ${d.name}');
+    } on Object catch (e) {
+      setState(() => _result = 'Pairing failed: $e');
+    }
+  }
+
+  void _reply(bool match) {
+    _answer?.complete(match);
+    setState(() => _sas = null);
+  }
+
+  @override
+  Widget build(BuildContext context) => AlertDialog(
+        title: const Text('Pair with computer'),
+        content: _sas != null
+            ? Column(mainAxisSize: MainAxisSize.min, children: [
+                const Text('Does the computer show this number?'),
+                Text(_sas!,
+                    key: const Key('sas'),
+                    style: Theme.of(context).textTheme.displaySmall),
+              ])
+            : _result != null
+                ? Text(_result!, key: const Key('result'))
+                : Column(mainAxisSize: MainAxisSize.min, children: [
+                    TextField(
+                        key: const Key('host'),
+                        controller: _host,
+                        decoration:
+                            const InputDecoration(labelText: 'Computer IP')),
+                    TextField(
+                        controller: _port,
+                        decoration: const InputDecoration(labelText: 'Port')),
+                    TextField(
+                        key: const Key('pin'),
+                        controller: _pin,
+                        maxLength: 6,
+                        decoration: const InputDecoration(labelText: 'PIN')),
+                  ]),
+        actions: [
+          if (_sas != null) ...[
+            TextButton(
+                onPressed: () => _reply(false),
+                child: const Text("Doesn't match")),
+            FilledButton(
+                key: const Key('match'),
+                onPressed: () => _reply(true),
+                child: const Text('Match')),
+          ] else if (_result == null)
+            FilledButton(
+                key: const Key('go'),
+                onPressed: _start,
+                child: const Text('Pair'))
+          else
+            TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('Close')),
         ],
       );
 }
