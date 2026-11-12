@@ -101,7 +101,7 @@ class BonsoirMdnsBackend implements MdnsBackend {
     final discovery = _discovery;
     if (discovery == null) return;
     for (final service in _known.values.toList()) {
-      discovery.serviceResolver.resolveService(service);
+      await discovery.serviceResolver.resolveService(service);
     }
   }
 }
