@@ -24,7 +24,10 @@ class NearbyDevice {
   final String detail;
   final PeerReach reach;
 
-  const NearbyDevice(this.name, this.detail, this.reach);
+  /// The peer's device_id when it came from discovery.
+  final String? id;
+
+  const NearbyDevice(this.name, this.detail, this.reach, {this.id});
 }
 
 /// Snapshot shown by the shell. Filled from the engine once T1.9

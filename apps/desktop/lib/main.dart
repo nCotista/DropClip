@@ -27,6 +27,8 @@ import 'src/shell.dart';
 import 'src/transfers_and_devices_pages.dart';
 import 'src/tray_controller.dart';
 import 'src/tray_menu.dart';
+import 'src/transfer/file_transfer.dart';
+import 'src/transfer/receive_dialog.dart';
 
 Future<void> main(List<String> args) async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -107,24 +109,33 @@ Future<void> main(List<String> args) async {
     nearby: const [],
     latencyP95Ms: demoShellStatus.latencyP95Ms,
   ));
-  final transfers = ValueNotifier<List<DesktopTransferRecord>>([
-    const DesktopTransferRecord(
-      id: 'tx-1',
-      fileName: 'Design-Review-Deck.pdf',
-      peerName: 'Pixel 8',
-      totalBytes: 18 * 1024 * 1024,
-      transferredBytes: 18 * 1024 * 1024,
-      completed: true,
-    ),
-    const DesktopTransferRecord(
-      id: 'tx-2',
-      fileName: '4K-Demo-Recording.mp4.part',
-      peerName: 'Surface Laptop',
-      totalBytes: 256 * 1024 * 1024,
-      transferredBytes: 128 * 1024 * 1024,
-      resumablePart: true,
-    ),
-  ]);
+  // File transfer with paired peers (T1.10/T1.11) into Downloads/DropClip.
+  final transfers = ValueNotifier<List<DesktopTransferRecord>>(const []);
+  final home = Platform.environment[isMacOS ? 'HOME' : 'USERPROFILE'] ?? '.';
+  final navigator = GlobalKey<NavigatorState>();
+  final files = FileTransfers(
+    node: node,
+    downloads: Directory('$home${Platform.pathSeparator}Downloads'
+        '${Platform.pathSeparator}DropClip'),
+    decide: (peer, items) async {
+      if (store.config.value.autoAccept) return true;
+      final context = navigator.currentContext;
+      if (context == null) return false;
+      return askToReceive(context, peer, items);
+    },
+    onUpdate: (u) => transfers.value = [
+      DesktopTransferRecord(
+        id: u.id,
+        fileName: u.name,
+        peerName: u.incoming ? '← ${u.peer}' : '→ ${u.peer}',
+        totalBytes: u.total,
+        transferredBytes: u.done,
+        completed: u.state == 'complete',
+      ),
+      for (final t in transfers.value)
+        if (t.id != u.id) t,
+    ],
+  );
   discovery.nearby.addListener(() {
     final found = discovery.nearby.value;
     if (found.isNotEmpty) {
@@ -178,7 +189,6 @@ Future<void> main(List<String> args) async {
   );
 
   // UI-03: this device hosts a session; the other types its PIN.
-  final navigator = GlobalKey<NavigatorState>();
   Future<void> pairNew() async {
     section.value = ShellSection.devices;
     final context = navigator.currentContext;
@@ -208,38 +218,6 @@ Future<void> main(List<String> args) async {
       builder: (_, list, __) => DesktopTransfersPage(
         transfers: list,
         onOpenDropzone: dropzone.show,
-        onSendSampleFile: () {
-          final nextId = 'tx-${list.length + 1}';
-          transfers.value = [
-            DesktopTransferRecord(
-              id: nextId,
-              fileName: 'Sample-Archive-$nextId.zip',
-              peerName: status.value.nearby.isNotEmpty
-                  ? status.value.nearby.first.name
-                  : 'Pixel 8',
-              totalBytes: 32 * 1024 * 1024,
-              transferredBytes: 32 * 1024 * 1024,
-              completed: true,
-            ),
-            ...list,
-          ];
-        },
-        onResumeTransfer: (id) {
-          transfers.value = [
-            for (final item in list)
-              if (item.id == id)
-                DesktopTransferRecord(
-                  id: item.id,
-                  fileName: item.fileName.replaceAll('.part', ''),
-                  peerName: item.peerName,
-                  totalBytes: item.totalBytes,
-                  transferredBytes: item.totalBytes,
-                  completed: true,
-                )
-              else
-                item,
-          ];
-        },
       ),
     ),
     navigatorKey: navigator,
@@ -282,21 +260,20 @@ Future<void> main(List<String> args) async {
         controller: dropzone,
         devices: discovery.nearby,
         onSend: (device, items) {
-          final added = [
-            for (var i = 0; i < items.length; i++)
-              DesktopTransferRecord(
-                id: 'drop-${DateTime.now().millisecondsSinceEpoch}-$i',
-                fileName: items[i].name,
-                peerName: device.name,
-                totalBytes: items[i].bytes <= 0 ? 1048576 : items[i].bytes,
-                transferredBytes:
-                    items[i].bytes <= 0 ? 1048576 : items[i].bytes,
-                completed: true,
-              ),
+          final paths = [
+            for (final i in items)
+              if (!i.isFolder && i.path != null) File(i.path!)
           ];
-          transfers.value = [...added, ...transfers.value];
+          final paired = node.trusted.value.any((d) => d.deviceId == device.id);
+          if (!paired || paths.isEmpty) {
+            ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                content: Text(Strings.of(context).pairFailed('E_NOT_PAIRED'))));
+            return;
+          }
           dropzone.close();
           section.value = ShellSection.transfers;
+          files.send(device.id!, device.name, paths).catchError(
+              (Object e) => log.warn('transfer', 'send failed: $e'));
         },
         child: child!,
       ),

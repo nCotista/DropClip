@@ -88,6 +88,9 @@ abstract class Strings {
   String get sasNoMatch;
   String pairedWith(String name);
   String pairFailed(String code);
+  String receiveFrom(String name);
+  String get accept;
+  String get decline;
   String get waitingForPeer;
   String get dropFiles;
   String get dropFilesSub;
@@ -269,6 +272,12 @@ class EnStrings extends Strings {
   String pairedWith(String name) => 'Paired with $name';
   @override
   String pairFailed(String code) => 'Pairing failed ($code)';
+  @override
+  String receiveFrom(String name) => '$name wants to send you';
+  @override
+  String get accept => 'Accept';
+  @override
+  String get decline => 'Decline';
   @override
   String get waitingForPeer => 'Waiting for the other device…';
   @override
@@ -472,6 +481,12 @@ class ThStrings extends Strings {
   String pairedWith(String name) => 'จับคู่กับ $name แล้ว';
   @override
   String pairFailed(String code) => 'จับคู่ไม่สำเร็จ ($code)';
+  @override
+  String receiveFrom(String name) => '$name ต้องการส่งไฟล์ให้คุณ';
+  @override
+  String get accept => 'รับ';
+  @override
+  String get decline => 'ปฏิเสธ';
   @override
   String get waitingForPeer => 'กำลังรออุปกรณ์อีกเครื่อง…';
   @override

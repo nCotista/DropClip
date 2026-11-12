@@ -46,7 +46,8 @@ class DropzoneController extends ChangeNotifier {
       if (_items.containsKey(e.path)) continue;
       final bytes = await _sizeOf(e);
       if (bytes == null) continue;
-      _items[e.path] = DroppedItem(e.name, bytes, isFolder: e.isFolder);
+      _items[e.path] =
+          DroppedItem(e.name, bytes, isFolder: e.isFolder, path: e.path);
     }
     notifyListeners();
   }

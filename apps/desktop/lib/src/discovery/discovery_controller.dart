@@ -62,7 +62,8 @@ NearbyDevice nearbyDeviceFor(DiscoveredPeer p) {
   };
   final online = p.state != PeerState.stale && p.record.tier < 3;
   return NearbyDevice(p.record.name, '$os · ${p.address}$note',
-      online ? PeerReach.online : PeerReach.manual);
+      online ? PeerReach.online : PeerReach.manual,
+      id: p.deviceId);
 }
 
 /// Random UUID v4 (RFC 4122) for this device.

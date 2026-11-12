@@ -30,16 +30,16 @@ class DesktopTransferRecord {
 /// Interactive Transfers page for the Desktop app (T1.10, T1.11).
 class DesktopTransfersPage extends StatelessWidget {
   final List<DesktopTransferRecord> transfers;
-  final VoidCallback onSendSampleFile;
+  final VoidCallback? onSendSampleFile;
   final VoidCallback onOpenDropzone;
-  final ValueChanged<String> onResumeTransfer;
+  final ValueChanged<String>? onResumeTransfer;
 
   const DesktopTransfersPage({
     super.key,
     required this.transfers,
-    required this.onSendSampleFile,
+    this.onSendSampleFile,
     required this.onOpenDropzone,
-    required this.onResumeTransfer,
+    this.onResumeTransfer,
   });
 
   @override
@@ -61,12 +61,13 @@ class DesktopTransfersPage extends StatelessWidget {
                   .headlineSmall
                   ?.copyWith(fontWeight: FontWeight.w700),
             ),
-            FilledButton.icon(
-              key: const Key('btn-desktop-send-sample'),
-              onPressed: onSendSampleFile,
-              icon: const Icon(Icons.upload_file_rounded, size: 18),
-              label: const Text('Stream Sample File (1 MiB Chunks)'),
-            ),
+            if (onSendSampleFile != null)
+              FilledButton.icon(
+                key: const Key('btn-desktop-send-sample'),
+                onPressed: onSendSampleFile,
+                icon: const Icon(Icons.upload_file_rounded, size: 18),
+                label: const Text('Stream Sample File (1 MiB Chunks)'),
+              ),
             OutlinedButton.icon(
               key: const Key('btn-desktop-open-dropzone'),
               onPressed: onOpenDropzone,
@@ -124,10 +125,12 @@ class DesktopTransfersPage extends StatelessWidget {
                               TextStyle(fontSize: 12, color: c.textSecondary),
                         ),
                       ),
-                      if (item.resumablePart && !item.completed)
+                      if (item.resumablePart &&
+                          !item.completed &&
+                          onResumeTransfer != null)
                         TextButton.icon(
                           key: Key('btn-desktop-resume-${item.id}'),
-                          onPressed: () => onResumeTransfer(item.id),
+                          onPressed: () => onResumeTransfer!(item.id),
                           icon: const Icon(Icons.play_arrow_rounded, size: 18),
                           label: const Text('Resume .part (T1.11)'),
                         ),

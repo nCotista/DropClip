@@ -11,7 +11,10 @@ class DroppedItem {
   final int bytes;
   final bool isFolder;
 
-  const DroppedItem(this.name, this.bytes, {this.isFolder = false});
+  /// Where the item is on disk, when it came from a real drop.
+  final String? path;
+
+  const DroppedItem(this.name, this.bytes, {this.isFolder = false, this.path});
 }
 
 /// `1.7 GB`-style size, 1000-based like Finder and Explorer's file sizes.
