@@ -93,6 +93,10 @@ abstract class Strings {
   String get decline;
   String revokedElsewhere(String name);
   String get keep;
+  String get linkPhoneWeb;
+  String get linkPhoneWebHint;
+  String get linkedBrowsers;
+  String sentToBrowser(String name);
   String get waitingForPeer;
   String get dropFiles;
   String get dropFilesSub;
@@ -285,6 +289,15 @@ class EnStrings extends Strings {
       'Another device removed $name. Remove it here too?';
   @override
   String get keep => 'Keep';
+  @override
+  String get linkPhoneWeb => 'Link a phone via web';
+  @override
+  String get linkPhoneWebHint =>
+      'Scan with the phone camera (same Wi-Fi). Safari warns once about the certificate: tap Show Details, then visit this website.';
+  @override
+  String get linkedBrowsers => 'Linked browsers';
+  @override
+  String sentToBrowser(String name) => 'Ready for $name to download';
   @override
   String get waitingForPeer => 'Waiting for the other device…';
   @override
@@ -499,6 +512,15 @@ class ThStrings extends Strings {
       'อุปกรณ์อื่นลบ $name แล้ว จะลบที่เครื่องนี้ด้วยไหม';
   @override
   String get keep => 'เก็บไว้';
+  @override
+  String get linkPhoneWeb => 'เชื่อมมือถือผ่านเว็บ';
+  @override
+  String get linkPhoneWebHint =>
+      'สแกนด้วยกล้องมือถือ (Wi-Fi เดียวกัน) ครั้งแรก Safari จะเตือนเรื่องใบรับรอง ให้กด แสดงรายละเอียด แล้วเลือก เข้าชมเว็บไซต์นี้';
+  @override
+  String get linkedBrowsers => 'เบราว์เซอร์ที่เชื่อมอยู่';
+  @override
+  String sentToBrowser(String name) => 'พร้อมให้ $name ดาวน์โหลดแล้ว';
   @override
   String get waitingForPeer => 'กำลังรออุปกรณ์อีกเครื่อง…';
   @override

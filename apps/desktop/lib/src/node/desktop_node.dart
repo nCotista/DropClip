@@ -29,6 +29,9 @@ class DesktopNode {
   /// Paired-only HTTP routes by path prefix, e.g. `api/v1/blob/` (§9.1).
   final routes = <String, Handler>{};
 
+  /// The browser companion at `/web` (no client cert; own token auth).
+  Handler? webHandler;
+
   final _addresses = <String, (String, int)>{};
 
   DesktopNode._(this.ids, this.store, this.pairing, this.mesh, this.server,
@@ -95,6 +98,7 @@ class DesktopNode {
       pinnedHandler: (r) => node._route(r),
       pairingHandler: pairing.handler,
       webSocket: (req, fp) => unawaited(mesh.accept(req, fp)),
+      webHandler: (r) => node.webHandler?.call(r) ?? Response.notFound(null),
     );
     log?.call('listening on ${server.port}');
     return node = DesktopNode._(ids, store, pairing, mesh, server, revocation);

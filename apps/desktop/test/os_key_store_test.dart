@@ -11,7 +11,8 @@ void main() {
   test('DPAPI round trip; the file never holds the plaintext (NFR-S02)',
       () async {
     final dir = await Directory.systemTemp.createTemp('dc_dpapi_');
-    addTearDown(() => dir.delete(recursive: true));
+    addTearDown(
+        () => dir.delete(recursive: true).catchError((Object _) => dir));
     final store = DpapiKeyStore(dir);
     final secret = Uint8List.fromList(List<int>.generate(64, (i) => i * 3));
 
