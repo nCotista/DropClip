@@ -18,6 +18,7 @@ export 'src/qa/hardening_verifiers.dart';
 export 'src/release/release_updater.dart';
 export 'src/revocation/revocation_manager.dart';
 export 'src/security/device_identity.dart';
+export 'src/security/p256.dart';
 export 'src/security/security_audit_runner.dart';
 export 'src/security/trusted_device_store.dart';
 export 'src/test_cluster.dart';

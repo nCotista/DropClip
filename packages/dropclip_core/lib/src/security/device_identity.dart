@@ -155,24 +155,10 @@ class DeviceIdentityManager {
   /// using SHA-256 (`ECDSA_P256_SHA256`), returning a Base64-encoded signature.
   Future<String> signUtf8(String canonicalInput) async {
     final keyPem = await loadPrivateKeyPem();
-    final tmp = await Directory.systemTemp.createTemp('dc_sign_');
     try {
-      final keyPath = '${tmp.path}/key.pem';
-      final msgPath = '${tmp.path}/msg.bin';
-      final sigPath = '${tmp.path}/sig.bin';
-      await File(keyPath).writeAsBytes(keyPem, flush: true);
-      await File(msgPath)
-          .writeAsBytes(utf8.encode(canonicalInput), flush: true);
-
-      final args =
-          'dgst -sha256 -sign $keyPath -out $sigPath $msgPath'.split(' ');
-      final res = await Process.run(_resolveOpenSsl(), args);
-      if (res.exitCode != 0) {
-        throw StateError('ECDSA P-256 sign failed: ${res.stderr}');
-      }
-      return base64Encode(await File(sigPath).readAsBytes());
+      return base64Encode(P256.sign(keyPem, utf8.encode(canonicalInput)));
     } finally {
-      if (await tmp.exists()) await tmp.delete(recursive: true);
+      keyPem.fillRange(0, keyPem.length, 0);
     }
   }
 
@@ -188,89 +174,29 @@ class DeviceIdentityManager {
     } on FormatException {
       return false;
     }
-    final tmp = await Directory.systemTemp.createTemp('dc_verify_');
-    try {
-      final certPath = '${tmp.path}/cert.pem';
-      final pubPath = '${tmp.path}/pub.pem';
-      final msgPath = '${tmp.path}/msg.bin';
-      final sigPath = '${tmp.path}/sig.bin';
-      await File(certPath).writeAsBytes(certPem, flush: true);
-      await File(msgPath)
-          .writeAsBytes(utf8.encode(canonicalInput), flush: true);
-      await File(sigPath).writeAsBytes(sigBytes, flush: true);
-
-      final pubArgs = 'x509 -in $certPath -pubkey -noout'.split(' ');
-      final pubRes = await Process.run(_resolveOpenSsl(), pubArgs);
-      if (pubRes.exitCode != 0) return false;
-      await File(pubPath).writeAsString(pubRes.stdout as String, flush: true);
-
-      final verArgs =
-          'dgst -sha256 -verify $pubPath -signature $sigPath $msgPath'
-              .split(' ');
-      final verifyRes = await Process.run(_resolveOpenSsl(), verArgs);
-      return verifyRes.exitCode == 0;
-    } finally {
-      if (await tmp.exists()) await tmp.delete(recursive: true);
-    }
+    return P256.verify(certPem, utf8.encode(canonicalInput), sigBytes);
   }
 
+  /// A new key and self-signed certificate (§4.1), in pure Dart.
   static Future<({DeviceIdentity identity, Uint8List keyPem})>
       _generateP256Certificate({
     required String deviceId,
     required String deviceName,
     required String os,
   }) async {
-    final tmp = await Directory.systemTemp.createTemp('dc_idgen_');
-    try {
-      final keyPath = '${tmp.path}/key.pem';
-      final certPemPath = '${tmp.path}/cert.pem';
-      final certDerPath = '${tmp.path}/cert.der';
-      final openssl = _resolveOpenSsl();
-
-      final reqArgs =
-          'req -x509 -newkey ec -pkeyopt ec_paramgen_curve:prime256v1 '
-                  '-nodes -keyout $keyPath -out $certPemPath -days 3650 '
-                  '-subj /CN=dropclip-$deviceId'
-              .split(' ');
-      final reqRes = await Process.run(openssl, reqArgs);
-      if (reqRes.exitCode != 0) {
-        throw StateError('openssl req failed: ${reqRes.stderr}');
-      }
-      final derArgs =
-          'x509 -in $certPemPath -outform DER -out $certDerPath'.split(' ');
-      final derRes = await Process.run(openssl, derArgs);
-      if (derRes.exitCode != 0) {
-        throw StateError('openssl x509 DER failed: ${derRes.stderr}');
-      }
-
-      final keyPem = await File(keyPath).readAsBytes();
-      final certPem = await File(certPemPath).readAsBytes();
-      final certDer = await File(certDerPath).readAsBytes();
-      return (
-        identity: DeviceIdentity(
-          deviceId: deviceId,
-          name: deviceName,
-          os: os,
-          certDer: certDer,
-          certPem: certPem,
-          fp: sha256.convert(certDer).toString(),
-          createdAt: DateTime.now().millisecondsSinceEpoch,
-        ),
-        keyPem: keyPem,
-      );
-    } finally {
-      if (await tmp.exists()) await tmp.delete(recursive: true);
-    }
-  }
-
-  static String _resolveOpenSsl() {
-    for (final c in const <String>[
-      '/opt/homebrew/bin/openssl',
-      '/usr/bin/openssl'
-    ]) {
-      if (File(c).existsSync()) return c;
-    }
-    return 'openssl';
+    final made = P256.generate(commonName: 'dropclip-$deviceId');
+    return (
+      identity: DeviceIdentity(
+        deviceId: deviceId,
+        name: deviceName,
+        os: os,
+        certDer: made.certDer,
+        certPem: made.certPem,
+        fp: sha256.convert(made.certDer).toString(),
+        createdAt: DateTime.now().millisecondsSinceEpoch,
+      ),
+      keyPem: made.keyPem,
+    );
   }
 
   static String _generateUuidV4() {
