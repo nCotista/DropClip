@@ -8,6 +8,7 @@ import 'package:flutter/services.dart';
 import 'src/app.dart';
 import 'src/debug/debug_console.dart';
 import 'src/demo_data.dart';
+import 'src/devices_page.dart';
 import 'src/discovery/bonsoir_backend.dart';
 import 'src/discovery/discovery_controller.dart';
 import 'src/dropzone/dropzone_controller.dart';
@@ -17,6 +18,7 @@ import 'src/native_host.dart';
 import 'src/node/desktop_node.dart';
 import 'src/node/os_key_store.dart';
 import 'src/onboarding.dart';
+import 'src/pairing/pairing_dialogs.dart';
 import 'src/settings/auto_start.dart';
 import 'src/settings/config.dart';
 import 'src/settings/settings_page.dart';
@@ -151,6 +153,26 @@ Future<void> main(List<String> args) async {
     log.info('clipboard', 'broadcast', {'items': updated.length});
   }
 
+  // UI-03: this device hosts a session; the other types its PIN.
+  final navigator = GlobalKey<NavigatorState>();
+  Future<void> pairNew() async {
+    section.value = ShellSection.devices;
+    final context = navigator.currentContext;
+    if (context == null) return;
+    await showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => HostPairingDialog(
+        open: () async {
+          final s = await node.openPairing();
+          return (pin: s.pin, address: '${s.qr.ip}:${s.qr.port}');
+        },
+        events: node.pairing.events,
+        confirm: node.pairing.confirm,
+      ),
+    );
+  }
+
   final app = DropClipDesktopApp(
     hiddenLaunch: hidden,
     status: status.value,
@@ -196,9 +218,24 @@ Future<void> main(List<String> args) async {
         },
       ),
     ),
-    devicesPage: ValueListenableBuilder<ShellStatus>(
-      valueListenable: status,
-      builder: (_, s, __) => DesktopDevicesPage(nearby: s.nearby),
+    navigatorKey: navigator,
+    devicesPage: DevicesPage(
+      myName: node.me.name,
+      myFingerprint: node.me.fp,
+      trusted: node.trusted,
+      connectedChanges: node.mesh.peerChanges,
+      connected: node.mesh.connected,
+      nearby: discovery.peers,
+      onPairNew: pairNew,
+      onPairWith: (peer) => showDialog<void>(
+        context: navigator.currentContext!,
+        barrierDismissible: false,
+        builder: (_) => ClientPairingDialog(
+          peerName: peer.record.name,
+          pair: (pin, confirm) => node.pairWith(peer, pin, confirm),
+        ),
+      ),
+      onForget: (d) => node.forget(d.deviceId),
     ),
     // §3.1: explain the Windows Firewall prompt once, on first run.
     banner: isMacOS
@@ -213,7 +250,7 @@ Future<void> main(List<String> args) async {
           ),
     onOpenDropzone: dropzone.show,
     onSendClipboard: sendLocalClipboard,
-    onPair: () => section.value = ShellSection.devices,
+    onPair: pairNew,
     // UI-02: drop files anywhere, or open from the tray / ⌥⌘D, Ctrl+Alt+D.
     overlay: (context, child) => DebugConsoleHost(
       feed: _LoggerFeed(log),

@@ -11,6 +11,9 @@ class DiscoveryController {
   final DiscoveryService service;
   final PeerCache cache;
   final ValueNotifier<List<NearbyDevice>> nearby = ValueNotifier(const []);
+
+  /// The raw cache entries, for pairing and auto-connect.
+  final ValueNotifier<List<DiscoveredPeer>> peers = ValueNotifier(const []);
   StreamSubscription<List<DiscoveredPeer>>? _changes;
 
   DiscoveryController(
@@ -23,6 +26,7 @@ class DiscoveryController {
 
   Future<void> start() async {
     _changes ??= cache.changes.listen((peers) {
+      this.peers.value = peers;
       final next = [for (final p in peers) nearbyDeviceFor(p)];
       // Windows reports a service once per adapter; only rebuild the UI
       // when what it shows actually changed.
@@ -70,26 +74,4 @@ String newDeviceId([Random? random]) {
   final h = b.map((x) => x.toRadixString(16).padLeft(2, '0')).join();
   return '${h.substring(0, 8)}-${h.substring(8, 12)}-${h.substring(12, 16)}'
       '-${h.substring(16, 20)}-${h.substring(20)}';
-}
-
-/// Local record until identity (T1.2) and transport (T1.4) exist: a fresh
-/// device id per launch, a random placeholder fingerprint (not a certificate)
-/// and the first port of the range (nothing listens on it yet).
-DiscoveryRecord placeholderLocalRecord({
-  required String name,
-  required DeviceOs os,
-  Random? random,
-}) {
-  final r = random ?? Random.secure();
-  final fp = List.generate(32, (_) => r.nextInt(256).toRadixString(16))
-      .map((h) => h.padLeft(2, '0'))
-      .join();
-  return DiscoveryRecord(
-    deviceId: newDeviceId(r),
-    name: name,
-    os: os,
-    port: 53317,
-    fingerprint: fp,
-    capabilities: const ['clip.text'],
-  );
 }

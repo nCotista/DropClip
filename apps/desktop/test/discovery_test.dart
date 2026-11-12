@@ -10,6 +10,15 @@ import 'package:flutter_test/flutter_test.dart';
 
 const _fp = '9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08';
 
+DiscoveryRecord placeholderLocalRecord(
+        {required String name, required DeviceOs os}) =>
+    DiscoveryRecord(
+        deviceId: newDeviceId(),
+        name: name,
+        os: os,
+        port: 53317,
+        fingerprint: _fp);
+
 class _FakeBackend implements MdnsBackend {
   final events = StreamController<MdnsEvent>.broadcast();
 
@@ -65,7 +74,7 @@ void main() {
       }
     });
 
-    test('placeholder record survives the TXT round trip (§3.2)', () {
+    test('a local record survives the TXT round trip (§3.2)', () {
       final local =
           placeholderLocalRecord(name: 'DESKTOP-ไทย 💻', os: DeviceOs.windows);
       final parsed = DiscoveryRecord.tryParse(local.toTxt())!;

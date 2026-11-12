@@ -26,6 +26,9 @@ class DropClipDesktopApp extends StatelessWidget {
   final VoidCallback? onSendClipboard;
   final VoidCallback? onPair;
 
+  /// Lets callbacks outside the widget tree open dialogs.
+  final GlobalKey<NavigatorState>? navigatorKey;
+
   const DropClipDesktopApp({
     super.key,
     required this.hiddenLaunch,
@@ -40,10 +43,12 @@ class DropClipDesktopApp extends StatelessWidget {
     this.onOpenDropzone,
     this.onSendClipboard,
     this.onPair,
+    this.navigatorKey,
   });
 
   @override
   Widget build(BuildContext context) => MaterialApp(
+        navigatorKey: navigatorKey,
         title: DropClipThemeTokens.appName,
         debugShowCheckedModeBanner: false,
         theme: buildDropClipTheme(Brightness.light),

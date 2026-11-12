@@ -1,11 +1,10 @@
-import 'package:dropclip_desktop/src/demo_data.dart';
 import 'package:dropclip_desktop/src/transfers_and_devices_pages.dart';
 import 'package:dropclip_ui/dropclip_ui.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
-  group('DesktopTransfersPage & DesktopDevicesPage (T1.3, T1.10–T1.12)', () {
+  group('DesktopTransfersPage (T1.10–T1.12)', () {
     testWidgets('streams sample and resumes .part file', (tester) async {
       var sampleSent = 0;
       var dropzoneOpened = 0;
@@ -42,48 +41,6 @@ void main() {
 
       await tester.tap(find.byKey(const Key('btn-desktop-resume-tx-part')));
       expect(resumedId, 'tx-part');
-    });
-
-    testWidgets('computes 639589 SAS and handles quarantine', (tester) async {
-      var verified = 0;
-      await tester.pumpWidget(
-        MaterialApp(
-          theme: buildDropClipTheme(Brightness.dark),
-          home: Scaffold(
-            body: DesktopDevicesPage(
-              nearby: demoShellStatus.nearby,
-              onDeviceVerified: () => verified++,
-            ),
-          ),
-        ),
-      );
-
-      expect(find.text('SAS: 639589'), findsOneWidget);
-      await tester.tap(find.byKey(const Key('btn-desktop-confirm-sas')));
-      // Confirming pins the peer in the Trusted Store on disk; real file I/O
-      // only completes outside the fake test clock.
-      for (var i = 0; i < 100 && verified == 0; i++) {
-        await tester.runAsync(
-            () => Future<void>.delayed(const Duration(milliseconds: 10)));
-        await tester.pump();
-      }
-      await tester.pumpAndSettle();
-      expect(verified, 1);
-      expect(
-        find.textContaining('Peer pinned in Trusted Peer Store'),
-        findsOneWidget,
-      );
-
-      await tester.tap(find.byKey(const Key('btn-quarantine-Pixel 8')));
-      await tester.pumpAndSettle();
-      expect(
-        find.byKey(const Key('btn-confirm-revoke-Pixel 8')),
-        findsOneWidget,
-      );
-
-      await tester.tap(find.byKey(const Key('btn-confirm-revoke-Pixel 8')));
-      await tester.pumpAndSettle();
-      expect(find.text('Status: REVOKED'), findsOneWidget);
     });
   });
 }
