@@ -25,8 +25,29 @@ void main() {
   late TlsTransportServer server;
   late String pin;
   late Map<String, dynamic> qr;
+  final requestFields = <String, Set<String>>{};
+
+  void expectZeroPinRequests() {
+    expect(requestFields, {
+      'api/v1/pair': {
+        'v',
+        'min_supported_v',
+        'device_id',
+        'name',
+        'os',
+        'tier',
+        'fp',
+        'commitment_B',
+        'method',
+        'cert',
+      },
+      'api/v1/pair/confirm': {'pair_id', 'nonce_B'},
+      'api/v1/pair/finalize': {'pair_id', 'result'},
+    });
+  }
 
   setUp(() async {
+    requestFields.clear();
     host = await _node('Host PC');
     client = await _node('Client PC');
     late TlsTransportServer s;
@@ -40,7 +61,21 @@ void main() {
       identity: host.ids,
       store: host.store,
       pinnedHandler: (_) => Response.ok('pinned'),
-      pairingHandler: pairing.handler,
+      pairingHandler: (request) async {
+        final raw = await request.readAsString();
+        final body = jsonDecode(raw) as Map<String, dynamic>;
+        requestFields[request.url.path] = body.keys.toSet();
+        expect(body.values.contains(pin), isFalse,
+            reason: 'OOB PIN must never be a request value');
+        final response = await pairing.handler(request.change(body: raw));
+        final reply = await response.readAsString();
+        final fields = (jsonDecode(reply) as Map<String, dynamic>).keys;
+        expect(
+            fields.any(
+                (key) => {'pin', 'pin_hash', 'pin_nonce', 'sas'}.contains(key)),
+            isFalse);
+        return response.change(body: reply);
+      },
       address: InternetAddress.loopbackIPv4,
       firstPort: 0,
       lastPort: 0,
@@ -86,6 +121,7 @@ void main() {
         await pair(typedPin: pin, hostSaysMatch: true, sasSeen: sas);
     await done;
 
+    expectZeroPinRequests();
     expect(sas, hasLength(2));
     expect(sas[0], sas[1]);
     expect(hostRecord.fp, host.ids.identity.fp);
@@ -115,6 +151,7 @@ void main() {
     expect(sas[0], isNot(sas[1]));
     expect(client.store.activeDevices, isEmpty);
     expect(host.store.activeDevices, isEmpty);
+    expectZeroPinRequests();
   });
 
   test('Host refuses a cert that does not match the claimed fp', () async {
@@ -149,6 +186,7 @@ void main() {
           return true;
         });
     await done;
+    expectZeroPinRequests();
     expect(sas[0], sas[1]);
     expect(host.store.isActiveFingerprint(client.ids.identity.fp), isTrue);
   });
