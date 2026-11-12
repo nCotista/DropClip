@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:dropclip_core/dropclip_core.dart';
 import 'package:dropclip_protocol/dropclip_protocol.dart';
@@ -20,6 +21,11 @@ class DesktopNode {
   /// Paired devices, refreshed after every change to the Trusted Store.
   final ValueNotifier<List<TrustedDevice>> trusted;
 
+  /// Paired-only HTTP routes by path prefix, e.g. `api/v1/blob/` (§9.1).
+  final routes = <String, Handler>{};
+
+  final _addresses = <String, (String, int)>{};
+
   DesktopNode._(this.ids, this.store, this.pairing, this.mesh, this.server)
       : trusted = ValueNotifier(store.activeDevices.toList());
 
@@ -32,7 +38,6 @@ class DesktopNode {
     required SecureKeyStore keys,
     required String name,
     required DeviceOs os,
-    Handler? pinned,
     void Function(String)? log,
   }) async {
     final ids = DeviceIdentityManager(
@@ -51,7 +56,7 @@ class DesktopNode {
     final server = await TlsTransportServer.bindForIdentity(
       identity: ids,
       store: store,
-      pinnedHandler: pinned ?? _info(ids),
+      pinnedHandler: (r) => node._route(r),
       pairingHandler: pairing.handler,
       webSocket: (req, fp) => unawaited(mesh.accept(req, fp)),
     );
@@ -83,6 +88,7 @@ class DesktopNode {
   /// Dials every trusted peer discovery currently sees (§6.2 decides who).
   void onPeers(List<DiscoveredPeer> peers) {
     for (final p in peers) {
+      _addresses[p.deviceId] = (p.address, p.record.port);
       if (p.canAutoConnect && p.state != PeerState.stale) {
         unawaited(mesh.reach(p.deviceId, p.address, p.record.port));
       }
@@ -129,16 +135,43 @@ class DesktopNode {
     await server.close(force: true);
   }
 
-  static Handler _info(DeviceIdentityManager ids) =>
-      (request) => request.url.path == 'api/v1/info'
-          ? Response.ok(
-              jsonEncode({
-                'device_id': ids.identity.deviceId,
-                'name': ids.identity.name,
-                'os': ids.identity.os,
-              }),
-              headers: const {'content-type': 'application/json'})
-          : Response.notFound(null);
+  /// GETs [path] from paired [peerId] over pinned mTLS (e.g. a blob, §9.3).
+  Future<Uint8List> fetchFrom(String peerId, String path) async {
+    final at = _addresses[peerId];
+    final peer = store.activeDevices.where((d) => d.deviceId == peerId);
+    if (at == null || peer.isEmpty) {
+      throw const ProtocolException(
+          ProtocolErrorCode.notPaired, 'peer address unknown');
+    }
+    final client = await PinnedTransportClient.forIdentity(
+        identity: ids, store: store, expectedFp: peer.first.fp);
+    try {
+      final req = await client.httpClient
+          .getUrl(Uri(scheme: 'https', host: at.$1, port: at.$2, path: path));
+      final res = await req.close();
+      final bytes = await res.fold<BytesBuilder>(
+          BytesBuilder(copy: false), (b, d) => b..add(d));
+      if (res.statusCode != 200) {
+        throw ProtocolException(
+            ProtocolErrorCode.blobExpired, 'HTTP ${res.statusCode}');
+      }
+      return bytes.takeBytes();
+    } finally {
+      client.close();
+    }
+  }
+
+  Future<Response> _route(Request r) async {
+    final path = r.url.path;
+    if (path == 'api/v1/info') {
+      return Response.ok(jsonEncode(hello.toJson()),
+          headers: const {'content-type': 'application/json'});
+    }
+    for (final e in routes.entries) {
+      if (path.startsWith(e.key)) return e.value(r);
+    }
+    return Response.notFound(null);
+  }
 }
 
 /// The first non-loopback IPv4 address, shown for manual pairing.

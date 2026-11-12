@@ -1,9 +1,9 @@
 import 'dart:io';
 
+import 'package:dropclip_clipboard/dropclip_clipboard.dart';
 import 'package:dropclip_core/dropclip_core.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 
 import 'src/app.dart';
 import 'src/debug/debug_console.dart';
@@ -22,6 +22,7 @@ import 'src/pairing/pairing_dialogs.dart';
 import 'src/settings/auto_start.dart';
 import 'src/settings/config.dart';
 import 'src/settings/settings_page.dart';
+import 'src/sync/clipboard_bridge.dart';
 import 'src/shell.dart';
 import 'src/transfers_and_devices_pages.dart';
 import 'src/tray_controller.dart';
@@ -95,7 +96,17 @@ Future<void> main(List<String> args) async {
   discovery.cache.changes.listen(node.onPeers);
   node.mesh.peerChanges
       .listen((ids) => log.info('mesh', 'connected', {'peers': ids.length}));
-  final status = ValueNotifier(demoShellStatus);
+  final status = ValueNotifier(ShellStatus(
+    networkName: demoShellStatus.networkName,
+    address: demoShellStatus.address,
+    verifiedDevices: 0,
+    activeTransfers: 0,
+    deviceCount: 0,
+    clips: const [],
+    suppressedClips: 0,
+    nearby: const [],
+    latencyP95Ms: demoShellStatus.latencyP95Ms,
+  ));
   final transfers = ValueNotifier<List<DesktopTransferRecord>>([
     const DesktopTransferRecord(
       id: 'tx-1',
@@ -125,17 +136,18 @@ Future<void> main(List<String> args) async {
     });
   });
 
-  Future<void> sendLocalClipboard() async {
-    final data = await Clipboard.getData(Clipboard.kTextPlain);
-    final text = (data?.text?.trim().isNotEmpty ?? false)
-        ? data!.text!.trim()
-        : 'Live clipboard broadcast from ${store.config.value.deviceName}';
+  // Tier 1 clipboard sync with paired peers (T1.9, FR-03A).
+  void showClip(ClipEvent e) {
     final updated = [
       ClipItem(
-        text.startsWith('http') ? ClipKind.link : ClipKind.text,
-        text,
-        sourceDevice: store.config.value.deviceName,
-        age: 'just now',
+        switch (e.type) {
+          ClipType.text => ClipKind.text,
+          ClipType.url => ClipKind.link,
+          ClipType.image => ClipKind.image,
+        },
+        e.preview,
+        sourceDevice: e.from == 'me' ? store.config.value.deviceName : e.from,
+        age: DateTime.now().toIso8601String().substring(11, 16),
       ),
       ...status.value.clips,
     ].take(20).toList();
@@ -150,8 +162,20 @@ Future<void> main(List<String> args) async {
       nearby: status.value.nearby,
       latencyP95Ms: status.value.latencyP95Ms,
     );
-    log.info('clipboard', 'broadcast', {'items': updated.length});
+    log.info('clipboard', e.from == 'me' ? 'sent' : 'received',
+        {'type': e.type.name});
   }
+
+  final native = NativeClipboard(FlutterClipboardChannel(),
+      log: (m) => log.debug('clipboard', m));
+  final clipboard = ClipboardBridge(
+    node: node,
+    native: native,
+    changes: native.changes,
+    windows: !isMacOS,
+    onClip: showClip,
+    policy: () => const SyncPolicy(),
+  );
 
   // UI-03: this device hosts a session; the other types its PIN.
   final navigator = GlobalKey<NavigatorState>();
@@ -249,7 +273,7 @@ Future<void> main(List<String> args) async {
                         configs.update(c.copyWith(firstRunDone: true))),
           ),
     onOpenDropzone: dropzone.show,
-    onSendClipboard: sendLocalClipboard,
+    onSendClipboard: clipboard.sendNow,
     onPair: pairNew,
     // UI-02: drop files anywhere, or open from the tray / ⌥⌘D, Ctrl+Alt+D.
     overlay: (context, child) => DebugConsoleHost(
@@ -298,6 +322,11 @@ Future<void> main(List<String> args) async {
   await configs.reconcile();
   log.info('app', 'started', {'hidden': hidden});
   await discovery.start();
+  try {
+    await clipboard.start();
+  } on Object catch (e) {
+    log.warn('clipboard', 'native watcher unavailable: $e');
+  }
 }
 
 /// The core logger as the debug console's feed.
