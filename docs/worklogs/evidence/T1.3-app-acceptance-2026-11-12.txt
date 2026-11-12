@@ -1,0 +1,59 @@
+T1.3 / T2.5 verification extract — 2026-11-12 Asia/Bangkok
+Main: 4ecd94865e3b1b01234d53af3b33cf4ba913170a
+Test commit: ffae323
+Flutter 3.47.9 / Dart 3.13.7 / Melos 6.3.3
+
+Core suite
+00:08 +148: test/security/p256_test.dart: P256 (T1.2, §4.1, no openssl) every generated cert loads into BoringSSL (DER integers)
+00:08 +149: test/security/p256_test.dart: P256 (T1.2, §4.1, no openssl) every generated cert loads into BoringSSL (DER integers)
+00:10 +150: test/security/p256_test.dart: P256 (T1.2, §4.1, no openssl) every certificate has a fresh key and serial
+00:11 +151: All tests passed!
+
+Mobile suite
+00:00 +0: /private/tmp/dropclip-t13-app-acceptance/apps/mobile/test/mobile_node_test.dart: phone pairs by IP + PIN, dials the desktop and syncs text both ways
+00:00 +1: /private/tmp/dropclip-t13-app-acceptance/apps/mobile/test/mobile_app_test.dart: pair by IP + PIN with SAS, then send the clipboard
+00:00 +2: /private/tmp/dropclip-t13-app-acceptance/apps/mobile/test/mobile_app_test.dart: pair by IP + PIN with SAS, then send the clipboard
+00:01 +3: All tests passed!
+
+Desktop suite
+00:09 +108: /private/tmp/dropclip-t13-app-acceptance/apps/desktop/test/discovery_test.dart: app rebuilds from live status
+00:10 +109: /private/tmp/dropclip-t13-app-acceptance/apps/desktop/test/pairing_dialogs_test.dart: Host shows the PIN, then asks about the SAS
+00:10 +110: /private/tmp/dropclip-t13-app-acceptance/apps/desktop/test/pairing_dialogs_test.dart: Client types the PIN, compares the SAS, sees the result
+00:11 +111: All tests passed!
+
+Monorepo package totals (all passed)
+[dropclip_protocol]: 00:00 +50: All tests passed!
+[dropclip_transfer]: 00:00 +4: All tests passed!
+[dropclip_clipboard]: 00:01 +111: All tests passed!
+[dropclip_core]: 00:08 +151: All tests passed!
+[dropclip_mobile]: 00:02 +3: All tests passed!
+[dropclip_ui]: 00:00 +15: All tests passed!
+[dropclip_desktop]: 00:08 +111: All tests passed!
+Total: 445
+Melos bootstrap/format/analyze/test: exit 0
+Core coverage 1785/1942 = 91.92%
+Mobile coverage 142/176 = 80.68%
+Desktop coverage 1783/1883 = 94.69%
+
+Native macOS build error (excerpt):
+  Error: Xcode failed to resolve Swift Package Manager dependencies:
+2026-11-12 21:29:18.458 xcodebuild[57839:15524434] Writing error result bundle to /var/folders/f7/_l9vksh94856rt2ryvlb6hsh0000gn/T/ResultBundle_2569-12-11_21-29-0018.xcresult
+xcodebuild: error: Could not resolve package dependencies:
+  Unexpected ',' separator
+  <unknown>:0: warning: legacy driver is now deprecated; consider avoiding specifying '-disallow-use-new-driver'
+/tmp/dropclip-t13-app-acceptance/apps/desktop/macos/Flutter/ephemeral/Packages/.packages/cross_file_darwin-1.0.0/Package.swift:39:5: error: unexpected ',' separator
+37 |       ],
+38 |       publicHeadersPath: "include",
+39 |     ),
+   |     `- error: unexpected ',' separator
+40 |   ]
+41 | )
+
+CocoaPods setup (excerpt):
+ERROR:  Error installing cocoapods:
+	nap requires Ruby version >= 3.3. The current ruby version is 2.6.10.210.
+
+ADB: List of devices attached (empty)
+Simulator: no booted devices
+Capture preflight: sudo: a password is required
+No PCAP or complete human UI timing result. No TLS keys/payloads logged.
