@@ -108,7 +108,8 @@ class ClipboardSyncEngine {
       log?.call('clipboard.too_large size=$size');
       return;
     }
-    final useBlob = size > ProtocolConstants.clipboardInlineThreshold;
+    final useBlob = clip.type == ClipType.image ||
+        size > ProtocolConstants.clipboardInlineThreshold;
     final blobId =
         useBlob ? ports.putBlob(clip.raw, ProtocolConstants.blobTtl) : null;
 

@@ -51,7 +51,7 @@ void main() {
 
       final inboundText =
           TransportSyncAdapter.envelopeToClipUpdate(wireFromA.single);
-      await engineB.onRemoteUpdate(inboundText);
+      await engineB.onRemoteUpdate(inboundText, idA);
       expect(writtenTypeOnB, equals(ClipType.text));
       expect(utf8.decode(writtenOnB!), equals('Hello DropClip Mesh'));
 
@@ -64,7 +64,7 @@ void main() {
       final inboundImg =
           TransportSyncAdapter.envelopeToClipUpdate(wireFromA.single);
       expect(inboundImg.blobId, isNotNull);
-      await engineB.onRemoteUpdate(inboundImg);
+      await engineB.onRemoteUpdate(inboundImg, idA);
       expect(writtenTypeOnB, equals(ClipType.image));
       expect(writtenOnB, equals(pngBytes));
     });
@@ -78,7 +78,9 @@ void main() {
       final adapter = TransportSyncAdapter(
         sendBroadcastEnvelope: (_) {},
         osReadClipboardRaw: () async => sample,
-        osClearClipboard: () async => cleared = true,
+        osClearClipboard: () async {
+          cleared = true;
+        },
         nowMs: () => nowMs,
       );
 
