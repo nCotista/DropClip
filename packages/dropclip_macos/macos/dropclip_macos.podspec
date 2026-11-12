@@ -10,7 +10,7 @@ Pod::Spec.new do |s|
   s.license          = { :type => 'Proprietary', :text => 'DropClip project' }
   s.author           = 'DropClip team'
   s.source           = { :path => '.' }
-  s.source_files     = 'Classes/**/*.swift'
+  s.source_files     = 'dropclip_macos/Sources/dropclip_macos/**/*.swift'
   s.dependency 'FlutterMacOS'
   s.platform         = :osx, '10.15'
   s.swift_version    = '5.0'

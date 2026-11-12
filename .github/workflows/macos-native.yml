@@ -9,10 +9,16 @@ on:
     paths:
       - 'packages/dropclip_macos/**'
       - '.github/workflows/macos-native.yml'
+      - 'apps/desktop/pubspec.yaml'
+      - 'apps/desktop/macos/Flutter/GeneratedPluginRegistrant.swift'
+      - 'apps/desktop/integration_test/**'
   pull_request:
     paths:
       - 'packages/dropclip_macos/**'
       - '.github/workflows/macos-native.yml'
+      - 'apps/desktop/pubspec.yaml'
+      - 'apps/desktop/macos/Flutter/GeneratedPluginRegistrant.swift'
+      - 'apps/desktop/integration_test/**'
 
 jobs:
   swift-test:
@@ -55,4 +61,9 @@ jobs:
             -sdk "$(xcrun --show-sdk-path --sdk macosx)" \
             -target "$(uname -m)-apple-macos10.15" \
             -F "$(dirname "$FW")" \
-            Classes/Core/*.swift Classes/*.swift
+            dropclip_macos/Sources/dropclip_macos/Core/*.swift \
+            dropclip_macos/Sources/dropclip_macos/*.swift
+
+      - name: Test registered app clipboard plugin
+        working-directory: apps/desktop
+        run: flutter test integration_test/clipboard_plugin_test.dart -d macos
