@@ -80,6 +80,7 @@ class TlsTransportServer {
   final bool Function(String fp) _isTrusted;
   final Handler _pinnedHandler;
   final Handler? _pairingHandler;
+  final Handler? _webHandler;
   final WebSocketUpgrade? _webSocket;
 
   TlsTransportServer._(
@@ -89,6 +90,7 @@ class TlsTransportServer {
     this._pinnedHandler,
     this._pairingHandler,
     this._webSocket,
+    this._webHandler,
   ) {
     _server.listen((req) {
       final ws = _webSocket;
@@ -118,6 +120,7 @@ class TlsTransportServer {
     required Handler pinnedHandler,
     Handler? pairingHandler,
     WebSocketUpgrade? webSocket,
+    Handler? webHandler,
     Object? address,
     int firstPort = kTransportPortFirst,
     int lastPort = kTransportPortLast,
@@ -138,6 +141,7 @@ class TlsTransportServer {
           pinnedHandler,
           pairingHandler,
           webSocket,
+          webHandler,
         );
       } on SocketException catch (e) {
         lastError = e;
@@ -155,6 +159,7 @@ class TlsTransportServer {
     required Handler pinnedHandler,
     Handler? pairingHandler,
     WebSocketUpgrade? webSocket,
+    Handler? webHandler,
     Object? address,
     int firstPort = kTransportPortFirst,
     int lastPort = kTransportPortLast,
@@ -177,6 +182,7 @@ class TlsTransportServer {
       pinnedHandler: pinnedHandler,
       pairingHandler: pairingHandler,
       webSocket: webSocket,
+      webHandler: webHandler,
       address: address,
       firstPort: firstPort,
       lastPort: lastPort,
@@ -190,6 +196,12 @@ class TlsTransportServer {
   Future<void> close({bool force = false}) => _server.close(force: force);
 
   Future<Response> _route(X509Certificate? cert, Request request) async {
+    // Browser companion (no client cert): authenticates by its own token.
+    final path = request.requestedUri.path;
+    final web = _webHandler;
+    if (web != null && (path == '/web' || path.startsWith('/web/'))) {
+      return web(request);
+    }
     if (kPairingPaths.contains(request.requestedUri.path)) {
       final pairing = _pairingHandler;
       return pairing == null ? Response.notFound(null) : pairing(request);
