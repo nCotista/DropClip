@@ -114,8 +114,12 @@ class ClipboardBridge {
       ..add(changes.listen((s) {
         final clip = localClipFrom(s);
         if (clip == null) return;
+        final previous = engine.head;
         engine.onLocalChange(clip);
-        if (!clip.isConcealed) onClip(_event(clip.type, clip.raw, 'me'));
+        // Echoes, duplicate tokens and policy rejections do not advance head.
+        if (!identical(previous, engine.head)) {
+          onClip(_event(clip.type, clip.raw, 'me'));
+        }
       }))
       ..add(node.mesh.messages
           .where((m) => m.envelope.type == MessageType.clipboardUpdate)
