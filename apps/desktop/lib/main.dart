@@ -185,11 +185,12 @@ Future<void> main(List<String> args) async {
       log: (m) => log.debug('clipboard', m));
 
   // Tier 3 web: opt-in only, phones without the app use a browser at /web.
+  // Text they send goes onto this clipboard, into history and on to peers.
+  late final ClipboardBridge clipboard;
   final web = WebCompanion(
     downloads: files.downloads,
     page: webCompanionPage,
-    writeClipboard: (text) => native
-        .write([ClipboardItem(mime: ClipMime.text, data: utf8.encode(text))]),
+    onText: (text, from) => clipboard.takeText(text, from),
     isEnabled: () => store.config.value.webCompanionEnabled,
   );
   store.config.addListener(() {
@@ -197,7 +198,7 @@ Future<void> main(List<String> args) async {
   });
   node.webHandler = web.handler;
 
-  final clipboard = ClipboardBridge(
+  clipboard = ClipboardBridge(
     node: node,
     native: native,
     changes: native.changes,

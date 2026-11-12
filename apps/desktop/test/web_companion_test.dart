@@ -22,7 +22,10 @@ void main() {
     web = WebCompanion(
       downloads: Directory('${dir.path}/Downloads'),
       page: '<title>DropClip</title>',
-      writeClipboard: (t) async => written.add(t),
+      onText: (t, from) async {
+        written.add(t);
+        web.addClip(t, from);
+      },
       isEnabled: () => enabled,
       now: () => clock,
     );
@@ -70,7 +73,7 @@ void main() {
 
   test('opt-in off by default and refuses requests once disabled', () async {
     final off = WebCompanion(
-        downloads: dir, page: 'x', writeClipboard: (_) async {});
+        downloads: dir, page: 'x', onText: (_, __) async {});
     expect(off.isEnabled(), isFalse);
     expect(() => off.newCode(), throwsStateError);
     final r = await off.handler(Request('GET', Uri.parse('https://x/web')));

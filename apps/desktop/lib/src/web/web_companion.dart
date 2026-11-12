@@ -33,7 +33,11 @@ class WebCompanion {
 
   final Directory downloads;
   final String page;
-  final Future<void> Function(String text) writeClipboard;
+
+  /// Text a browser sent, with the browser's name (onto the PC clipboard,
+  /// its history and paired peers; the host also echoes it back via
+  /// [addClip]).
+  final Future<void> Function(String text, String from) onText;
   final void Function(String text, String from)? onReceived;
   final bool Function() isEnabled;
   final Duration codeTtl;
@@ -52,7 +56,7 @@ class WebCompanion {
   WebCompanion({
     required this.downloads,
     required this.page,
-    required this.writeClipboard,
+    required this.onText,
     this.onReceived,
     bool Function()? isEnabled,
     bool enabled = false,
@@ -244,9 +248,7 @@ class WebCompanion {
     if (rawText is! String || rawText.isEmpty || rawText.length > 1 << 20) {
       return _json(400, {'error': 'empty or too long'});
     }
-    await writeClipboard(rawText);
-    addClip(rawText, s.name);
-    onReceived?.call(rawText, s.name);
+    await onText(rawText, s.name);
     return _json(200, {'ok': true});
   }
 

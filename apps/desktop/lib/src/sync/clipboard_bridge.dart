@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 
+import 'package:crypto/crypto.dart';
 import 'package:dropclip_clipboard/dropclip_clipboard.dart';
 import 'package:dropclip_protocol/dropclip_protocol.dart';
 import 'package:flutter/services.dart';
@@ -143,10 +144,26 @@ class ClipboardBridge {
     if (clip != null) engine.onLocalChange(LocalClip(clip.type, clip.raw));
   }
 
-  /// "Copy again" from the history: written by the native plugin, the same
-  /// path as synced clips, so it reaches the OS clipboard and peers.
-  Future<void> copyAgain(ClipType type, String text) => native
-      .write(clipboardItemsFor(type, utf8.encode(text), windows: windows));
+  /// "Copy again" from the history: back onto this clipboard, to the top of
+  /// the history and on to paired peers.
+  Future<void> copyAgain(ClipType type, String text) =>
+      takeText(text, 'me', type: type);
+
+  /// Text from outside the mesh (a phone browser, copy again): written to
+  /// the OS clipboard, shown in history and sent to peers. The native
+  /// watcher skips changes made by our own writes, so this does all three.
+  Future<void> takeText(String text, String from, {ClipType? type}) async {
+    final raw = Uint8List.fromList(utf8.encode(text));
+    final uri = Uri.tryParse(text.trim());
+    final kind = type ??
+        (uri != null && uri.hasScheme && uri.host.isNotEmpty
+            ? ClipType.url
+            : ClipType.text);
+    engine.onLocalChange(LocalClip(kind, raw));
+    engine.noteOwnWrite(sha256.convert(raw).toString());
+    await native.write(clipboardItemsFor(kind, raw, windows: windows));
+    onClip(_event(kind, raw, from));
+  }
 
   Future<LocalClip?> _current() async {
     final items = await native.read();
