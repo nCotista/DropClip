@@ -126,7 +126,7 @@ class DesktopTransfersPage extends StatelessWidget {
                       Expanded(
                         child: Text(
                           'Peer: ${item.peerName} · '
-                          '${item.completed ? "SHA-256 Verified" : "Paused"}',
+                          '${item.completed ? 'SHA-256 Verified' : 'Paused'}',
                           style:
                               TextStyle(fontSize: 12, color: c.textSecondary),
                         ),

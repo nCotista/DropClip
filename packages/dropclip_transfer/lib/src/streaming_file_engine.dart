@@ -1,4 +1,3 @@
-import 'dart:async';
 import 'dart:io';
 import 'dart:typed_data';
 
@@ -55,7 +54,7 @@ Stream<Uint8List> readFileInChunks(
       }
     }
   }
-  if (buffer.length > 0) {
+  if (buffer.isNotEmpty) {
     yield buffer.takeBytes();
   }
 }
