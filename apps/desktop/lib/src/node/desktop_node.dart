@@ -27,6 +27,8 @@ class DesktopNode {
   StreamSubscription<PeerMessage>? _revocations;
   StreamSubscription<String>? _mismatches;
   StreamSubscription<Set<String>>? _links;
+  Future<void> _revocationWork = Future<void>.value();
+  bool _closed = false;
 
   /// Paired-only HTTP routes by path prefix, e.g. `api/v1/blob/` (§9.1).
   final routes = <String, Handler>{};
@@ -44,30 +46,8 @@ class DesktopNode {
       this.revocation)
       : trusted = ValueNotifier(store.activeDevices.toList()) {
     _refresh();
-    _revocations = mesh.messages.listen((m) async {
-      final env = m.envelope;
-      try {
-        if (env.type == MessageType.deviceRevoked) {
-          // The peer removed this device: forget it too (§13.1).
-          await store.removeByDeviceId(m.peerId);
-          await mesh.drop(
-              m.peerId, VersionNegotiator.wsCloseNotPairedOrRevoked);
-        } else if (env.type == MessageType.clusterRevocation) {
-          await revocation.onClusterRevocation(
-              RevocationBroadcastToken.fromJson(env.payload),
-              senderPeerId: m.peerId);
-        } else if (env.type == MessageType.revocationSync) {
-          // §13.2.6: revocations made while this device was offline.
-          await revocation.applySyncPayload(env.payload,
-              senderPeerId: m.peerId);
-        } else {
-          return;
-        }
-      } on Object {
-        // A malformed frame from a peer changes nothing.
-        return;
-      }
-      _refresh();
+    _revocations = mesh.messages.listen((m) {
+      _revocationWork = _revocationWork.then((_) => _handlePeerMessage(m));
     });
     // A peer's hello may carry a new name (it was renamed): show it.
     _links = mesh.peerChanges.listen((_) => _refresh());
@@ -76,6 +56,31 @@ class DesktopNode {
       final sync = revocation.buildSyncEnvelope();
       if (sync != null) unawaited(mesh.broadcast(sync, to: peerId));
     });
+  }
+
+  Future<void> _handlePeerMessage(PeerMessage m) async {
+    if (_closed) return;
+    final env = m.envelope;
+    try {
+      if (env.type == MessageType.deviceRevoked) {
+        // The peer removed this device: forget it too (§13.1).
+        await store.removeByDeviceId(m.peerId);
+        await mesh.drop(m.peerId, VersionNegotiator.wsCloseNotPairedOrRevoked);
+      } else if (env.type == MessageType.clusterRevocation) {
+        await revocation.onClusterRevocation(
+            RevocationBroadcastToken.fromJson(env.payload),
+            senderPeerId: m.peerId);
+      } else if (env.type == MessageType.revocationSync) {
+        // §13.2.6: revocations made while this device was offline.
+        await revocation.applySyncPayload(env.payload, senderPeerId: m.peerId);
+      } else {
+        return;
+      }
+    } on Object {
+      // A malformed frame from a peer changes nothing.
+      return;
+    }
+    if (!_closed) _refresh();
   }
 
   DeviceIdentity get me => ids.identity;
@@ -221,9 +226,11 @@ class DesktopNode {
   }
 
   Future<void> close() async {
+    _closed = true;
     await _revocations?.cancel();
     await _mismatches?.cancel();
     await _links?.cancel();
+    await _revocationWork;
     await mesh.close();
     await pairing.close();
     await server.close(force: true);
