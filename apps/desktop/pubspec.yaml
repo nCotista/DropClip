@@ -18,6 +18,8 @@ dependencies:
     path: ../../packages/dropclip_transfer
   dropclip_ui:
     path: ../../packages/dropclip_ui
+  dropclip_macos:
+    path: ../../packages/dropclip_macos
   dropclip_windows:
     path: ../../packages/dropclip_windows
   flutter:
@@ -32,6 +34,8 @@ dependencies:
 
 dev_dependencies:
   flutter_test:
+    sdk: flutter
+  integration_test:
     sdk: flutter
   lints: ^3.0.0
 

@@ -10,7 +10,7 @@ let package = Package(
         .library(name: "DropClipMacCore", targets: ["DropClipMacCore"]),
     ],
     targets: [
-        .target(name: "DropClipMacCore", path: "Classes/Core"),
+        .target(name: "DropClipMacCore", path: "dropclip_macos/Sources/dropclip_macos/Core"),
         .testTarget(
             name: "DropClipMacCoreTests",
             dependencies: ["DropClipMacCore"],
