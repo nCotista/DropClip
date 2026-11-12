@@ -6,7 +6,7 @@
 | **Branches / PRs** | `fix/main-build` (#64) แล้วซ้อนต่อ #65–#79 ตามลำดับ (PR ถัดไปตั้ง base เป็น branch ก่อนหน้า) |
 | **Engineer** | `DESK` (ธีร์) |
 | **AI Assistant** | Claude Code |
-| **Status** | `READY FOR PR` — รอ review/merge ตามลำดับ |
+| **Status** | `MERGED` (`4ecd948` — รวม #64–#79 เข้า `main` พร้อมแก้ Secret Scan ใน `p256_test.dart` `38f35a7`) |
 
 ## 1. ปัญหาที่เจอ
 - หลัง fix #63 CI บน `main` ยังแดงที่ Analyze จึงไม่เคยรันเทสต์ พอรันจริงเจอ:
