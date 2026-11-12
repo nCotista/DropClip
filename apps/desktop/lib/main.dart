@@ -267,7 +267,7 @@ Future<void> main(List<String> args) async {
       valueListenable: transfers,
       builder: (_, list, __) => DesktopTransfersPage(
         transfers: list,
-        onOpenDropzone: dropzone.show,
+        onOpenDropzone: dropzone.browse,
       ),
     ),
     navigatorKey: navigator,
@@ -307,7 +307,7 @@ Future<void> main(List<String> args) async {
                     onDone: () =>
                         configs.update(c.copyWith(firstRunDone: true))),
           ),
-    onOpenDropzone: dropzone.show,
+    onOpenDropzone: dropzone.browse,
     onSendClipboard: clipboard.sendNow,
     onPair: pairNew,
     onCopyClip: (c) {

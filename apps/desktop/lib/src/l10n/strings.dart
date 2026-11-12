@@ -121,6 +121,7 @@ abstract class Strings {
   // Dropzone (UI-02)
   String get dropHere;
   String get releaseToAdd;
+  String get clickToChoose;
   String itemCount(int n);
   String get sendTo;
   String sendToDevice(String name);
@@ -343,6 +344,8 @@ class EnStrings extends Strings {
   String get dropHere => 'Drop files or folders here';
   @override
   String get releaseToAdd => 'Release to add';
+  @override
+  String get clickToChoose => 'or click to choose files';
   @override
   String itemCount(int n) => n == 1 ? '1 item' : '$n items';
   @override
@@ -572,6 +575,8 @@ class ThStrings extends Strings {
   String get dropHere => 'ลากไฟล์หรือโฟลเดอร์มาวางที่นี่';
   @override
   String get releaseToAdd => 'ปล่อยเพื่อเพิ่ม';
+  @override
+  String get clickToChoose => 'หรือคลิกเพื่อเลือกไฟล์';
   @override
   String itemCount(int n) => '$n รายการ';
   @override
