@@ -114,6 +114,17 @@ class ControlPlaneSession {
   }
 
   /// Sends a `ping` frame and starts the `pong` deadline timer (§6.3).
+  /// Sends [env] unchanged, keeping its `msg_id` and origin so receivers
+  /// can dedup it (§6.6, §7.3), e.g. a clipboard update built by the engine.
+  Future<void> forward(Envelope env) async {
+    if (_closed) {
+      throw const ProtocolException(
+          ProtocolErrorCode.internal, 'session is closed');
+    }
+    _clock = _clock.merge(env.hlc, _nowMs());
+    await channel.sendFrame(env.encodeWire());
+  }
+
   Future<void> sendPing() async {
     if (_closed || !isReady) return;
     _pongTimer?.cancel();

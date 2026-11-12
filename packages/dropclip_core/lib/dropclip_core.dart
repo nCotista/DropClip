@@ -25,6 +25,7 @@ export 'src/security/security_audit_runner.dart';
 export 'src/security/trusted_device_store.dart';
 export 'src/test_cluster.dart';
 export 'src/transport/control_plane.dart';
+export 'src/transport/peer_mesh.dart';
 export 'src/transport/pinned_transport_client.dart';
 export 'src/transport/tls_transport_server.dart';
 

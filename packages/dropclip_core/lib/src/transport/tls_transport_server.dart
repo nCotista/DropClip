@@ -20,6 +20,12 @@ const int kTransportPortLast = 53417;
 /// shelf request context key holding the verified peer fingerprint (§4.4).
 const String kPeerFingerprintContextKey = 'dropclip.peer_fp';
 
+/// Control Plane endpoint (§6.1), upgraded outside shelf.
+const String kWebSocketPath = '/api/v1/ws';
+
+/// Takes over a pinned `/api/v1/ws` request from the peer with [fp].
+typedef WebSocketUpgrade = void Function(HttpRequest request, String fp);
+
 /// The only endpoints reachable without a pinned client cert (§4.4, §9.1).
 const Set<String> kPairingPaths = <String>{
   '/api/v1/pair',
@@ -74,6 +80,7 @@ class TlsTransportServer {
   final bool Function(String fp) _isTrusted;
   final Handler _pinnedHandler;
   final Handler? _pairingHandler;
+  final WebSocketUpgrade? _webSocket;
 
   TlsTransportServer._(
     this._server,
@@ -81,10 +88,24 @@ class TlsTransportServer {
     this._isTrusted,
     this._pinnedHandler,
     this._pairingHandler,
+    this._webSocket,
   ) {
-    _server.listen(
-      (req) => shelf_io.handleRequest(req, (r) => _route(req.certificate, r)),
-    );
+    _server.listen((req) {
+      final ws = _webSocket;
+      if (ws != null && req.uri.path == kWebSocketPath) {
+        final cert = req.certificate;
+        final fp = cert == null ? null : certificateFingerprint(cert);
+        if (fp == null || !_isTrusted(fp)) {
+          req.response
+            ..statusCode = HttpStatus.forbidden
+            ..close();
+        } else {
+          ws(req, fp);
+        }
+        return;
+      }
+      shelf_io.handleRequest(req, (r) => _route(req.certificate, r));
+    });
   }
 
   int get port => _server.port;
@@ -96,6 +117,7 @@ class TlsTransportServer {
     required bool Function(String fp) isTrusted,
     required Handler pinnedHandler,
     Handler? pairingHandler,
+    WebSocketUpgrade? webSocket,
     Object? address,
     int firstPort = kTransportPortFirst,
     int lastPort = kTransportPortLast,
@@ -115,6 +137,7 @@ class TlsTransportServer {
           isTrusted,
           pinnedHandler,
           pairingHandler,
+          webSocket,
         );
       } on SocketException catch (e) {
         lastError = e;
@@ -131,6 +154,7 @@ class TlsTransportServer {
     required TrustedDeviceStore store,
     required Handler pinnedHandler,
     Handler? pairingHandler,
+    WebSocketUpgrade? webSocket,
     Object? address,
     int firstPort = kTransportPortFirst,
     int lastPort = kTransportPortLast,
@@ -152,6 +176,7 @@ class TlsTransportServer {
       isTrusted: store.isActiveFingerprint,
       pinnedHandler: pinnedHandler,
       pairingHandler: pairingHandler,
+      webSocket: webSocket,
       address: address,
       firstPort: firstPort,
       lastPort: lastPort,
