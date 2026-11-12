@@ -178,6 +178,17 @@ class ClipboardBridge {
     onClip(_event(kind, raw, from));
   }
 
+  /// A PNG from outside the mesh (a phone browser): PC clipboard (PNG +
+  /// DIBV5 on Windows), history, and peers (as a blob, §9.3).
+  Future<void> takeImage(Uint8List png, String from) async {
+    await native
+        .write(clipboardItemsFor(ClipType.image, png, windows: windows));
+    _lastHash = sha256.convert(png).toString();
+    _lastAt = DateTime.now();
+    engine.onLocalChange(LocalClip(ClipType.image, png));
+    onClip(_event(ClipType.image, png, from));
+  }
+
   Future<LocalClip?> _current() async {
     final items = await native.read();
     return items == null

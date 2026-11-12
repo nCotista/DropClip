@@ -65,6 +65,8 @@ const webCompanionPage = r'''<!doctype html>
       <button id="paste" class="ghost">วางจากคลิปบอร์ด</button>
       <button id="send">ส่ง</button>
     </div>
+    <label class="btn ghost" style="display:block;text-align:center;margin-top:8px;border:1px solid var(--line);background:transparent">ส่งรูปเข้าคลิปบอร์ดคอมพิวเตอร์
+      <input id="imgpick" type="file" accept="image/*" class="hidden"></label>
   </div>
   <div class="card">
     <h2>ส่งไฟล์หรือรูป</h2>
@@ -170,10 +172,56 @@ const webCompanionPage = r'''<!doctype html>
       .catch(function () { toast('ส่งไม่สำเร็จ'); })
       .then(function () { $('send').disabled = false; });
   };
+  // Any photo → PNG ≤ 4096 px on the long edge, so it fits the 32 MiB
+  // clipboard limit and the PC needs no JPEG/HEIC decoder.
+  function toPng(blob) {
+    return new Promise(function (ok, fail) {
+      var img = new Image(), url = URL.createObjectURL(blob);
+      img.onload = function () {
+        var s = Math.min(1, 4096 / Math.max(img.naturalWidth, img.naturalHeight));
+        var c = document.createElement('canvas');
+        c.width = Math.round(img.naturalWidth * s); c.height = Math.round(img.naturalHeight * s);
+        c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+        URL.revokeObjectURL(url);
+        c.toBlob(function (b) { b ? ok(b) : fail(new Error('png')); }, 'image/png');
+      };
+      img.onerror = function () { URL.revokeObjectURL(url); fail(new Error('image')); };
+      img.src = url;
+    });
+  }
+  function sendImage(blob) {
+    toast('กำลังส่งรูป…');
+    return toPng(blob).then(function (png) { return api('POST', 'image', png, 'image/png'); })
+      .then(function () { toast('ส่งรูปเข้าคลิปบอร์ดคอมพิวเตอร์แล้ว'); },
+        function () { toast('ส่งรูปไม่สำเร็จ'); });
+  }
+  $('imgpick').onchange = function (ev) {
+    var f = (ev.target.files || [])[0]; ev.target.value = '';
+    if (f) sendImage(f);
+  };
   $('paste').onclick = function () {
-    if (!navigator.clipboard || !navigator.clipboard.readText) { toast('กดค้างในช่องแล้วเลือกวาง'); return; }
-    navigator.clipboard.readText().then(function (t) { $('text').value = t; },
-      function () { toast('กดค้างในช่องแล้วเลือกวาง'); });
+    var cb = navigator.clipboard;
+    function text() {
+      if (!cb || !cb.readText) { toast('กดค้างในช่องแล้วเลือกวาง'); return; }
+      cb.readText().then(function (t) { $('text').value = t; },
+        function () { toast('กดค้างในช่องแล้วเลือกวาง'); });
+    }
+    if (!cb || !cb.read) return text();
+    // A copied photo goes straight to the PC clipboard; text fills the box.
+    // One read() (one Safari "Paste" prompt) serves both images and text.
+    cb.read().then(function (items) {
+      for (var i = 0; i < items.length; i++) {
+        var type = items[i].types.filter(function (t) { return t.indexOf('image/') === 0; })[0];
+        if (type) return items[i].getType(type).then(sendImage);
+      }
+      for (var j = 0; j < items.length; j++) {
+        if (items[j].types.indexOf('text/plain') >= 0) {
+          return items[j].getType('text/plain').then(function (b) { return b.text(); })
+            .then(function (t) { $('text').value = t; });
+        }
+      }
+      toast('คลิปบอร์ดว่าง');
+    }, text);
   };
   $('file').onchange = function (ev) {
     var files = Array.prototype.slice.call(ev.target.files || []), prog = $('prog');

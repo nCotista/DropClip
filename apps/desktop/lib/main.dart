@@ -191,6 +191,7 @@ Future<void> main(List<String> args) async {
     downloads: files.downloads,
     page: webCompanionPage,
     onText: (text, from) => clipboard.takeText(text, from),
+    onImage: (png, from) => clipboard.takeImage(png, from),
   );
   node.webHandler = web.handler;
 
