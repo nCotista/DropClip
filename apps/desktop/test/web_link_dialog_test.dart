@@ -11,9 +11,7 @@ void main() {
   testWidgets('shows the link QR and lets the user remove a browser',
       (tester) async {
     final web = WebCompanion(
-        downloads: Directory.systemTemp,
-        page: '',
-        writeClipboard: (_) async {});
+        downloads: Directory.systemTemp, page: '', onText: (_, __) async {});
     await tester.pumpWidget(MaterialApp(
         home: Scaffold(
             body: WebLinkDialog(

@@ -30,7 +30,11 @@ typedef WebClip = ({int id, String text, String from, int at});
 class WebCompanion {
   final Directory downloads;
   final String page;
-  final Future<void> Function(String text) writeClipboard;
+
+  /// Text a browser sent, with the browser's name (onto the PC clipboard,
+  /// its history and paired peers; the host also echoes it back via
+  /// [addClip]).
+  final Future<void> Function(String text, String from) onText;
   final void Function(String text, String from)? onReceived;
   final Duration codeTtl;
   final DateTime Function() now;
@@ -47,7 +51,7 @@ class WebCompanion {
   WebCompanion({
     required this.downloads,
     required this.page,
-    required this.writeClipboard,
+    required this.onText,
     this.onReceived,
     this.codeTtl = const Duration(minutes: 2),
     DateTime Function()? now,
@@ -153,9 +157,7 @@ class WebCompanion {
     if (text.isEmpty || text.length > 1 << 20) {
       return _json(400, {'error': 'empty or too long'});
     }
-    await writeClipboard(text);
-    addClip(text, s.name);
-    onReceived?.call(text, s.name);
+    await onText(text, s.name);
     return _json(200, {'ok': true});
   }
 

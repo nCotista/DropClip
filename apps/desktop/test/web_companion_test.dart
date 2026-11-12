@@ -20,7 +20,10 @@ void main() {
     web = WebCompanion(
         downloads: Directory('${dir.path}/Downloads'),
         page: '<title>DropClip</title>',
-        writeClipboard: (t) async => written.add(t),
+        onText: (t, from) async {
+          written.add(t);
+          web.addClip(t, from);
+        },
         now: () => clock);
     final id = P256.generate(commonName: 'dropclip-test');
     server = await TlsTransportServer.bind(
