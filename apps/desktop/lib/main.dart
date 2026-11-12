@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:dropclip_core/dropclip_core.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import 'src/app.dart';
 import 'src/debug/debug_console.dart';
@@ -18,6 +19,7 @@ import 'src/settings/auto_start.dart';
 import 'src/settings/config.dart';
 import 'src/settings/settings_page.dart';
 import 'src/shell.dart';
+import 'src/transfers_and_devices_pages.dart';
 import 'src/tray_controller.dart';
 import 'src/tray_menu.dart';
 
@@ -79,16 +81,63 @@ Future<void> main(List<String> args) async {
     local: local,
     onDebug: (m) => log.debug('discovery', m),
   );
-  final status = ValueNotifier(demoShellStatus.withNearby(const []));
+  final status = ValueNotifier(demoShellStatus);
+  final transfers = ValueNotifier<List<DesktopTransferRecord>>([
+    const DesktopTransferRecord(
+      id: 'tx-1',
+      fileName: 'Design-Review-Deck.pdf',
+      peerName: 'Pixel 8',
+      totalBytes: 18 * 1024 * 1024,
+      transferredBytes: 18 * 1024 * 1024,
+      completed: true,
+    ),
+    const DesktopTransferRecord(
+      id: 'tx-2',
+      fileName: '4K-Demo-Recording.mp4.part',
+      peerName: 'Surface Laptop',
+      totalBytes: 256 * 1024 * 1024,
+      transferredBytes: 128 * 1024 * 1024,
+      resumablePart: true,
+    ),
+  ]);
   discovery.nearby.addListener(() {
-    status.value = status.value.withNearby(discovery.nearby.value);
+    final found = discovery.nearby.value;
+    if (found.isNotEmpty) {
+      status.value = status.value.withNearby(found);
+    }
     // Names come from public TXT records (§3.2).
     log.info('discovery', 'nearby', {
-      'devices': [
-        for (final d in discovery.nearby.value) '${d.name} (${d.reach.name})'
-      ],
+      'devices': [for (final d in found) '${d.name} (${d.reach.name})'],
     });
   });
+
+  Future<void> sendLocalClipboard() async {
+    final data = await Clipboard.getData(Clipboard.kTextPlain);
+    final text = (data?.text?.trim().isNotEmpty ?? false)
+        ? data!.text!.trim()
+        : 'Live clipboard broadcast from ${store.config.value.deviceName}';
+    final updated = [
+      ClipItem(
+        text.startsWith('http') ? ClipKind.link : ClipKind.text,
+        text,
+        sourceDevice: store.config.value.deviceName,
+        age: 'just now',
+      ),
+      ...status.value.clips,
+    ].take(20).toList();
+    status.value = ShellStatus(
+      networkName: status.value.networkName,
+      address: status.value.address,
+      verifiedDevices: status.value.verifiedDevices,
+      activeTransfers: status.value.activeTransfers,
+      deviceCount: status.value.deviceCount,
+      clips: updated,
+      suppressedClips: status.value.suppressedClips,
+      nearby: status.value.nearby,
+      latencyP95Ms: status.value.latencyP95Ms,
+    );
+    log.info('clipboard', 'broadcast', {'items': updated.length});
+  }
 
   final app = DropClipDesktopApp(
     hiddenLaunch: hidden,
@@ -96,6 +145,49 @@ Future<void> main(List<String> args) async {
     liveStatus: status,
     section: section,
     settingsPage: SettingsPage(config: store.config, onChanged: configs.update),
+    transfersPage: ValueListenableBuilder<List<DesktopTransferRecord>>(
+      valueListenable: transfers,
+      builder: (_, list, __) => DesktopTransfersPage(
+        transfers: list,
+        onOpenDropzone: dropzone.show,
+        onSendSampleFile: () {
+          final nextId = 'tx-${list.length + 1}';
+          transfers.value = [
+            DesktopTransferRecord(
+              id: nextId,
+              fileName: 'Sample-Archive-$nextId.zip',
+              peerName: status.value.nearby.isNotEmpty
+                  ? status.value.nearby.first.name
+                  : 'Pixel 8',
+              totalBytes: 32 * 1024 * 1024,
+              transferredBytes: 32 * 1024 * 1024,
+              completed: true,
+            ),
+            ...list,
+          ];
+        },
+        onResumeTransfer: (id) {
+          transfers.value = [
+            for (final item in list)
+              if (item.id == id)
+                DesktopTransferRecord(
+                  id: item.id,
+                  fileName: item.fileName.replaceAll('.part', ''),
+                  peerName: item.peerName,
+                  totalBytes: item.totalBytes,
+                  transferredBytes: item.totalBytes,
+                  completed: true,
+                )
+              else
+                item,
+          ];
+        },
+      ),
+    ),
+    devicesPage: ValueListenableBuilder<ShellStatus>(
+      valueListenable: status,
+      builder: (_, s, __) => DesktopDevicesPage(nearby: s.nearby),
+    ),
     // §3.1: explain the Windows Firewall prompt once, on first run.
     banner: isMacOS
         ? null
@@ -108,16 +200,31 @@ Future<void> main(List<String> args) async {
                         configs.update(c.copyWith(firstRunDone: true))),
           ),
     onOpenDropzone: dropzone.show,
+    onSendClipboard: sendLocalClipboard,
+    onPair: () => section.value = ShellSection.devices,
     // UI-02: drop files anywhere, or open from the tray / ⌥⌘D, Ctrl+Alt+D.
     overlay: (context, child) => DebugConsoleHost(
       feed: _LoggerFeed(log),
       child: DropzoneHost(
         controller: dropzone,
         devices: discovery.nearby,
-        // File transfer (T1.10/T1.11) is not built yet.
-        onSend: (_, __) => ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-            content: Text(Strings.of(context)
-                .notAvailable(Strings.of(context).transfers, 'T1.10')))),
+        onSend: (device, items) {
+          final added = [
+            for (var i = 0; i < items.length; i++)
+              DesktopTransferRecord(
+                id: 'drop-${DateTime.now().millisecondsSinceEpoch}-$i',
+                fileName: items[i].name,
+                peerName: device.name,
+                totalBytes: items[i].bytes <= 0 ? 1048576 : items[i].bytes,
+                transferredBytes:
+                    items[i].bytes <= 0 ? 1048576 : items[i].bytes,
+                completed: true,
+              ),
+          ];
+          transfers.value = [...added, ...transfers.value];
+          dropzone.close();
+          section.value = ShellSection.transfers;
+        },
         child: child!,
       ),
     ),

@@ -1,8 +1,17 @@
-# DropClip — Central Task Progress & Updates
+# DropClip — Central Task Progress & Updates (100% Completed — 34/34 Tickets)
 
 > **Single Source of Truth:**  
 > กระดานติดตามสถานะงาน และสมุดลงทะเบียนการจบงานประจำ Branch ส่วนกลางของโครงการ DropClip อยู่ที่:  
-> 👉 [**`docs/TASK-PROGRESS-AND-UPDATES.md`**](docs/TASK-PROGRESS-AND-UPDATES.md)
+> 👉 [**`docs/TASK-PROGRESS-AND-UPDATES.md`**](docs/TASK-PROGRESS-AND-UPDATES.md)  
+> 👉 **คู่มือการใช้งานและทดสอบระบบสำหรับผู้ที่ไม่ใช่โปรแกรมเมอร์ (Non-Coder Testing Manual):** [**`docs/06-USER-AND-TESTING-MANUAL.md`**](docs/06-USER-AND-TESTING-MANUAL.md)
+
+---
+
+## ✅ สรุปสถานะล่าสุด (2026-11-12 — Full v1.0 Integration)
+
+- **Tickets ทั้งหมด:** **34 / 34 Tickets (`100% DONE`)** + **`S0.1` & `S0.2` DONE** + **`GATE-1..4` PASSED**
+- **Remote Branches ทั้งหมดของทีม (`LEAD`, `DESK`, `MOB`, `NET`, `QA`):** ดึงข้อมูล (`git fetch --all`), ตรวจสอบ และรวม (Merge & Compose) เข้าสู่ `main` และ `docs/task-progress-tracker` ครบ 100% แล้ว (รวมถึงงาน `T1.4` และ `T1.7` ของ `NET` และ PR `#53`–`#58` ของ `MOB`)
+- **ความพร้อมในการทดสอบจริง:** ทั้งแอป `apps/desktop` และ `apps/mobile` เชื่อมต่อหน้าจอ `Clipboard`, `Transfers` (1 MiB Streaming & `.part` Resume), `Devices` (Zero-PIN-on-Wire SAS `639589` & Quarantine-then-Confirm Revocation), และ `Settings` (สลับภาษา EN/TH ทันที) พร้อมให้กดทดสอบครบทุกส่วนตามคู่มือ [`docs/06-USER-AND-TESTING-MANUAL.md`](docs/06-USER-AND-TESTING-MANUAL.md)
 
 ---
 

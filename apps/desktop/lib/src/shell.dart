@@ -41,6 +41,8 @@ class DesktopShell extends StatefulWidget {
 
   /// Shown for the Settings section; a placeholder when null.
   final Widget? settingsPage;
+  final Widget? transfersPage;
+  final Widget? devicesPage;
 
   /// Shown above every page (e.g. first-run firewall onboarding).
   final Widget? banner;
@@ -55,6 +57,8 @@ class DesktopShell extends StatefulWidget {
       required this.status,
       this.section,
       this.settingsPage,
+      this.transfersPage,
+      this.devicesPage,
       this.banner,
       this.onOpenDropzone,
       this.onSendClipboard,
@@ -110,6 +114,12 @@ class _DesktopShellState extends State<DesktopShell> {
                                 _notReady(
                                     Strings.of(context).dropzone, 'T1.12'),
                           ),
+                        ShellSection.transfers
+                            when widget.transfersPage != null =>
+                          widget.transfersPage!,
+                        ShellSection.devices
+                            when widget.devicesPage != null =>
+                          widget.devicesPage!,
                         ShellSection.settings
                             when widget.settingsPage != null =>
                           widget.settingsPage!,

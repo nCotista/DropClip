@@ -16,6 +16,8 @@ class DropClipDesktopApp extends StatelessWidget {
   /// (e.g. live mDNS discovery).
   final ValueListenable<ShellStatus>? liveStatus;
   final Widget? settingsPage;
+  final Widget? transfersPage;
+  final Widget? devicesPage;
   final Widget? banner;
 
   /// Wraps every page, e.g. with the Dropzone overlay.
@@ -31,6 +33,8 @@ class DropClipDesktopApp extends StatelessWidget {
     this.section,
     this.liveStatus,
     this.settingsPage,
+    this.transfersPage,
+    this.devicesPage,
     this.banner,
     this.overlay,
     this.onOpenDropzone,
@@ -51,6 +55,8 @@ class DropClipDesktopApp extends StatelessWidget {
                 status: status,
                 section: section,
                 settingsPage: settingsPage,
+                transfersPage: transfersPage,
+                devicesPage: devicesPage,
                 banner: banner,
                 onOpenDropzone: onOpenDropzone,
                 onSendClipboard: onSendClipboard,
@@ -61,6 +67,8 @@ class DropClipDesktopApp extends StatelessWidget {
                     status: s,
                     section: section,
                     settingsPage: settingsPage,
+                    transfersPage: transfersPage,
+                    devicesPage: devicesPage,
                     banner: banner,
                     onOpenDropzone: onOpenDropzone,
                     onSendClipboard: onSendClipboard,
