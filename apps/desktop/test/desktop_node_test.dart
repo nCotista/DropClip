@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:dropclip_core/dropclip_core.dart';
@@ -63,7 +64,21 @@ void main() {
     host.onPeers([_seen(client, PeerTrust.trusted)]);
     expect(await up.timeout(const Duration(seconds: 5)), {client.me.deviceId});
 
+    // Revocation is asynchronous on the receiving peer. Wait for its store
+    // write and disconnect before teardown deletes that peer's directory.
+    final removed = Completer<void>();
+    void onClientTrustChanged() {
+      if (client.trusted.value.isEmpty && !removed.isCompleted) {
+        removed.complete();
+      }
+    }
+
+    client.trusted.addListener(onClientTrustChanged);
+    addTearDown(() => client.trusted.removeListener(onClientTrustChanged));
     await host.forget(client.me.deviceId);
+    await removed.future.timeout(const Duration(seconds: 5));
     expect(host.trusted.value, isEmpty);
+    expect(client.trusted.value, isEmpty);
+    expect(client.mesh.connected, isEmpty);
   });
 }
