@@ -89,6 +89,7 @@ void main() {
   Future<TrustedDevice> pair({
     required String typedPin,
     required bool hostSaysMatch,
+    bool clientSaysMatch = true,
     List<String>? sasSeen,
   }) {
     final sub = pairing.events.listen((e) {
@@ -108,7 +109,7 @@ void main() {
       confirmSas: (sas, hostName) async {
         sasSeen?.add(sas);
         expect(hostName, 'Host PC');
-        return true;
+        return clientSaysMatch;
       },
     );
   }
@@ -152,6 +153,17 @@ void main() {
     expect(client.store.activeDevices, isEmpty);
     expect(host.store.activeDevices, isEmpty);
     expectZeroPinRequests();
+  });
+
+  test('Client rejects SAS; neither side persists trust', () async {
+    await expectLater(
+        pair(typedPin: pin, hostSaysMatch: true, clientSaysMatch: false),
+        throwsA(isA<PairingClientException>()
+            .having((e) => e.code, 'code', 'E_SAS_FAILED')));
+    await client.store.load();
+    await host.store.load();
+    expect(client.store.activeDevices, isEmpty);
+    expect(host.store.activeDevices, isEmpty);
   });
 
   test('Host refuses a cert that does not match the claimed fp', () async {
