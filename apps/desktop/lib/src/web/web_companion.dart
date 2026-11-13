@@ -17,8 +17,7 @@ class WebSession {
   final DateTime expiresAt;
   DateTime lastSeen;
 
-  WebSession(this.id, this.name, this.since, this.expiresAt)
-      : lastSeen = since;
+  WebSession(this.id, this.name, this.since, this.expiresAt) : lastSeen = since;
 }
 
 /// A clip shown to linked browsers.
@@ -153,18 +152,21 @@ class WebCompanion {
     }
   }
 
+  /// Reads at most [maxBytes]. A larger body is read to the end (and thrown
+  /// away, up to 64 MiB) before the 413, because answering mid-upload resets
+  /// the connection and the browser never sees the error.
   Future<({Uint8List? bytes, Response? error})> _readLimited(
       Request r, int maxBytes) async {
-    final len = r.contentLength;
-    if (len != null && len > maxBytes) {
-      return (bytes: null, error: _json(413, {'error': 'too large'}));
-    }
+    const drainLimit = 64 << 20;
     final b = BytesBuilder(copy: false);
+    var seen = 0;
     await for (final chunk in r.read()) {
-      if (b.length + chunk.length > maxBytes) {
-        return (bytes: null, error: _json(413, {'error': 'too large'}));
-      }
-      b.add(chunk);
+      seen += chunk.length;
+      if (seen > drainLimit) break;
+      if (seen <= maxBytes) b.add(chunk);
+    }
+    if (seen > maxBytes) {
+      return (bytes: null, error: _json(413, {'error': 'too large'}));
     }
     return (bytes: b.takeBytes(), error: null);
   }

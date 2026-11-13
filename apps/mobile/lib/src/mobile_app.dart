@@ -109,6 +109,17 @@ class _PairDialogState extends State<_PairDialog> {
   String? _sas, _result;
   Completer<bool>? _answer;
 
+  @override
+  void dispose() {
+    final answer = _answer;
+    _answer = null;
+    if (answer != null && !answer.isCompleted) answer.complete(false);
+    _host.dispose();
+    _port.dispose();
+    _pin.dispose();
+    super.dispose();
+  }
+
   Future<void> _start() => _run((confirm) => widget.node.pair(_host.text.trim(),
       int.tryParse(_port.text) ?? 53317, _pin.text.trim(), confirm));
 
@@ -125,20 +136,27 @@ class _PairDialogState extends State<_PairDialog> {
       Future<TrustedDevice> Function(
               Future<bool> Function(String sas, String hostName) confirm)
           pair) async {
+    if (!mounted) return;
     setState(() => _result = '…');
     try {
       final d = await pair((sas, _) {
+        if (!mounted) return Future.value(false);
         setState(() => _sas = sas);
         return (_answer = Completer<bool>()).future;
       });
+      if (!mounted) return;
       setState(() => _result = 'Paired with ${d.name}');
     } on Object catch (e) {
+      if (!mounted) return;
       setState(() => _result = 'Pairing failed: $e');
     }
   }
 
   void _reply(bool match) {
-    _answer?.complete(match);
+    final answer = _answer;
+    if (!mounted || answer == null || answer.isCompleted) return;
+    _answer = null;
+    answer.complete(match);
     setState(() => _sas = null);
   }
 
