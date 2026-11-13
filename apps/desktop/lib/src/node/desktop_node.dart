@@ -25,6 +25,7 @@ class DesktopNode {
   /// Peers another device revoked; the user confirms or keeps them (§13).
   final quarantined = ValueNotifier<List<TrustedDevice>>(const []);
   StreamSubscription<PeerMessage>? _revocations;
+  StreamSubscription<String>? _mismatches;
 
   /// Paired-only HTTP routes by path prefix, e.g. `api/v1/blob/` (§9.1).
   final routes = <String, Handler>{};
@@ -40,18 +41,33 @@ class DesktopNode {
     _refresh();
     _revocations = mesh.messages.listen((m) async {
       final env = m.envelope;
-      if (env.type == MessageType.deviceRevoked) {
-        // The peer removed this device: forget it too (§13.1).
-        await store.removeByDeviceId(m.peerId);
-        await mesh.drop(m.peerId, VersionNegotiator.wsCloseNotPairedOrRevoked);
-      } else if (env.type == MessageType.clusterRevocation) {
-        await revocation.onClusterRevocation(
-            RevocationBroadcastToken.fromJson(env.payload),
-            senderPeerId: m.peerId);
-      } else {
+      try {
+        if (env.type == MessageType.deviceRevoked) {
+          // The peer removed this device: forget it too (§13.1).
+          await store.removeByDeviceId(m.peerId);
+          await mesh.drop(
+              m.peerId, VersionNegotiator.wsCloseNotPairedOrRevoked);
+        } else if (env.type == MessageType.clusterRevocation) {
+          await revocation.onClusterRevocation(
+              RevocationBroadcastToken.fromJson(env.payload),
+              senderPeerId: m.peerId);
+        } else if (env.type == MessageType.revocationSync) {
+          // §13.2.6: revocations made while this device was offline.
+          await revocation.applySyncPayload(env.payload,
+              senderPeerId: m.peerId);
+        } else {
+          return;
+        }
+      } on Object {
+        // A malformed frame from a peer changes nothing.
         return;
       }
       _refresh();
+    });
+    // §13.2.6: a peer whose tombstones differ gets ours right after hello.
+    _mismatches = mesh.tombstoneMismatches.listen((peerId) {
+      final sync = revocation.buildSyncEnvelope();
+      if (sync != null) unawaited(mesh.broadcast(sync, to: peerId));
     });
   }
 
@@ -65,6 +81,7 @@ class DesktopNode {
     required String name,
     required DeviceOs os,
     void Function(String)? log,
+    void Function(String event, Map<String, Object?> data)? onMeshEvent,
   }) async {
     final ids = DeviceIdentityManager(
         storageDir: Directory('${dir.path}/identity'), keyStore: keys);
@@ -78,7 +95,11 @@ class DesktopNode {
       store: store,
       onPaired: (d) => node._added(d),
     );
-    final mesh = PeerMesh(identity: ids, store: store, hello: () => node.hello);
+    final mesh = PeerMesh(
+        identity: ids,
+        store: store,
+        hello: () => node.hello,
+        onEvent: onMeshEvent);
     final revocation = RevocationManager(
       identityManager: ids,
       trustedStore: store,
@@ -181,11 +202,14 @@ class DesktopNode {
 
   void _added(TrustedDevice d) {
     if (d.certPem != null) server.addTrustedPeerCert(d.certPem!);
+    // Paired again after "Remove": the old revocation no longer applies.
+    unawaited(revocation.clearTombstone(d.deviceId));
     _refresh();
   }
 
   Future<void> close() async {
     await _revocations?.cancel();
+    await _mismatches?.cancel();
     await mesh.close();
     await pairing.close();
     await server.close(force: true);
@@ -205,17 +229,26 @@ class DesktopNode {
       {Stream<List<int>>? body,
       Map<String, String> headers = const {},
       void Function(int bytes)? onSent}) async {
-    final at = _addresses[peerId];
+    // The address of the live link is proven reachable; discovery may have
+    // announced another adapter, or not have seen the peer at all (it then
+    // dialed us and only its port is unknown: the default is the best guess).
+    final link = mesh.linkAddress(peerId);
+    final seen = _addresses[peerId];
+    final host = link?.host ?? seen?.$1;
     final peer = store.activeDevices.where((d) => d.deviceId == peerId);
-    if (at == null || peer.isEmpty) {
+    if (host == null || peer.isEmpty) {
       throw const ProtocolException(
           ProtocolErrorCode.notPaired, 'peer address unknown');
     }
+    final port = link?.port ?? seen?.$2 ?? kTransportPortFirst;
     final client = await PinnedTransportClient.forIdentity(
         identity: ids, store: store, expectedFp: peer.first.fp);
+    // Fail in seconds, not the OS default of ~20 s, when the peer's
+    // firewall drops the connection.
+    client.httpClient.connectionTimeout = const Duration(seconds: 5);
     try {
       final req = await client.httpClient.openUrl(
-          method, Uri(scheme: 'https', host: at.$1, port: at.$2, path: path));
+          method, Uri(scheme: 'https', host: host, port: port, path: path));
       headers.forEach(req.headers.set);
       if (body != null) {
         req.headers.contentType = ContentType.binary;
@@ -252,11 +285,22 @@ class DesktopNode {
 
 /// The LAN IPv4 address other devices reach this PC on, for the pairing
 /// and web QR codes.
-Future<String> localAddress() async => pickLanAddress([
-      for (final i
-          in await NetworkInterface.list(type: InternetAddressType.IPv4))
-        for (final a in i.addresses) (name: i.name, address: a)
-    ]);
+Future<String> localAddress() async =>
+    (await localLan())?.address ?? InternetAddress.loopbackIPv4.address;
+
+/// The adapter other devices reach this PC on: its OS name (e.g. `Wi-Fi`)
+/// and IPv4 address, or null when the PC is on no network.
+Future<({String name, String address})?> localLan() async {
+  final all = [
+    for (final i in await NetworkInterface.list(type: InternetAddressType.IPv4))
+      for (final a in i.addresses) (name: i.name, address: a)
+  ];
+  final address = pickLanAddress(all);
+  for (final c in all) {
+    if (c.address.address == address) return (name: c.name, address: address);
+  }
+  return null;
+}
 
 /// Skips loopback, link-local and named virtual adapters, puts subnets
 /// used by VirtualBox / Docker / WSL last, and prefers Wi-Fi.

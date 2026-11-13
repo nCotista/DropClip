@@ -65,15 +65,27 @@ class ShellStatus {
   int get clipCount => clips.length;
 
   /// Replaces the demo nearby list with live discovery results (T1.1).
-  ShellStatus withNearby(List<NearbyDevice> nearby) => ShellStatus(
-        networkName: networkName,
-        address: address,
-        verifiedDevices: verifiedDevices,
-        activeTransfers: activeTransfers,
-        deviceCount: deviceCount,
-        clips: clips,
-        suppressedClips: suppressedClips,
-        nearby: nearby,
+  ShellStatus withNearby(List<NearbyDevice> nearby) => copyWith(nearby: nearby);
+
+  ShellStatus copyWith({
+    String? networkName,
+    String? address,
+    int? verifiedDevices,
+    int? activeTransfers,
+    int? deviceCount,
+    List<ClipItem>? clips,
+    int? suppressedClips,
+    List<NearbyDevice>? nearby,
+  }) =>
+      ShellStatus(
+        networkName: networkName ?? this.networkName,
+        address: address ?? this.address,
+        verifiedDevices: verifiedDevices ?? this.verifiedDevices,
+        activeTransfers: activeTransfers ?? this.activeTransfers,
+        deviceCount: deviceCount ?? this.deviceCount,
+        clips: clips ?? this.clips,
+        suppressedClips: suppressedClips ?? this.suppressedClips,
+        nearby: nearby ?? this.nearby,
         latencyP95Ms: latencyP95Ms,
       );
 }

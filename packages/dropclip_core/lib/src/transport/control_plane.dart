@@ -51,7 +51,8 @@ class ControlPlaneSession {
   Timer? _pingTimer;
   Timer? _pongTimer;
   bool _closed = false;
-  int _clockSkewMs = 0;
+  int _clockSkewMs;
+  bool _skewMeasured = false;
 
   /// Clock differences up to this are treated as none: latency and normal
   /// NTP error, so peers with good clocks see unchanged timestamps.
@@ -69,10 +70,12 @@ class ControlPlaneSession {
     this.pongTimeout = const Duration(seconds: 5),
     int Function()? nowMs,
     String Function()? nextMsgId,
+    int initialClockSkewMs = 0,
     this.onTombstoneMismatch,
     this.onMessage,
     this.onClosed,
   })  : _clock = initialClock,
+        _clockSkewMs = initialClockSkewMs,
         _nowMs = nowMs ?? (() => DateTime.now().millisecondsSinceEpoch),
         _nextMsgId = nextMsgId ?? _defaultUuidV4;
 
@@ -82,12 +85,22 @@ class ControlPlaneSession {
   int? get negotiatedVersion => _negotiatedVersion;
   Hlc get clock => _clock;
 
-  /// The peer's wall clock minus ours (ms), measured from its `hello` or
-  /// `hello_ack`; 0 within [clockSkewToleranceMs]. Every later frame from the
-  /// peer has its `hlc.l` and `ts` shifted by this into our clock, so a PC
-  /// whose clock is a few minutes off still connects and syncs instead of
-  /// failing the 60 s drift bound (§10.3) on every frame.
+  /// The peer's wall clock minus ours (ms), measured from the first frame it
+  /// sends (`hello` / `hello_ack`); 0 within [clockSkewToleranceMs].
+  ///
+  /// Both directions are translated with it: frames from the peer have
+  /// `hlc.l` and `ts` moved into our clock, and frames we send are stamped
+  /// in the peer's clock. A PC whose clock is minutes off therefore connects
+  /// and syncs instead of failing the 60 s drift bound (§10.3), and it also
+  /// works when the peer runs a build without this code, because that peer
+  /// only ever sees timestamps in its own clock. Two builds that both do this
+  /// stay consistent: the side that measures first carries the whole offset
+  /// and the other one measures zero.
   int get clockSkewMs => _clockSkewMs;
+
+  /// Whether [clockSkewMs] was measured from the peer in this session (as
+  /// opposed to still being the value the session was created with).
+  bool get clockSkewMeasured => _skewMeasured;
 
   /// Starts listening and sends the initial `hello` frame (§6.2).
   Future<void> start({bool sendInitialHello = true}) async {
@@ -124,7 +137,7 @@ class ControlPlaneSession {
       ts: now,
       payload: payload,
     );
-    final wire = env.encodeWire();
+    final wire = _toPeerClock(env).encodeWire();
     await channel.sendFrame(wire);
     return env;
   }
@@ -138,7 +151,7 @@ class ControlPlaneSession {
           ProtocolErrorCode.internal, 'session is closed');
     }
     _clock = _clock.merge(env.hlc, _nowMs());
-    await channel.sendFrame(env.encodeWire());
+    await channel.sendFrame(_toPeerClock(env).encodeWire());
   }
 
   Future<void> sendPing() async {
@@ -161,9 +174,15 @@ class ControlPlaneSession {
     try {
       env = Envelope.decodeWire(rawFrame);
       final now = _nowMs();
-      if (_remoteHello == null && _isHello(env.type)) {
+      final rejected = _remoteHello == null && env.type == MessageType.error;
+      if (_remoteHello == null && (_isHello(env.type) || rejected)) {
         final skew = env.ts - now;
         if (skew.abs() > maxClockSkewMs) {
+          if (rejected) {
+            await shutdown(
+                VersionNegotiator.wsCloseProtocolError, 'peer rejected hello');
+            return;
+          }
           throw ClockDriftException(
             localPhysicalTimeMs: now,
             remotePhysicalTimeMs: env.ts,
@@ -171,6 +190,15 @@ class ControlPlaneSession {
           );
         }
         _clockSkewMs = skew.abs() <= clockSkewToleranceMs ? 0 : skew;
+        _skewMeasured = true;
+      }
+      if (rejected) {
+        // The peer answered our `hello` with an error, e.g. a build without
+        // clock compensation whose clock is behind ours. Its `ts` told us the
+        // offset: close, so the next attempt can stamp `hello` in its clock.
+        await shutdown(
+            VersionNegotiator.wsCloseProtocolError, 'peer rejected hello');
+        return;
       }
       env = _toLocalClock(env);
       _clock = _clock.merge(env.hlc, now);
@@ -252,15 +280,20 @@ class ControlPlaneSession {
       t == MessageType.hello || t == MessageType.helloAck;
 
   /// [env] with its timestamps moved from the peer's clock into ours.
-  Envelope _toLocalClock(Envelope env) {
-    if (_clockSkewMs == 0) return env;
+  Envelope _toLocalClock(Envelope env) => _shifted(env, -_clockSkewMs);
+
+  /// [env] with its timestamps moved from our clock into the peer's.
+  Envelope _toPeerClock(Envelope env) => _shifted(env, _clockSkewMs);
+
+  static Envelope _shifted(Envelope env, int byMs) {
+    if (byMs == 0) return env;
     return Envelope(
       v: env.v,
       type: env.type,
       msgId: env.msgId,
       origin: env.origin,
-      hlc: Hlc.raw(l: env.hlc.l - _clockSkewMs, c: env.hlc.c, d: env.hlc.d),
-      ts: env.ts - _clockSkewMs,
+      hlc: Hlc.raw(l: env.hlc.l + byMs, c: env.hlc.c, d: env.hlc.d),
+      ts: env.ts + byMs,
       payload: env.payload,
     );
   }

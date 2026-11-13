@@ -72,4 +72,26 @@ void main() {
     expect(b.trusted.value.map((d) => d.name), ['A']);
     expect(a.revocation.isTombstoned(c.me.deviceId), isTrue);
   });
+
+  test(
+      'a device that was offline learns of a removal when it reconnects '
+      '(§13.2.6)', () async {
+    final a = await _node('A'), b = await _node('B'), c = await _node('C');
+    await _pair(a, b);
+    await _pair(a, c);
+    await _pair(b, c);
+    // C is switched off: only A and B are linked when A removes B.
+    a.onPeers([_seen(b, PeerTrust.trusted)]);
+    b.onPeers([_seen(a, PeerTrust.trusted)]);
+    await _until(() => a.mesh.connected.length == 1);
+    await a.forget(b.me.deviceId);
+    expect(c.trusted.value.map((d) => d.name).toSet(), {'A', 'B'});
+
+    // C comes back and meets A: the hello shows different tombstones, A
+    // sends revocation.sync, and B now waits for C's user.
+    a.onPeers([_seen(c, PeerTrust.trusted)]);
+    c.onPeers([_seen(a, PeerTrust.trusted)]);
+    await _until(() => c.quarantined.value.any((d) => d.name == 'B'));
+    expect(c.trusted.value.map((d) => d.name), ['A']);
+  });
 }

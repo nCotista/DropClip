@@ -22,6 +22,25 @@ typedef TransferUpdate = ({
   String state, // in_progress | complete | failed | rejected
 });
 
+/// One accepted incoming transfer.
+class _Incoming {
+  final String peer, peerName, name;
+  final Map<String, FileOfferItem> items;
+  final int total;
+
+  /// Bytes on disk per item, including finished ones.
+  final received = <String, int>{};
+  Timer? stall;
+
+  _Incoming(this.peer, this.peerName, this.items)
+      : name = items.length == 1
+            ? items.values.single.path
+            : '${items.length} files',
+        total = items.values.fold(0, (s, i) => s + i.size);
+
+  int get done => received.values.fold(0, (s, n) => s + n);
+}
+
 /// File transfer between paired devices (T1.10/T1.11, FR-07/08/09):
 /// `file.offer` → `file.accept` over the mesh, then each item streams as
 /// `POST /api/v1/file/{tid}/{item}` from the offset `GET .../status` reports,
@@ -35,18 +54,26 @@ class FileTransfers {
       decide;
   final void Function(TransferUpdate update) onUpdate;
 
-  final _incoming =
-      <String, ({String peer, Map<String, FileOfferItem> items})>{};
+  /// How long the receiver's answer may take (the user reads a dialog).
+  final Duration offerTimeout;
+
+  /// An incoming transfer with no data for this long is shown as failed.
+  final Duration stallTimeout;
+
+  final _incoming = <String, _Incoming>{};
   final _replies = StreamController<Envelope>.broadcast();
   late final StreamingFileReceiver _receiver =
       StreamingFileReceiver(destinationRoot: downloads);
   StreamSubscription<PeerMessage>? _sub;
 
-  FileTransfers(
-      {required this.node,
-      required this.downloads,
-      required this.decide,
-      required this.onUpdate}) {
+  FileTransfers({
+    required this.node,
+    required this.downloads,
+    required this.decide,
+    required this.onUpdate,
+    this.offerTimeout = const Duration(seconds: 70),
+    this.stallTimeout = const Duration(seconds: 60),
+  }) {
     node.routes['api/v1/file/'] = _route;
     _sub = node.mesh.messages.listen((m) => switch (m.envelope.type) {
           MessageType.fileOffer => unawaited(_offered(m)),
@@ -59,45 +86,55 @@ class FileTransfers {
   }
 
   /// Sends [files] to paired [peerId]; resolves when the peer has them all.
+  /// Throws (after reporting `failed`) when the peer is not connected, does
+  /// not answer, or the upload breaks.
   Future<void> send(String peerId, String peerName, List<File> files) async {
     final tid = _uuid();
-    final items = [
-      for (var i = 0; i < files.length; i++)
-        FileOfferItem(
-          itemId: 'i$i',
-          path: files[i].uri.pathSegments.last,
-          size: await files[i].length(),
-          sha256: await computeFileSha256(files[i]),
-          mime: 'application/octet-stream',
-          modifiedAt: (await files[i].lastModified()).millisecondsSinceEpoch,
-        ),
-    ];
-    final total = items.fold<int>(0, (s, i) => s + i.size);
+    var total = 0, sent = 0;
+    final name = files.length == 1
+        ? files.single.uri.pathSegments.last
+        : '${files.length} files';
     void update(int done, String state) => onUpdate((
           id: tid,
-          name: items.length == 1 ? items.single.path : '${items.length} files',
+          name: name,
           peer: peerName,
           incoming: false,
           done: done,
           total: total,
           state: state,
         ));
-    update(0, 'in_progress');
-    final reply = _replies.stream
-        .firstWhere((e) => e.payload['transfer_id'] == tid)
-        .timeout(const Duration(seconds: 70));
-    await _sendTo(peerId, MessageType.fileOffer, {
-      'transfer_id': tid,
-      'items': [for (final i in items) i.toJson()],
-      'manifest': false,
-      'total_size': total,
-      'total_count': items.length,
-    });
-    if ((await reply).type != MessageType.fileAccept) {
-      return update(0, 'rejected');
-    }
-    var sent = 0;
     try {
+      if (!node.mesh.connected.contains(peerId)) {
+        throw StateError('$peerName is not connected');
+      }
+      final items = [
+        for (var i = 0; i < files.length; i++)
+          FileOfferItem(
+            itemId: 'i$i',
+            path: files[i].uri.pathSegments.last,
+            size: await files[i].length(),
+            sha256: await computeFileSha256(files[i]),
+            mime: 'application/octet-stream',
+            modifiedAt: (await files[i].lastModified()).millisecondsSinceEpoch,
+          ),
+      ];
+      total = items.fold<int>(0, (s, i) => s + i.size);
+      update(0, 'in_progress');
+      final reply = _replies.stream
+          .firstWhere((e) => e.payload['transfer_id'] == tid)
+          .timeout(offerTimeout);
+      // If the offer itself fails, nobody awaits the reply any more.
+      reply.ignore();
+      await _sendTo(peerId, MessageType.fileOffer, {
+        'transfer_id': tid,
+        'items': [for (final i in items) i.toJson()],
+        'manifest': false,
+        'total_size': total,
+        'total_count': items.length,
+      });
+      if ((await reply).type != MessageType.fileAccept) {
+        return update(0, 'rejected');
+      }
       for (var i = 0; i < items.length; i++) {
         final base = '/api/v1/file/$tid/${items[i].itemId}';
         final status = jsonDecode(
@@ -139,17 +176,9 @@ class FileTransfers {
       ok = false;
     }
     if (ok) {
-      _incoming[tid] =
-          (peer: m.peerId, items: {for (final i in items) i.itemId: i});
-      onUpdate((
-        id: tid,
-        name: items.length == 1 ? items.single.path : '${items.length} files',
-        peer: name,
-        incoming: true,
-        done: 0,
-        total: items.fold(0, (s, i) => s + i.size),
-        state: 'in_progress',
-      ));
+      final t = _incoming[tid] =
+          _Incoming(m.peerId, name, {for (final i in items) i.itemId: i});
+      _report(tid, t, 'in_progress');
     }
     await _sendTo(
         m.peerId,
@@ -163,17 +192,43 @@ class FileTransfers {
             : {'transfer_id': tid, 'reason': 'user_declined'});
   }
 
+  /// Tells the Transfers page where incoming [t] stands and (re)arms its
+  /// stall timer: a sender that vanished must not leave it "in progress".
+  void _report(String tid, _Incoming t, String state) {
+    t.stall?.cancel();
+    if (state == 'in_progress') {
+      t.stall = Timer(stallTimeout, () {
+        if (identical(_incoming[tid], t)) {
+          _incoming.remove(tid);
+          _report(tid, t, 'failed');
+        }
+      });
+    }
+    onUpdate((
+      id: tid,
+      name: t.name,
+      peer: t.peerName,
+      incoming: true,
+      done: state == 'complete' ? t.total : t.done,
+      total: t.total,
+      state: state,
+    ));
+  }
+
   Future<Response> _route(Request r) async {
     final seg = r.url.pathSegments; // api v1 file <tid> <item>[/status]
-    final t = seg.length > 3 ? _incoming[seg[3]] : null;
+    final tid = seg.length > 3 ? seg[3] : '';
+    final t = _incoming[tid];
     final fp = r.context[kPeerFingerprintContextKey] as String?;
     if (t == null ||
         node.store.getByFingerprint(fp ?? '')?.deviceId != t.peer) {
       return _json(404, {'error': 'unknown transfer'});
     }
     if (seg.length == 5 && seg[4] == 'finish') {
+      _incoming.remove(tid);
+      _report(tid, t, 'complete');
       unawaited(_sendTo(t.peer, MessageType.fileComplete, {
-        'transfer_id': seg[3],
+        'transfer_id': tid,
         'state': 'complete',
         'items': const <Object>[]
       }));
@@ -195,13 +250,16 @@ class FileTransfers {
     }
     var at = int.tryParse(r.headers['x-offset'] ?? '') ?? -1;
     if (at == 0 && have > 0) await part.delete();
+    var saved = item.path;
     try {
       final buf = BytesBuilder(copy: false);
-      Future<void> flush() async {
-        if (buf.isEmpty) return;
-        final chunk = buf.takeBytes();
-        await _receiver.writeChunk(item: item, offset: at, chunk: chunk);
+      Future<void> write(Uint8List chunk) async {
+        final file =
+            await _receiver.appendChunk(item: item, offset: at, chunk: chunk);
         at += chunk.length;
+        if (file != null) saved = file.uri.pathSegments.last;
+        t.received[item.itemId] = at;
+        if (identical(_incoming[tid], t)) _report(tid, t, 'in_progress');
       }
 
       await for (final data in r.read()) {
@@ -210,13 +268,18 @@ class FileTransfers {
           final take = min(kStreamingChunkSize - buf.length, rest.length);
           buf.add(rest.sublist(0, take));
           rest = rest.sublist(take);
-          if (buf.length == kStreamingChunkSize) await flush();
+          if (buf.length == kStreamingChunkSize) await write(buf.takeBytes());
         }
       }
-      await flush();
+      // The tail, or the whole of an empty file (which has no bytes to
+      // trigger a write but must still be created).
+      if (buf.isNotEmpty || (item.size == 0 && at == 0)) {
+        await write(buf.takeBytes());
+      }
       return _json(200,
-          {'received_bytes': at, 'state': 'complete', 'saved_path': item.path});
+          {'received_bytes': at, 'state': 'complete', 'saved_path': saved});
     } on ProtocolException catch (e) {
+      if (_incoming.remove(tid) != null) _report(tid, t, 'failed');
       return _json(e.httpStatus, e.toHttpJson());
     }
   }
@@ -249,6 +312,10 @@ class FileTransfers {
   }
 
   Future<void> close() async {
+    for (final t in _incoming.values) {
+      t.stall?.cancel();
+    }
+    _incoming.clear();
     await _sub?.cancel();
     await _replies.close();
   }

@@ -134,8 +134,10 @@ void main() {
       // finished the handshake.
       expect(sessA.isReady, isTrue);
       expect(sessB.isReady, isTrue);
+      // B measured the whole offset from A's hello and answers in A's
+      // clock, so A has nothing left to compensate.
       expect(sessB.clockSkewMs, behind);
-      expect(sessA.clockSkewMs, -behind);
+      expect(sessA.clockSkewMs, 0);
       expect(chanB.closedCode, isNull);
 
       await sessA.sendEnvelope(
@@ -308,6 +310,155 @@ void main() {
       await Future<void>.delayed(Duration.zero);
       expect(receivedOnB, isEmpty);
 
+      await sessA.shutdown(1000, 'done');
+      await sessB.shutdown(1000, 'done');
+    });
+
+    // A peer running a build without clock compensation: it stamps frames
+    // in its own clock and rejects anything > 60 s ahead of it (§10.3).
+    Envelope legacyFrame(MessageType type, int nowMs, String id) => Envelope(
+          type: type,
+          msgId: '00000000-0000-4000-8000-0000000000${nowMs % 90 + 10}',
+          origin: id,
+          hlc: Hlc(l: nowMs, c: 0, d: id),
+          ts: nowMs,
+          payload: type == MessageType.error
+              ? const ProtocolException(
+                      ProtocolErrorCode.malformed, 'clock drift exceeds 60s')
+                  .toWsPayload()
+              : _hello(id: id).toJson(),
+        );
+    void legacyAccepts(String wire, int legacyNowMs) {
+      final env = Envelope.decodeWire(wire);
+      // The old receiver's check; throws ClockDriftException when violated.
+      Hlc(l: legacyNowMs, c: 0, d: idB).merge(env.hlc, legacyNowMs);
+      expect((env.ts - legacyNowMs).abs(), lessThan(1000));
+    }
+
+    test('an old peer with a slow clock accepts everything we send', () async {
+      const legacyNow = 400000; // 10 minutes behind us
+      final chan = _InMemoryControlChannel();
+      final legacy = _InMemoryControlChannel()..peer = chan;
+      final received = <Envelope>[];
+      final sess = ControlPlaneSession(
+        localHello: _hello(id: idA),
+        channel: chan,
+        initialClock: Hlc(l: 1000000, c: 0, d: idA),
+        nowMs: () => 1000000,
+        onMessage: received.add,
+      );
+      await sess.start(sendInitialHello: false);
+
+      await legacy.sendFrame(
+          legacyFrame(MessageType.hello, legacyNow, idB).encodeWire());
+      await Future<void>.delayed(Duration.zero);
+      expect(sess.isReady, isTrue);
+      expect(sess.clockSkewMs, legacyNow - 1000000);
+
+      // Before: this hello_ack was 10 minutes in the old peer's future, so
+      // it dropped it, never finished the handshake and hung up after 5 s.
+      legacyAccepts(chan.sentFrames.single, legacyNow);
+
+      await sess
+          .sendEnvelope(MessageType.clipboardClear, const {'reason': 'manual'});
+      await sess.forward(Envelope(
+          type: MessageType.clipboardClear,
+          msgId: '00000000-0000-4000-8000-0000000000aa',
+          origin: idA,
+          hlc: Hlc(l: 1000000, c: 3, d: idA),
+          ts: 1000000,
+          payload: const {'reason': 'manual'}));
+      for (final wire in chan.sentFrames) {
+        legacyAccepts(wire, legacyNow);
+      }
+
+      // And its frames reach us in our clock.
+      await legacy.sendFrame(Envelope(
+          type: MessageType.clipboardClear,
+          msgId: '00000000-0000-4000-8000-0000000000ab',
+          origin: idB,
+          hlc: Hlc(l: legacyNow, c: 0, d: idB),
+          ts: legacyNow,
+          payload: const {'reason': 'manual'}).encodeWire());
+      await Future<void>.delayed(Duration.zero);
+      expect(received.single.ts, 1000000);
+      await sess.shutdown(1000, 'done');
+    });
+
+    test('an old peer that rejects our hello tells us its clock for the retry',
+        () async {
+      const legacyNow = 400000; // we are 10 minutes ahead of it
+      final chan = _InMemoryControlChannel();
+      final legacy = _InMemoryControlChannel()..peer = chan;
+      final first = ControlPlaneSession(
+        localHello: _hello(id: idA),
+        channel: chan,
+        initialClock: Hlc(l: 1000000, c: 0, d: idA),
+        nowMs: () => 1000000,
+      );
+      await first.start(sendInitialHello: true);
+      // Our hello is in its future: it answers with an error and waits.
+      expect(() => legacyAccepts(chan.sentFrames.single, legacyNow),
+          throwsA(isA<ClockDriftException>()));
+      await legacy.sendFrame(
+          legacyFrame(MessageType.error, legacyNow, idB).encodeWire());
+      await Future<void>.delayed(Duration.zero);
+
+      expect(first.isClosed, isTrue);
+      expect(first.clockSkewMeasured, isTrue);
+      expect(first.clockSkewMs, legacyNow - 1000000);
+
+      // The next attempt starts from that offset: hello is in its clock.
+      final chan2 = _InMemoryControlChannel();
+      final retry = ControlPlaneSession(
+        localHello: _hello(id: idA),
+        channel: chan2,
+        initialClock: Hlc(l: 1000000, c: 0, d: idA),
+        nowMs: () => 1000000,
+        initialClockSkewMs: first.clockSkewMs,
+      );
+      await retry.start(sendInitialHello: true);
+      legacyAccepts(chan2.sentFrames.single, legacyNow);
+      await retry.shutdown(1000, 'done');
+    });
+
+    test('two new builds agree even when one starts from a stale offset',
+        () async {
+      // B believes A is 10 minutes ahead (true last time); the clocks have
+      // since been corrected and are equal.
+      final chanA = _InMemoryControlChannel();
+      final chanB = _InMemoryControlChannel();
+      chanA.peer = chanB;
+      chanB.peer = chanA;
+      final onA = <Envelope>[], onB = <Envelope>[];
+      final sessA = ControlPlaneSession(
+        localHello: _hello(id: idA),
+        channel: chanA,
+        initialClock: Hlc(l: 1000000, c: 0, d: idA),
+        nowMs: () => 1000000,
+        onMessage: onA.add,
+      );
+      final sessB = ControlPlaneSession(
+        localHello: _hello(id: idB),
+        channel: chanB,
+        initialClock: Hlc(l: 1000000, c: 0, d: idB),
+        nowMs: () => 1000000,
+        initialClockSkewMs: 600000,
+        onMessage: onB.add,
+      );
+      await sessA.start(sendInitialHello: false);
+      await sessB.start(sendInitialHello: true);
+      await Future<void>.delayed(Duration.zero);
+      expect(sessA.isReady && sessB.isReady, isTrue);
+
+      await sessA
+          .sendEnvelope(MessageType.clipboardClear, const {'reason': 'manual'});
+      await sessB
+          .sendEnvelope(MessageType.clipboardClear, const {'reason': 'manual'});
+      await Future<void>.delayed(Duration.zero);
+      // The two wrong offsets cancel: both sides see true local time.
+      expect(onA.single.ts, 1000000);
+      expect(onB.single.ts, 1000000);
       await sessA.shutdown(1000, 'done');
       await sessB.shutdown(1000, 'done');
     });

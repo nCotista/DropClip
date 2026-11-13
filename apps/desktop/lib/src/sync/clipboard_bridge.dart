@@ -84,6 +84,12 @@ class ClipboardBridge {
   final Stream<ClipSnapshot> changes;
   final bool windows;
   final void Function(ClipEvent event) onClip;
+
+  /// A clip that could not be taken from a peer (never its content).
+  final void Function(String message)? onWarn;
+
+  /// A local copy was kept off the network (password manager, NFR-S04).
+  final void Function()? onSuppressed;
   late final TransportSyncAdapter adapter;
   late final ClipboardSyncEngine engine;
   final _subs = <StreamSubscription<Object?>>[];
@@ -95,6 +101,8 @@ class ClipboardBridge {
     required this.windows,
     required this.onClip,
     required SyncPolicy Function() policy,
+    this.onWarn,
+    this.onSuppressed,
   }) {
     adapter = TransportSyncAdapter(
       sendBroadcastEnvelope: (e) => unawaited(node.mesh.broadcast(e)),
@@ -106,7 +114,14 @@ class ClipboardBridge {
       osClearClipboard: native.clear,
     );
     engine = ClipboardSyncEngine(
-        myId: node.me.deviceId, ports: adapter, policy: policy);
+        myId: node.me.deviceId,
+        ports: adapter,
+        policy: policy,
+        log: (event) {
+          if (event.startsWith('clipboard.blocked_concealed')) {
+            onSuppressed?.call();
+          }
+        });
     node.routes['api/v1/blob/'] = _blob;
   }
 
@@ -125,15 +140,23 @@ class ClipboardBridge {
       ..add(node.mesh.messages
           .where((m) => m.envelope.type == MessageType.clipboardUpdate)
           .listen((m) async {
-        final u = TransportSyncAdapter.envelopeToClipUpdate(m.envelope);
-        if (await engine.onRemoteUpdate(u, m.peerId)) {
-          final raw = u.inline ?? Uint8List(0);
-          final from = node.trusted.value
-                  .where((d) => d.deviceId == m.peerId)
-                  .firstOrNull
-                  ?.name ??
-              m.peerId;
-          onClip(_event(u.type, raw, from, size: u.size));
+        try {
+          final u = TransportSyncAdapter.envelopeToClipUpdate(m.envelope);
+          if (await engine.onRemoteUpdate(u, m.peerId)) {
+            final raw = u.inline ?? Uint8List(0);
+            final from = node.trusted.value
+                    .where((d) => d.deviceId == m.peerId)
+                    .firstOrNull
+                    ?.name ??
+                m.peerId;
+            onClip(_event(u.type, raw, from, size: u.size));
+          }
+        } on Object catch (e) {
+          // E.g. the image could not be fetched from the sender (its
+          // firewall, or it went offline): say so instead of failing
+          // silently as an unhandled error.
+          onWarn?.call('could not take a clip from ${m.peerId}: '
+              '${e is ProtocolException ? e.errorCode.code : e.runtimeType}');
         }
       }));
     await native.start();

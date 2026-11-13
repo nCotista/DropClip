@@ -216,23 +216,54 @@ class RevocationManager {
   }
 
   /// Builds `revocation.sync` payload when `tombstones_hash` differs in `hello` (§13.2.6).
-  Map<String, dynamic> buildSyncPayload() => <String, dynamic>{
-        'tombstones_hash': tombstonesHash,
-        'tombstone_count': tombstoneCount,
-        'tokens':
-            _tombstonesByRevokedId.values.map((t) => t.token.toJson()).toList()
-      };
+  /// Only tokens a receiver would still accept (younger than
+  /// [maxTokenAgeMs]) are sent, newest first, at most [maxSyncTokens] so the
+  /// frame stays far below the 64 KiB limit.
+  Map<String, dynamic> buildSyncPayload() {
+    final now = _clockMs();
+    final fresh = _tombstonesByRevokedId.values
+        .map((t) => t.token)
+        .where((t) => (now - t.timestamp).abs() <= maxTokenAgeMs)
+        .toList()
+      ..sort((a, b) => b.timestamp.compareTo(a.timestamp));
+    return <String, dynamic>{
+      'tombstones_hash': tombstonesHash,
+      'tombstone_count': tombstoneCount,
+      'tokens': fresh.take(maxSyncTokens).map((t) => t.toJson()).toList()
+    };
+  }
+
+  static const int maxSyncTokens = 100;
+
+  /// The `revocation.sync` frame for a peer whose `hello` showed a different
+  /// `tombstones_hash` (§13.2.6), or null when there is nothing to tell it.
+  Envelope? buildSyncEnvelope() {
+    final payload = buildSyncPayload();
+    if ((payload['tokens'] as List).isEmpty) return null;
+    return _buildEnvelope(MessageType.revocationSync, _clockMs(), payload);
+  }
 
   /// Reconciles incoming `revocation.sync` tokens from a peer after reconnect (§13.2.6).
-  Future<int> applySyncPayload(Map<String, dynamic> payload) async {
+  Future<int> applySyncPayload(Map<String, dynamic> payload,
+      {String? senderPeerId}) async {
     final rawTokens = payload['tokens'] as List<dynamic>? ?? const <dynamic>[];
     var applied = 0;
-    for (final item in rawTokens) {
+    for (final item in rawTokens.take(maxSyncTokens)) {
       final token =
           RevocationBroadcastToken.fromJson(item as Map<String, dynamic>);
-      if (await onClusterRevocation(token)) applied++;
+      if (await onClusterRevocation(token, senderPeerId: senderPeerId)) {
+        applied++;
+      }
     }
     return applied;
+  }
+
+  /// Pairing again with a device this one removed lifts its tombstone, so
+  /// the old revocation is no longer synced to other devices.
+  Future<bool> clearTombstone(String deviceId) async {
+    if (_tombstonesByRevokedId.remove(deviceId) == null) return false;
+    await _persistTombstones();
+    return true;
   }
 
   void _recordSeen(String key) {
