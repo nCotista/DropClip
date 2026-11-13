@@ -35,4 +35,29 @@ void main() {
     await tester.pump();
     expect(find.text('iPhone'), findsNothing);
   });
+
+  testWidgets('skips generating a code when companion turns off mid-refresh',
+      (tester) async {
+    var on = true;
+    final web = WebCompanion(
+      downloads: Directory.systemTemp,
+      page: '',
+      writeClipboard: (_) async {},
+      isEnabled: () => on,
+    );
+    await tester.pumpWidget(MaterialApp(
+      home: Scaffold(
+        body: WebLinkDialog(
+          web: web,
+          baseUrl: () async {
+            on = false;
+            return 'https://10.0.0.5:53317/web';
+          },
+        ),
+      ),
+    ));
+    await tester.pump();
+    expect(find.byKey(const Key('web-qr')), findsNothing);
+    expect(tester.takeException(), isNull);
+  });
 }
