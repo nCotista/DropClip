@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 
+import 'package:crypto/crypto.dart';
 import 'package:dropclip_clipboard/dropclip_clipboard.dart';
 import 'package:dropclip_protocol/dropclip_protocol.dart';
 import 'package:flutter/services.dart';
@@ -113,7 +114,7 @@ class ClipboardBridge {
     _subs
       ..add(changes.listen((s) {
         final clip = localClipFrom(s);
-        if (clip == null) return;
+        if (clip == null || _repeat(clip)) return;
         final previous = engine.head;
         engine.onLocalChange(clip);
         // Echoes, duplicate tokens and policy rejections do not advance head.
@@ -142,6 +143,28 @@ class ClipboardBridge {
     final clip = await _current();
     if (clip != null) engine.onLocalChange(LocalClip(clip.type, clip.raw));
   }
+
+  /// Windows reports one copy several times (one event per format, each
+  /// with its own sequence number, so the engine accepts each): the same
+  /// content within 500 ms is the same copy (the burst arrives within a few
+  /// ms; a deliberate re-copy later still counts), for history and peers.
+  bool _repeat(LocalClip clip) {
+    final hash = sha256.convert(clip.raw).toString();
+    final now = DateTime.now();
+    final repeat = hash == _lastHash &&
+        now.difference(_lastAt) < const Duration(milliseconds: 500);
+    _lastHash = hash;
+    _lastAt = now;
+    return repeat;
+  }
+
+  String? _lastHash;
+  DateTime _lastAt = DateTime(0);
+
+  /// "Copy again" from the history: written by the native plugin, the same
+  /// path as synced clips, so it reaches the OS clipboard and peers.
+  Future<void> copyAgain(ClipType type, String text) => native
+      .write(clipboardItemsFor(type, utf8.encode(text), windows: windows));
 
   Future<LocalClip?> _current() async {
     final items = await native.read();

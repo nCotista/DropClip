@@ -43,10 +43,16 @@ class _FakeOs implements PlatformClipboard {
   Future<void> stop() async {}
 }
 
-typedef _Device = ({DesktopNode node, _FakeOs os, ClipboardBridge bridge});
+typedef _Device = ({
+  DesktopNode node,
+  _FakeOs os,
+  ClipboardBridge bridge,
+  List<ClipEvent> shown,
+});
 
 Future<_Device> _device(String name,
     {void Function(ClipEvent)? onClip, SyncPolicy Function()? policy}) async {
+  final shown = <ClipEvent>[];
   final dir = await Directory.systemTemp.createTemp('dc_clip_');
   final node = await DesktopNode.start(
       dir: dir,
@@ -59,7 +65,7 @@ Future<_Device> _device(String name,
       native: os,
       changes: os.changes.stream,
       windows: true,
-      onClip: onClip ?? (_) {},
+      onClip: onClip ?? shown.add,
       policy: policy ?? () => const SyncPolicy());
   await bridge.start();
   addTearDown(() async {
@@ -67,7 +73,7 @@ Future<_Device> _device(String name,
     await node.close();
     await dir.delete(recursive: true).catchError((Object _) => dir);
   });
-  return (node: node, os: os, bridge: bridge);
+  return (node: node, os: os, bridge: bridge, shown: shown);
 }
 
 DiscoveredPeer _seen(DesktopNode n, [PeerTrust trust = PeerTrust.trusted]) =>
@@ -119,6 +125,17 @@ void main() {
     expect(events, hasLength(2));
   });
 
+  test('one copy reported per format (new tokens) shows once', () async {
+    final events = <ClipEvent>[];
+    final d = await _device('burst', onClip: events.add);
+    // Windows: one copy, one event per format, each with a new token.
+    for (var i = 0; i < 3; i++) {
+      d.os.copy([ClipboardItem(mime: 'text/plain', data: utf8.encode('same'))]);
+    }
+    await Future<void>.delayed(const Duration(milliseconds: 20));
+    expect(events.map((e) => e.preview), ['same']);
+  });
+
   test('the same native change token is not shown twice', () async {
     final events = <ClipEvent>[];
     final d = await _device('token', onClip: events.add);
@@ -152,6 +169,13 @@ void main() {
         changeToken: 1, isConcealed: true, items: const [], ts: 0));
     await Future<void>.delayed(Duration.zero);
     expect(events, isEmpty);
+  });
+
+  test('copy again writes natively', () async {
+    final d = await _device('A');
+    final written = d.os.writes.stream.first;
+    await d.bridge.copyAgain(ClipType.url, 'https://dropclip.dev');
+    expect((await written).map((i) => i.mime), ['text/plain', 'text/uri-list']);
   });
 
   test('Settings decide what syncs and for how long (FR-05)', () {
