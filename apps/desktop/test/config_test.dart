@@ -75,49 +75,41 @@ void main() {
       expect(c.copyWith(autoAccept: true).clipboardTtlSeconds, 60);
     });
 
-    test('resolveDestinationDirectory expands ~/ and avoids relative ./~', () {
+    test('resolveDestinationDirectory expands ~/ and avoids ./~', () {
+      String pathOf(AppConfig c, Map<String, String> env, bool win) =>
+          c.resolveDestinationDirectory(env, isWindows: win).path;
+
       const def = AppConfig(deviceName: 'PC');
-      expect(
-          def
-              .resolveDestinationDirectory({'HOME': '/Users/a'},
-                  isWindows: false)
-              .path,
-          '/Users/a/Downloads/DropClip');
-      expect(
-          def
-              .resolveDestinationDirectory({'USERPROFILE': r'C:\Users\a'},
-                  isWindows: true)
-              .path,
-          r'C:\Users\a\Downloads\DropClip');
-      expect(
-          const AppConfig(deviceName: 'PC', destinationDir: '~')
-              .resolveDestinationDirectory({'HOME': '/Users/a/'},
-                  isWindows: false)
-              .path,
-          '/Users/a');
-      final noHome = def.resolveDestinationDirectory({}, isWindows: false).path;
+      const macEnv = {'HOME': '/Users/a'};
+      const winEnv = {'USERPROFILE': r'C:\Users\a'};
+      expect(pathOf(def, macEnv, false), '/Users/a/Downloads/DropClip');
+      expect(pathOf(def, winEnv, true), r'C:\Users\a\Downloads\DropClip');
+
+      const tilde = AppConfig(deviceName: 'PC', destinationDir: '~');
+      expect(pathOf(tilde, const {'HOME': '/Users/a/'}, false), '/Users/a');
+
+      final noHome = pathOf(def, const {}, false);
       expect(noHome.startsWith('~'), isFalse);
       expect(noHome.endsWith('Downloads/DropClip'), isTrue);
     });
 
     test('invalid ~user or blank destination_dir falls back cleanly', () {
-      final warns = <String>[];
-      final c = AppConfig.fromJson({'destination_dir': '~other/DropClip'},
-          defaultDeviceName: 'PC', onWarn: warns.add);
-      expect(c.destinationDir, '~/Downloads/DropClip');
-      expect(warns, hasLength(1));
+      final w = <String>[];
+      AppConfig parse(Map<String, Object?> j) {
+        return AppConfig.fromJson(j, defaultDeviceName: 'PC', onWarn: w.add);
+      }
 
-      final blank = AppConfig.fromJson({'destination_dir': '   '},
-          defaultDeviceName: 'PC', onWarn: warns.add);
-      expect(blank.destinationDir, '~/Downloads/DropClip');
-      expect(warns, hasLength(2));
+      const bad = '~other/DropClip';
+      expect(parse({'destination_dir': bad}).destinationDir,
+          '~/Downloads/DropClip');
+      expect(parse({'destination_dir': '   '}).destinationDir,
+          '~/Downloads/DropClip');
+      expect(w, hasLength(2));
 
-      expect(
-          const AppConfig(deviceName: 'PC', destinationDir: '~other/DropClip')
-              .resolveDestinationDirectory({'HOME': '/Users/a'},
-                  isWindows: false)
-              .path,
-          '/Users/a/Downloads/DropClip');
+      const mac = {'HOME': '/Users/a'};
+      const badCfg = AppConfig(deviceName: 'PC', destinationDir: bad);
+      final r = badCfg.resolveDestinationDirectory(mac, isWindows: false);
+      expect(r.path, '/Users/a/Downloads/DropClip');
     });
   });
 

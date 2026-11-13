@@ -49,8 +49,20 @@ class AppConfig {
   static const _logLevels = {'debug', 'info', 'warn', 'error'};
 
   /// [destinationDir] as an absolute directory, expanding a leading `~`.
-  Directory get destinationDirectory => resolveDestinationDirectory(
-      Platform.environment, isWindows: Platform.isWindows);
+  Directory get destinationDirectory =>
+      resolveDestinationDirectory(Platform.environment);
+
+  static bool _isValidDest(String s) {
+    final t = s.trim();
+    if (t.isEmpty) return false;
+    if (!t.startsWith('~')) return true;
+    return t == '~' || t.startsWith('~/') || t.startsWith(r'~\');
+  }
+
+  static String _stripSep(String p) {
+    final slash = p.endsWith('/') || p.endsWith(r'\');
+    return slash ? p.substring(0, p.length - 1) : p;
+  }
 
   /// Resolves [destinationDir] against [env] without leaving relative `~` paths.
   @visibleForTesting
@@ -59,26 +71,15 @@ class AppConfig {
     final win = isWindows ?? Platform.isWindows;
     final sep = win ? r'\' : '/';
     var path = destinationDir.trim();
-    if (path.isEmpty ||
-        (path.startsWith('~') &&
-            path != '~' &&
-            !path.startsWith('~/') &&
-            !path.startsWith(r'~\'))) {
-      path = '~/Downloads/DropClip';
-    }
+    if (!_isValidDest(path)) path = '~/Downloads/DropClip';
     if (path == '~' || path.startsWith('~/') || path.startsWith(r'~\')) {
       final home = (win ? env['USERPROFILE'] : env['HOME'])?.trim();
       if (home != null && home.isNotEmpty) {
-        final base = home.endsWith('/') || home.endsWith(r'\')
-            ? home.substring(0, home.length - 1)
-            : home;
+        final base = _stripSep(home);
         final rest = path.substring(1);
         path = '$base${win ? rest.replaceAll('/', r'\') : rest}';
       } else {
-        final temp = Directory.systemTemp.path;
-        final tempBase = temp.endsWith('/') || temp.endsWith(r'\')
-            ? temp.substring(0, temp.length - 1)
-            : temp;
+        final tempBase = _stripSep(Directory.systemTemp.path);
         final rest = path.length > 2 ? path.substring(2) : 'DropClip';
         path = '$tempBase$sep${win ? rest.replaceAll('/', r'\') : rest}';
       }
@@ -142,17 +143,8 @@ class AppConfig {
       deviceName:
           pick<String>('device_name', d.deviceName, (s) => s.trim().isNotEmpty),
       autoAccept: pick<bool>('auto_accept', d.autoAccept, (_) => true),
-      destinationDir: pick<String>('destination_dir', d.destinationDir, (s) {
-        final t = s.trim();
-        if (t.isEmpty) return false;
-        if (t.startsWith('~') &&
-            t != '~' &&
-            !t.startsWith('~/') &&
-            !t.startsWith(r'~\')) {
-          return false;
-        }
-        return true;
-      }),
+      destinationDir:
+          pick<String>('destination_dir', d.destinationDir, _isValidDest),
       clipboardSyncEnabled: pick<bool>(
           'clipboard_sync_enabled', d.clipboardSyncEnabled, (_) => true),
       syncTypes: parsedTypes ?? d.syncTypes,
