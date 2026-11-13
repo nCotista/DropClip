@@ -8,6 +8,10 @@
 [![Architecture](https://img.shields.io/badge/Zero--Cloud-100%25%20Local%20LAN%20P2P-6366F1)](#)
 [![Security](https://img.shields.io/badge/TLS%201.3-ECDSA%20P--256%20%2B%20Zero--PIN--on--Wire%20SAS-06B6D4)](#)
 
+### ⬇️ [ดาวน์โหลด DropClip สำหรับ Windows (Download for Windows)](https://github.com/nCotista/DropClip/releases/latest/download/DropClip-Setup.exe)
+
+ดับเบิลคลิก `DropClip-Setup.exe` แล้วใช้งานได้ทันที ไม่ต้องใช้สิทธิ์ Admin (ถ้า SmartScreen เตือน ให้กด **More info → Run anyway**) · [ทุกเวอร์ชัน (All releases)](https://github.com/nCotista/DropClip/releases)
+
 👉 **สำหรับผู้ทดสอบที่ไม่ใช่โปรแกรมเมอร์ (Non-Coder Tester):** สามารถอ่านคู่มือกดทดสอบทีละขั้นตอนได้ที่ [**ส่วนที่ 5 ของหน้านี้**](#5-คู่มือการทดสอบใช้งานจริงสำหรับผู้ใช้งานทั่วไปแบบไม่ต้องเขียนโค้ด-non-coder-testing-manual) หรือเปิดคู่มือฉบับเต็มได้ที่ [**`docs/06-USER-AND-TESTING-MANUAL.md`**](docs/06-USER-AND-TESTING-MANUAL.md)  
 👉 **กระดานติดตามความคืบหน้าโครงการ (100% Complete):** [**`docs/TASK-PROGRESS-AND-UPDATES.md`**](docs/TASK-PROGRESS-AND-UPDATES.md)
 
