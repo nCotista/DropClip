@@ -5,6 +5,7 @@ import 'dart:math';
 import 'dart:typed_data';
 
 import 'package:crypto/crypto.dart';
+import 'package:dropclip_clipboard/dropclip_clipboard.dart';
 import 'package:dropclip_protocol/dropclip_protocol.dart';
 import 'package:flutter/foundation.dart';
 import 'package:shelf/shelf.dart';
@@ -260,14 +261,16 @@ class WebCompanion {
     return _json(200, {'ok': true});
   }
 
-  /// An image for the PC clipboard: PNG only, at most 32 MiB (§11.3).
+  /// An image for the PC clipboard: valid PNG only, at most 32 MiB (§11.3).
   Future<Response> _image(Request r, WebSession s) async {
     final body = await _readLimited(r, _maxImageBytes);
     if (body.error != null) return body.error!;
     final png = body.bytes!;
-    const sig = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a];
-    if (png.length < 8 ||
-        !List.generate(8, (i) => png[i] == sig[i]).every((x) => x)) {
+    try {
+      decodePng(png);
+    } on NormalizationException {
+      return _json(415, {'error': 'PNG expected'});
+    } on FormatException {
       return _json(415, {'error': 'PNG expected'});
     }
     if (onImage == null) return _json(404, {'error': 'unsupported'});

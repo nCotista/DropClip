@@ -175,6 +175,10 @@ void main() {
     final bad = await call('POST', '/web/api/image',
         token: token, bytes: utf8.encode('jpeg?'));
     expect(bad.status, 415);
+    final corrupt = await call('POST', '/web/api/image',
+        token: token, bytes: [...png]..[16] ^= 1);
+    expect(corrupt.status, 415);
+    expect(images, [png.length]);
     final noTok = await call('POST', '/web/api/image', bytes: png);
     expect(noTok.status, 401);
   });
