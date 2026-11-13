@@ -1,0 +1,127 @@
+name: Release Apps (macOS, iOS, Android)
+
+# Builds the macOS desktop app and the phone apps and attaches them to a
+# GitHub Release next to the Windows installer (windows-installer.yml).
+# On a PR that touches this file the apps are only built and kept as
+# workflow artifacts; "Run workflow" publishes them to the chosen tag.
+#
+# None of these are store-signed yet:
+# - macOS: unsigned .app (first open: right-click > Open).
+# - Android: release APK signed with the debug key (sideload).
+# - iOS: unsigned .ipa; it needs re-signing (e.g. Sideloadly / AltStore
+#   with the user's Apple ID) before an iPhone will install it.
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/release-apps.yml'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Release tag to attach the apps to
+        default: v1.0.0
+        required: true
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-apps-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  FLUTTER_VERSION: 3.47.9
+
+jobs:
+  android:
+    name: Android APK
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          cache: true
+      - name: Build release APK
+        working-directory: apps/mobile
+        run: flutter build apk --release
+      - name: Rename
+        run: |
+          mkdir -p out
+          cp apps/mobile/build/app/outputs/flutter-apk/app-release.apk out/DropClip-Android.apk
+      - uses: actions/upload-artifact@v4
+        with:
+          name: DropClip-Android
+          path: out/DropClip-Android.apk
+      - name: Attach to release
+        if: github.event_name == 'workflow_dispatch'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ inputs.tag }}
+          files: out/DropClip-Android.apk
+
+  macos:
+    name: macOS app
+    # The arm64 macOS pool has been out of capacity (see macos-native.yml).
+    runs-on: macos-15-intel
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          cache: true
+      - name: Build release app
+        working-directory: apps/desktop
+        run: flutter build macos --release
+      - name: Zip the .app
+        run: |
+          mkdir -p out
+          app=$(find apps/desktop/build/macos/Build/Products/Release -maxdepth 1 -name '*.app' | head -1)
+          echo "app: $app"
+          lipo -archs "$app/Contents/MacOS/"* || true
+          # ditto keeps symlinks, permissions and extended attributes.
+          ditto -c -k --sequesterRsrc --keepParent "$app" out/DropClip-macOS.zip
+      - uses: actions/upload-artifact@v4
+        with:
+          name: DropClip-macOS
+          path: out/DropClip-macOS.zip
+      - name: Attach to release
+        if: github.event_name == 'workflow_dispatch'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ inputs.tag }}
+          files: out/DropClip-macOS.zip
+
+  ios:
+    name: iOS app (unsigned)
+    runs-on: macos-15-intel
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          cache: true
+      - name: Build release app (no codesign)
+        working-directory: apps/mobile
+        run: flutter build ios --release --no-codesign
+      - name: Package unsigned .ipa
+        run: |
+          mkdir -p out/Payload
+          cp -R apps/mobile/build/ios/iphoneos/Runner.app out/Payload/
+          (cd out && zip -qry DropClip-iOS-unsigned.ipa Payload)
+      - uses: actions/upload-artifact@v4
+        with:
+          name: DropClip-iOS-unsigned
+          path: out/DropClip-iOS-unsigned.ipa
+      - name: Attach to release
+        if: github.event_name == 'workflow_dispatch'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ inputs.tag }}
+          files: out/DropClip-iOS-unsigned.ipa
