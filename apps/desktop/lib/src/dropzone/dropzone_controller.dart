@@ -20,6 +20,16 @@ class DropzoneController extends ChangeNotifier {
 
   void show() => _set(() => _open = true);
 
+  /// Bumped when the user clicks to choose files instead of dragging; the
+  /// host opens the OS file dialog.
+  final browseRequests = ValueNotifier<int>(0);
+
+  /// Opens the overlay and asks for the file dialog.
+  void browse() {
+    show();
+    browseRequests.value++;
+  }
+
   /// Closes the overlay and forgets the dropped items.
   void close() => _set(() {
         _open = false;

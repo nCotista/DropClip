@@ -41,6 +41,9 @@ class DropzonePanel extends StatefulWidget {
   final void Function(NearbyDevice to, List<DroppedItem> items)? onSend;
   final VoidCallback onClose;
 
+  /// Click on the drop area: choose files in the OS dialog instead.
+  final VoidCallback? onBrowse;
+
   const DropzonePanel({
     super.key,
     required this.items,
@@ -48,6 +51,7 @@ class DropzonePanel extends StatefulWidget {
     required this.onClose,
     this.dragging = false,
     this.onSend,
+    this.onBrowse,
   });
 
   @override
@@ -109,7 +113,10 @@ class _DropzonePanelState extends State<DropzonePanel> {
           padding: const EdgeInsets.all(18),
           child:
               Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-            _DropArea(items: widget.items, dragging: widget.dragging),
+            _DropArea(
+                items: widget.items,
+                dragging: widget.dragging,
+                onBrowse: widget.onBrowse),
             const SizedBox(height: DropClipSpacing.lg),
             Text(s.sendTo,
                 style: TextStyle(
@@ -146,7 +153,9 @@ class _DropArea extends StatelessWidget {
   final List<DroppedItem> items;
   final bool dragging;
 
-  const _DropArea({required this.items, required this.dragging});
+  final VoidCallback? onBrowse;
+
+  const _DropArea({required this.items, required this.dragging, this.onBrowse});
 
   @override
   Widget build(BuildContext context) {
@@ -158,7 +167,7 @@ class _DropArea extends StatelessWidget {
         : (items.isEmpty ? s.dropHere : s.itemCount(items.length));
     final total = items.fold<int>(0, (sum, i) => sum + i.bytes);
     final names = [for (final i in items) i.isFolder ? '${i.name}/' : i.name];
-    return Container(
+    final area = Container(
       padding: const EdgeInsets.symmetric(vertical: 22, horizontal: 16),
       decoration: BoxDecoration(
         color: c.accent.withValues(alpha: dragging ? 0.2 : 0.12),
@@ -173,6 +182,9 @@ class _DropArea extends StatelessWidget {
         ),
         const SizedBox(height: DropClipSpacing.sm),
         Text(title, style: const TextStyle(fontWeight: FontWeight.w600)),
+        if (onBrowse != null && !dragging && items.isEmpty)
+          Text(s.clickToChoose,
+              style: TextStyle(fontSize: 12, color: c.textSecondary)),
         if (items.isNotEmpty)
           Text('${names.join(', ')} · ${formatBytes(total)}',
               maxLines: 2,
@@ -181,6 +193,13 @@ class _DropArea extends StatelessWidget {
               style: TextStyle(fontSize: 12, color: c.textSecondary)),
       ]),
     );
+    return onBrowse == null
+        ? area
+        : InkWell(
+            key: const Key('dropzone-browse'),
+            borderRadius: BorderRadius.circular(DropClipRadius.window),
+            onTap: onBrowse,
+            child: area);
   }
 }
 

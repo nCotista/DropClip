@@ -7,6 +7,7 @@ import 'package:flutter/services.dart';
 import '../demo_data.dart';
 import 'dropzone_controller.dart';
 import 'dropzone_panel.dart';
+import 'file_dialog.dart' as dialog;
 
 /// Shows the Dropzone over the app (T1.12, UI-02) when files are dragged
 /// onto the window, the tray's "Open Dropzone" is picked, or ⌥⌘D /
@@ -21,6 +22,9 @@ class DropzoneHost extends StatefulWidget {
   /// Off in widget tests, where the native drop plugin is not available.
   final bool nativeDrop;
 
+  /// The OS file dialog (tests pass a fake).
+  final Future<List<String>> Function() pickFiles;
+
   const DropzoneHost({
     super.key,
     required this.controller,
@@ -28,6 +32,7 @@ class DropzoneHost extends StatefulWidget {
     required this.child,
     this.onSend,
     this.nativeDrop = true,
+    this.pickFiles = dialog.pickFiles,
   });
 
   @override
@@ -36,6 +41,7 @@ class DropzoneHost extends StatefulWidget {
 
 class _DropzoneHostState extends State<DropzoneHost> {
   DropzoneController get _dz => widget.controller;
+  bool _picking = false;
 
   @override
   void initState() {
@@ -43,11 +49,29 @@ class _DropzoneHostState extends State<DropzoneHost> {
     // A global handler, not CallbackShortcuts: the shortcut has to work
     // even when nothing in the app has keyboard focus yet.
     HardwareKeyboard.instance.addHandler(_onKey);
+    _dz.browseRequests.addListener(_browse);
+  }
+
+  /// Click instead of drag: the chosen files join the Dropzone like a drop.
+  Future<void> _browse() async {
+    if (_picking) return;
+    _picking = true;
+    try {
+      final paths = await widget.pickFiles();
+      if (paths.isEmpty) return;
+      await _dz.addDropped([
+        for (final p in paths)
+          (name: p.split(RegExp(r'[\\/]')).last, path: p, isFolder: false)
+      ]);
+    } finally {
+      _picking = false;
+    }
   }
 
   @override
   void dispose() {
     HardwareKeyboard.instance.removeHandler(_onKey);
+    _dz.browseRequests.removeListener(_browse);
     super.dispose();
   }
 
@@ -111,6 +135,7 @@ class _DropzoneHostState extends State<DropzoneHost> {
           devices: widget.devices.value,
           onSend: widget.onSend,
           onClose: _dz.close,
+          onBrowse: _dz.browse,
         ),
       ),
     );
