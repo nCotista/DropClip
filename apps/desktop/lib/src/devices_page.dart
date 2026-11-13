@@ -12,7 +12,9 @@ class DevicesPage extends StatelessWidget {
   final String myFingerprint;
   final ValueListenable<List<TrustedDevice>> trusted;
   final Stream<Set<String>> connectedChanges;
-  final Set<String> connected;
+
+  /// Read when the page mounts; a startup snapshot misses hidden-page changes.
+  final Set<String> Function() connected;
   final ValueListenable<List<DiscoveredPeer>> nearby;
   final VoidCallback onPairNew;
   final void Function(DiscoveredPeer peer) onPairWith;
@@ -104,7 +106,7 @@ class DevicesPage extends StatelessWidget {
         Text(t.pairedDevices, style: Theme.of(context).textTheme.titleMedium),
         StreamBuilder<Set<String>>(
           stream: connectedChanges,
-          initialData: connected,
+          initialData: connected(),
           builder: (_, live) => ValueListenableBuilder<List<TrustedDevice>>(
             valueListenable: trusted,
             builder: (_, list, __) => list.isEmpty

@@ -125,6 +125,17 @@ void main() {
     expect(events, hasLength(2));
   });
 
+  test('one copy reported per format (new tokens) shows once', () async {
+    final events = <ClipEvent>[];
+    final d = await _device('burst', onClip: events.add);
+    // Windows: one copy, one event per format, each with a new token.
+    for (var i = 0; i < 3; i++) {
+      d.os.copy([ClipboardItem(mime: 'text/plain', data: utf8.encode('same'))]);
+    }
+    await Future<void>.delayed(const Duration(milliseconds: 20));
+    expect(events.map((e) => e.preview), ['same']);
+  });
+
   test('the same native change token is not shown twice', () async {
     final events = <ClipEvent>[];
     final d = await _device('token', onClip: events.add);

@@ -29,7 +29,130 @@ DiscoveredPeer _peer(String id, String name, PeerTrust trust) => DiscoveredPeer(
     state: PeerState.discovered,
     trust: trust);
 
+class _StatusHarness {
+  Set<String> connected;
+  final live = StreamController<Set<String>>.broadcast();
+  final shown = ValueNotifier(false);
+  final trusted = ValueNotifier([_trusted('phone', 'Phone')]);
+  final nearby = ValueNotifier([
+    _peer('phone', 'Phone', PeerTrust.trusted),
+  ]);
+  final quarantined = ValueNotifier<List<TrustedDevice>>([]);
+  late final DevicesPage page;
+
+  _StatusHarness({this.connected = const {}, bool visible = false}) {
+    shown.value = visible;
+    // main.dart constructs this page once, before it is first displayed.
+    page = DevicesPage(
+        myName: 'This PC',
+        myFingerprint: _fp,
+        trusted: trusted,
+        connectedChanges: live.stream,
+        connected: () => connected,
+        nearby: nearby,
+        onPairNew: () {},
+        onPairWith: (_) {},
+        onForget: (_) {},
+        quarantined: quarantined,
+        onSettle: (_, __) {});
+  }
+
+  Widget get app => MaterialApp(
+      theme: buildDropClipTheme(Brightness.dark),
+      home: Scaffold(
+          body: ValueListenableBuilder<bool>(
+              valueListenable: shown,
+              builder: (_, visible, __) =>
+                  visible ? page : const Text('Other page'))));
+
+  void update(Set<String> ids) {
+    connected = ids;
+    live.add(ids);
+  }
+
+  Future<void> close() async {
+    await live.close();
+    shown.dispose();
+    trusted.dispose();
+    nearby.dispose();
+    quarantined.dispose();
+  }
+}
+
 void main() {
+  testWidgets('first visit reads a connection established on another page',
+      (tester) async {
+    final h = _StatusHarness();
+    addTearDown(h.close);
+    await tester.pumpWidget(h.app);
+    h.update({'phone'});
+    await tester.pump();
+    h.shown.value = true;
+    await tester.pump();
+    expect(find.text('Connected'), findsOneWidget);
+    expect(find.text('Offline'), findsNothing);
+  });
+
+  testWidgets('returning after a hidden disconnect shows Offline',
+      (tester) async {
+    final h = _StatusHarness(connected: {'phone'}, visible: true);
+    addTearDown(h.close);
+    await tester.pumpWidget(h.app);
+    h.shown.value = false;
+    await tester.pump();
+    h.update({});
+    await tester.pump();
+    h.shown.value = true;
+    await tester.pump();
+    expect(find.text('Offline'), findsOneWidget);
+  });
+
+  testWidgets('returning after a hidden reconnect shows Connected',
+      (tester) async {
+    final h = _StatusHarness(visible: true);
+    addTearDown(h.close);
+    await tester.pumpWidget(h.app);
+    h.shown.value = false;
+    await tester.pump();
+    expect(h.live.hasListener, isFalse);
+    h.update({'phone'});
+    await tester.pump();
+    h.shown.value = true;
+    await tester.pump();
+    expect(find.text('Connected'), findsOneWidget);
+  });
+
+  testWidgets('live events still update after the page remounts',
+      (tester) async {
+    final h = _StatusHarness(visible: true);
+    addTearDown(h.close);
+    await tester.pumpWidget(h.app);
+    h.shown.value = false;
+    await tester.pump();
+    h.update({'phone'});
+    await tester.pump();
+    h.shown.value = true;
+    await tester.pump();
+    expect(find.text('Connected'), findsOneWidget);
+    expect(h.live.hasListener, isTrue);
+    h.update({});
+    await tester.pumpAndSettle();
+    expect(find.text('Offline'), findsOneWidget);
+    h.update({'phone'});
+    await tester.pumpAndSettle();
+    expect(find.text('Connected'), findsOneWidget);
+  });
+
+  testWidgets('mDNS disappearance does not override a live connection',
+      (tester) async {
+    final h = _StatusHarness(connected: {'phone'}, visible: true);
+    addTearDown(h.close);
+    await tester.pumpWidget(h.app);
+    h.nearby.value = [];
+    await tester.pump();
+    expect(find.text('Connected'), findsOneWidget);
+  });
+
   testWidgets('lists paired and nearby devices and routes every action',
       (tester) async {
     const a = '00000000-0000-4000-8000-00000000000a';
@@ -56,7 +179,7 @@ void main() {
                 myFingerprint: _fp,
                 trusted: trusted,
                 connectedChanges: live.stream,
-                connected: const {a},
+                connected: () => {a},
                 nearby: nearby,
                 onPairNew: () => pairNew++,
                 onPairWith: (p) => pairedWith.add(p.deviceId),
