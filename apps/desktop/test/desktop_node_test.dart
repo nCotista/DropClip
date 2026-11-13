@@ -102,5 +102,55 @@ void main() {
     expect(host.trusted.value, isEmpty);
     expect(client.trusted.value, isEmpty);
     expect(client.mesh.connected, isEmpty);
+
+    // "Remove" then pairing again: the old revocation is lifted, so it is
+    // not synced to other devices later (§13.2.6).
+    expect(host.revocation.isTombstoned(client.me.deviceId), isTrue);
+    final again = await host.openPairing();
+    final repaired =
+        host.pairing.events.firstWhere((e) => e is PairingCompleted);
+    await client.pairWith(
+        _seen(host, PeerTrust.untrusted), again.pin, (_, __) async => true);
+    await repaired;
+    for (var i = 0;
+        i < 100 && host.revocation.isTombstoned(client.me.deviceId);
+        i++) {
+      await Future<void>.delayed(const Duration(milliseconds: 20));
+    }
+    expect(host.revocation.isTombstoned(client.me.deviceId), isFalse);
+  });
+
+  test('images and files use the address of the live link', () async {
+    final host = await _node('Host'), client = await _node('Client');
+    final session = await host.openPairing();
+    host.pairing.events.listen((e) {
+      if (e is PairingSasReady) host.pairing.confirm(true);
+    });
+    final done = host.pairing.events.firstWhere((e) => e is PairingCompleted);
+    await client.pairWith(
+        _seen(host, PeerTrust.untrusted), session.pin, (_, __) async => true);
+    await done;
+    final (dialer, other) = host.me.deviceId.compareTo(client.me.deviceId) < 0
+        ? (host, client)
+        : (client, host);
+
+    // Discovery told the side that was dialed a useless address for its
+    // peer (another adapter); the link itself came from 127.0.0.1.
+    final up = other.mesh.peerChanges.firstWhere((p) => p.isNotEmpty);
+    other.onPeers([
+      DiscoveredPeer(
+          record: dialer.record,
+          address: 'unreachable.invalid',
+          lastSeen: DateTime.now(),
+          state: PeerState.discovered,
+          trust: PeerTrust.trusted)
+    ]);
+    dialer.onPeers([_seen(other, PeerTrust.trusted)]);
+    await up.timeout(const Duration(seconds: 5));
+
+    final info = await other
+        .fetchFrom(dialer.me.deviceId, '/api/v1/info')
+        .timeout(const Duration(seconds: 5));
+    expect(String.fromCharCodes(info), contains(dialer.me.deviceId));
   });
 }

@@ -12,10 +12,14 @@ class _Node {
   late final PeerMesh mesh;
   TlsTransportServer? _server;
   TlsTransportServer get server => _server!;
+  final events = <(String, Map<String, Object?>)>[];
 
   String get id => ids.identity.deviceId;
 
-  static Future<_Node> start(String name) async {
+  static Future<_Node> start(String name,
+      {Duration? grace,
+      Duration? stableAfter,
+      ReconnectBackoffPolicy? backoff}) async {
     final n = _Node();
     final dir = await Directory.systemTemp.createTemp('dc_mesh_');
     final keys = InMemorySecureKeyStore();
@@ -35,6 +39,10 @@ class _Node {
           capabilities: const ['clip.text'],
           tombstonesHash: '',
           tombstoneCount: 0),
+      backoff: backoff,
+      initiatorGrace: grace ?? const Duration(seconds: 10),
+      stableAfter: stableAfter ?? const Duration(seconds: 10),
+      onEvent: (event, data) => n.events.add((event, data)),
     );
     addTearDown(() async {
       await n.mesh.close();
@@ -68,6 +76,17 @@ class _Node {
       certPem: other.ids.identity.certPem,
       pairedAt: 0,
       lastSeenAt: 0));
+}
+
+/// Backoff that records which attempt it was asked for and waits briefly.
+class _Recorded extends ReconnectBackoffPolicy {
+  final attempts = <int>[];
+
+  @override
+  Duration delayForAttempt(int attempt) {
+    attempts.add(attempt);
+    return const Duration(milliseconds: 30);
+  }
 }
 
 Envelope _clip(String origin) => Envelope(
@@ -120,6 +139,108 @@ void main() {
 
     await dialer.mesh.drop(other.id, 4004);
     expect(dialer.mesh.connected, isEmpty);
+  });
+
+  /// Two paired, listening nodes: (the §6.2 initiator, the other one).
+  Future<(_Node, _Node)> pair(
+      {Duration? grace,
+      Duration? stableAfter,
+      ReconnectBackoffPolicy? backoff}) async {
+    Future<_Node> node(String name) => _Node.start(name,
+        grace: grace, stableAfter: stableAfter, backoff: backoff);
+    final x = await node('X'), y = await node('Y');
+    await x.trust(y);
+    await y.trust(x);
+    await x.listen();
+    await y.listen();
+    return x.id.compareTo(y.id) < 0 ? (x, y) : (y, x);
+  }
+
+  Future<void> until(bool Function() ok, {int seconds = 5}) async {
+    for (var i = 0; i < seconds * 50 && !ok(); i++) {
+      await Future<void>.delayed(const Duration(milliseconds: 20));
+    }
+    expect(ok(), isTrue);
+  }
+
+  test('§6.2 rule 3: the other side dials when the initiator does not',
+      () async {
+    final (dialer, other) =
+        await pair(grace: const Duration(milliseconds: 300));
+    // Only the non-initiator knows where its peer is, as when the
+    // initiator's dial is blocked by a firewall on our side.
+    await other.mesh.reach(dialer.id, '127.0.0.1', dialer.server.port);
+    expect(other.mesh.connected, isEmpty);
+    await until(() =>
+        other.mesh.connected.contains(dialer.id) &&
+        dialer.mesh.connected.contains(other.id));
+
+    // When the rightful initiator connects after all, exactly one link
+    // stays on each side (rule 4) and both remain connected.
+    await dialer.mesh.reach(other.id, '127.0.0.1', other.server.port);
+    await Future<void>.delayed(const Duration(milliseconds: 500));
+    expect(dialer.mesh.connected, {other.id});
+    expect(other.mesh.connected, {dialer.id});
+  });
+
+  test('the data plane gets the address of the live link', () async {
+    final (dialer, other) = await pair();
+    await dialer.mesh.reach(other.id, '127.0.0.1', other.server.port);
+    await until(() => other.mesh.connected.isNotEmpty);
+    expect(dialer.mesh.linkAddress(other.id),
+        (host: '127.0.0.1', port: other.server.port));
+    // The acceptor knows the peer's IP, not its listening port.
+    expect(other.mesh.linkAddress(dialer.id), (host: '127.0.0.1', port: null));
+    await dialer.mesh.drop(other.id, 4004);
+    expect(dialer.mesh.linkAddress(other.id), isNull);
+  });
+
+  test('a dead address is skipped for one that works', () async {
+    final backoff = _Recorded();
+    final (dialer, other) = await pair(backoff: backoff);
+    await dialer.mesh.reach(other.id, '127.0.0.1', other.server.port);
+    await until(() => other.mesh.connected.isNotEmpty);
+    // A second announcement (another adapter) points nowhere; it is the
+    // newest, so the next dial tries it first and then the one that worked.
+    final dead = await ServerSocket.bind(InternetAddress.loopbackIPv4, 0);
+    final deadPort = dead.port;
+    await dead.close();
+    await dialer.mesh.reach(other.id, '127.0.0.1', deadPort);
+
+    await other.mesh.drop(dialer.id, 4000);
+    await until(() => dialer.mesh.connected.isEmpty);
+    await until(() => dialer.mesh.connected.contains(other.id));
+    expect(dialer.mesh.linkAddress(other.id)?.port, other.server.port);
+  });
+
+  test('a link that keeps dropping right after hello backs off (§6.5)',
+      () async {
+    final backoff = _Recorded();
+    final (dialer, other) = await pair(backoff: backoff);
+    await dialer.mesh.reach(other.id, '127.0.0.1', other.server.port);
+    for (var i = 0; i < 3; i++) {
+      await until(() => other.mesh.connected.contains(dialer.id));
+      // E.g. the same identity running twice keeps kicking this link out.
+      await other.mesh.drop(dialer.id, 4001);
+    }
+    await until(() => backoff.attempts.length == 3);
+    expect(backoff.attempts, [0, 1, 2]);
+    expect(
+        dialer.events.where((e) => e.$1 == 'closed').map((e) => e.$2['ready']),
+        everyElement(isTrue));
+  });
+
+  test('a link that was stable reconnects at once after a drop', () async {
+    final backoff = _Recorded();
+    final (dialer, other) =
+        await pair(backoff: backoff, stableAfter: Duration.zero);
+    await dialer.mesh.reach(other.id, '127.0.0.1', other.server.port);
+    for (var i = 0; i < 3; i++) {
+      await until(() => other.mesh.connected.contains(dialer.id));
+      await other.mesh.drop(dialer.id, 4000);
+    }
+    await until(() => backoff.attempts.length == 3);
+    expect(backoff.attempts, [0, 0, 0]);
   });
 
   test('an unpaired device cannot open the Control Plane', () async {

@@ -38,6 +38,9 @@ class TransportSyncAdapter implements SyncPorts {
 
   Hlc? get lastPersistedHlc => _lastPersistedHlc;
 
+  /// Blobs currently held in memory for peers to fetch.
+  int get cachedBlobCount => _blobs.length;
+
   /// Converts a [ClipUpdate] to a normative `clipboard.update` [Envelope].
   static Envelope clipUpdateToEnvelope(ClipUpdate update) {
     final contentType = switch (update.type) {
@@ -117,8 +120,13 @@ class TransportSyncAdapter implements SyncPorts {
         'clipboard blob exceeds 32 MiB quota',
       );
     }
+    // Expired blobs are only ever asked for by accident, so nothing else
+    // would free them: without this every copied image (up to 32 MiB) stays
+    // in memory until the app exits.
+    final now = _nowMs();
+    _blobs.removeWhere((_, b) => now > b.expiresAtMs);
     _blobCounter++;
-    final id = 'blob-${_nowMs()}-$_blobCounter';
+    final id = 'blob-$now-$_blobCounter';
     _blobs[id] = _StoredBlob(
       bytes: Uint8List.fromList(raw),
       expiresAtMs: _nowMs() + ttl.inMilliseconds,

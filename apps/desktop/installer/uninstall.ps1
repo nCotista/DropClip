@@ -15,6 +15,8 @@ Start-Sleep -Milliseconds 500
 Remove-Item (Join-Path ([Environment]::GetFolderPath('Programs')) 'DropClip.lnk') -Force
 Remove-Item (Join-Path ([Environment]::GetFolderPath('Desktop')) 'DropClip.lnk') -Force
 Remove-Item 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\DropClip' -Recurse -Force
+# "Start at login" from Settings, or it points at a deleted exe.
+Remove-ItemProperty 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Run' -Name DropClip
 
 # This script lives in the folder it deletes: finish from a temp copy.
 $cleanup = Join-Path $env:TEMP 'dropclip_uninstall_cleanup.cmd'

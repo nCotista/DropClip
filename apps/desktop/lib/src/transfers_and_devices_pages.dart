@@ -13,6 +13,9 @@ class DesktopTransferRecord {
   final bool resumablePart;
   final bool completed;
 
+  /// Failed, timed out or declined: it will not continue by itself.
+  final bool failed;
+
   const DesktopTransferRecord({
     required this.id,
     required this.fileName,
@@ -21,7 +24,10 @@ class DesktopTransferRecord {
     required this.transferredBytes,
     this.resumablePart = false,
     this.completed = false,
+    this.failed = false,
   });
+
+  bool get active => !completed && !failed;
 
   double get progress =>
       totalBytes <= 0 ? 1.0 : (transferredBytes / totalBytes).clamp(0.0, 1.0);
@@ -96,8 +102,14 @@ class DesktopTransfersPage extends StatelessWidget {
                       Icon(
                         item.completed
                             ? Icons.check_circle_rounded
-                            : Icons.downloading_rounded,
-                        color: item.completed ? c.success : c.accent,
+                            : item.failed
+                                ? Icons.error_rounded
+                                : Icons.downloading_rounded,
+                        color: item.completed
+                            ? c.success
+                            : item.failed
+                                ? c.danger
+                                : c.accent,
                       ),
                       const SizedBox(width: DropClipSpacing.sm),
                       Expanded(
@@ -120,7 +132,7 @@ class DesktopTransfersPage extends StatelessWidget {
                       Expanded(
                         child: Text(
                           'Peer: ${item.peerName} · '
-                          '${item.completed ? 'SHA-256 Verified' : 'Paused'}',
+                          '${item.completed ? 'SHA-256 Verified' : item.failed ? 'Failed' : 'In progress'}',
                           style:
                               TextStyle(fontSize: 12, color: c.textSecondary),
                         ),

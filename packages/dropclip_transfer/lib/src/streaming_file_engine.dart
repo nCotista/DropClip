@@ -171,6 +171,33 @@ class StreamingFileReceiver {
     required FileOfferItem item,
     required int offset,
     required Uint8List chunk,
+  }) async =>
+      await appendChunk(item: item, offset: offset, chunk: chunk) != null;
+
+  /// A name next to [wanted] that is not taken: `photo.jpg`, then
+  /// `photo (1).jpg`, `photo (2).jpg`, ... A received file never replaces
+  /// one the user already has.
+  static Future<File> freeNameFor(File wanted) async {
+    if (!await wanted.exists()) return wanted;
+    final path = wanted.path;
+    final slash = path.lastIndexOf(RegExp(r'[\\/]'));
+    final dot = path.lastIndexOf('.');
+    final hasExt = dot > slash + 1;
+    final stem = hasExt ? path.substring(0, dot) : path;
+    final ext = hasExt ? path.substring(dot) : '';
+    for (var i = 1;; i++) {
+      final next = File('$stem ($i)$ext');
+      if (!await next.exists()) return next;
+    }
+  }
+
+  /// Like [writeChunk], but returns the saved file once [item] is complete
+  /// (null while more chunks are expected). A zero-length [chunk] at offset
+  /// 0 completes an empty file.
+  Future<File?> appendChunk({
+    required FileOfferItem item,
+    required int offset,
+    required Uint8List chunk,
   }) async {
     if (chunk.length > kStreamingChunkSize) {
       throw const ProtocolException(
@@ -213,11 +240,12 @@ class StreamingFileReceiver {
           'final SHA-256 checksum mismatch; .part file deleted',
         );
       }
-      final target = finalFileFor(item);
-      await target.parent.create(recursive: true);
+      final wanted = finalFileFor(item);
+      await wanted.parent.create(recursive: true);
+      final target = await freeNameFor(wanted);
       await partFile.rename(target.path);
-      return true;
+      return target;
     }
-    return false;
+    return null;
   }
 }

@@ -20,6 +20,8 @@ Future<void> main() async {
         received.value = ['$from: $text', ...received.value].take(20).toList(),
   );
   await node.reconnect();
+  // Back from the background: the socket is usually dead by then.
+  AppLifecycleListener(onResume: node.reconnect);
   runApp(DropClipMobileApp(
     node: node,
     received: received,

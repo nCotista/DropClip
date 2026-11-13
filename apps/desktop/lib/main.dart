@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
@@ -12,6 +13,7 @@ import 'src/demo_data.dart';
 import 'src/devices_page.dart';
 import 'src/discovery/bonsoir_backend.dart';
 import 'src/discovery/discovery_controller.dart';
+import 'src/discovery/network_watcher.dart';
 import 'src/dropzone/dropzone_controller.dart';
 import 'src/dropzone/dropzone_host.dart';
 import 'src/l10n/strings.dart';
@@ -71,12 +73,15 @@ Future<void> main(List<String> args) async {
   // Persistent identity, Trusted Store, mTLS server, pairing and the
   // Control Plane (T1.2–T1.5), keys in DPAPI / Keychain (§4.2).
   final configDir = store.file.parent;
+  // Why a link opened or dropped; kept until the logger exists.
+  void Function(String, Map<String, Object?>) meshLog = (_, __) {};
   final node = await DesktopNode.start(
     dir: configDir,
     keys: osKeyStore(Directory('${configDir.path}/keys')),
     name: store.config.value.deviceName,
     os: isMacOS ? DeviceOs.macos : DeviceOs.windows,
     log: (m) => warn(m),
+    onMeshEvent: (event, data) => meshLog(event, data),
   );
   final local = node.record;
   // Structured JSON logs (T0.3): <config dir>/logs, 10 MB × 5 files, every
@@ -90,6 +95,7 @@ Future<void> main(List<String> args) async {
   );
   warn = (m) => log.warn('config', m);
   early.forEach(warn);
+  meshLog = (event, data) => log.info('mesh', event, data);
   // Paired peers are recognised by fingerprint and dialed automatically.
   final discovery = DiscoveryController(
     backend: BonsoirMdnsBackend(),
@@ -102,17 +108,32 @@ Future<void> main(List<String> args) async {
   discovery.cache.changes.listen(node.onPeers);
   node.mesh.peerChanges
       .listen((ids) => log.info('mesh', 'connected', {'peers': ids.length}));
-  final status = ValueNotifier(ShellStatus(
-    networkName: demoShellStatus.networkName,
-    address: demoShellStatus.address,
+  // Everything the shell shows is live: the adapter and address this PC is
+  // reachable on, paired devices, connected ones and running transfers.
+  final status = ValueNotifier(const ShellStatus(
+    networkName: '',
+    address: '',
     verifiedDevices: 0,
     activeTransfers: 0,
     deviceCount: 0,
-    clips: const [],
-    suppressedClips: 0,
-    nearby: const [],
-    latencyP95Ms: demoShellStatus.latencyP95Ms,
   ));
+  Future<void> refreshNetwork() async {
+    final lan = await localLan();
+    status.value = status.value.copyWith(
+      networkName: lan?.name ?? '—',
+      address: lan == null ? '—' : '${lan.address}:${node.server.port}',
+    );
+  }
+
+  void refreshDevices() => status.value = status.value.copyWith(
+        verifiedDevices: node.mesh.connected.length,
+        deviceCount: node.trusted.value.length,
+      );
+  unawaited(refreshNetwork());
+  NetworkWatcher().changes.listen((_) => unawaited(refreshNetwork()));
+  refreshDevices();
+  node.trusted.addListener(refreshDevices);
+  node.mesh.peerChanges.listen((_) => refreshDevices());
   // File transfer with paired peers (T1.10/T1.11) into Downloads/DropClip.
   final transfers = ValueNotifier<List<DesktopTransferRecord>>(const []);
   final home = Platform.environment[isMacOS ? 'HOME' : 'USERPROFILE'] ?? '.';
@@ -127,24 +148,28 @@ Future<void> main(List<String> args) async {
       if (context == null) return false;
       return askToReceive(context, peer, items);
     },
-    onUpdate: (u) => transfers.value = [
-      DesktopTransferRecord(
-        id: u.id,
-        fileName: u.name,
-        peerName: u.incoming ? '← ${u.peer}' : '→ ${u.peer}',
-        totalBytes: u.total,
-        transferredBytes: u.done,
-        completed: u.state == 'complete',
-      ),
-      for (final t in transfers.value)
-        if (t.id != u.id) t,
-    ],
+    onUpdate: (u) {
+      transfers.value = [
+        DesktopTransferRecord(
+          id: u.id,
+          fileName: u.name,
+          peerName: u.incoming ? '← ${u.peer}' : '→ ${u.peer}',
+          totalBytes: u.total,
+          transferredBytes: u.done,
+          completed: u.state == 'complete',
+          failed: u.state == 'failed' || u.state == 'rejected',
+        ),
+        for (final t in transfers.value)
+          if (t.id != u.id) t,
+      ];
+      status.value = status.value.copyWith(
+          activeTransfers: transfers.value.where((t) => t.active).length);
+    },
   );
   discovery.nearby.addListener(() {
     final found = discovery.nearby.value;
-    if (found.isNotEmpty) {
-      status.value = status.value.withNearby(found);
-    }
+    // Also when the last device leaves: the list must empty again.
+    status.value = status.value.withNearby(found);
     // Names come from public TXT records (§3.2).
     log.info('discovery', 'nearby', {
       'devices': [for (final d in found) '${d.name} (${d.reach.name})'],
@@ -166,17 +191,7 @@ Future<void> main(List<String> args) async {
       ),
       ...status.value.clips,
     ].take(20).toList();
-    status.value = ShellStatus(
-      networkName: status.value.networkName,
-      address: status.value.address,
-      verifiedDevices: status.value.verifiedDevices,
-      activeTransfers: status.value.activeTransfers,
-      deviceCount: status.value.deviceCount,
-      clips: updated,
-      suppressedClips: status.value.suppressedClips,
-      nearby: status.value.nearby,
-      latencyP95Ms: status.value.latencyP95Ms,
-    );
+    status.value = status.value.copyWith(clips: updated);
     log.info('clipboard', e.from == 'me' ? 'sent' : 'received',
         {'type': e.type.name});
   }
@@ -212,6 +227,9 @@ Future<void> main(List<String> args) async {
       }
     },
     policy: () => syncPolicyFor(store.config.value),
+    onWarn: (m) => log.warn('clipboard', m),
+    onSuppressed: () => status.value = status.value
+        .copyWith(suppressedClips: status.value.suppressedClips + 1),
   );
   // Dropzone targets: nearby devices plus linked browsers.
   final targets = ValueNotifier<List<NearbyDevice>>(const []);
