@@ -176,6 +176,8 @@ void main() {
     final written = d.os.writes.stream.first;
     await d.bridge.copyAgain(ClipType.url, 'https://dropclip.dev');
     expect((await written).map((i) => i.mime), ['text/plain', 'text/uri-list']);
+    // Our own write is invisible to the watcher, so history adds it itself.
+    expect(d.shown.last.preview, 'https://dropclip.dev');
   });
 
   test('Settings decide what syncs and for how long (FR-05)', () {
@@ -247,5 +249,11 @@ void main() {
     final got = await image.timeout(const Duration(seconds: 5));
     expect(got.first.data, big);
     expect(got.map((i) => i.mime), contains('image/x-win-dibv5'));
+    // Text from a phone browser: on A's clipboard, in A's history, on B.
+    final fromPhone = b.os.writes.stream.first;
+    await a.bridge.takeText('from iPhone', 'iPhone');
+    expect(a.shown.last.from, 'iPhone');
+    final gotPhone = await fromPhone.timeout(const Duration(seconds: 5));
+    expect(utf8.decode(gotPhone.first.data), 'from iPhone');
   });
 }

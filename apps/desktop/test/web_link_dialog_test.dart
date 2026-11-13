@@ -13,7 +13,7 @@ void main() {
     final web = WebCompanion(
         downloads: Directory.systemTemp,
         page: '',
-        writeClipboard: (_) async {},
+        onText: (_, __) async {},
         enabled: true);
     await tester.pumpWidget(MaterialApp(
         home: Scaffold(
@@ -42,7 +42,7 @@ void main() {
     final web = WebCompanion(
       downloads: Directory.systemTemp,
       page: '',
-      writeClipboard: (_) async {},
+      onText: (_, __) async {},
       isEnabled: () => on,
     );
     await tester.pumpWidget(MaterialApp(
