@@ -3,7 +3,8 @@ name: Release Apps (macOS, iOS, Android)
 # Builds the macOS desktop app and the phone apps and attaches them to a
 # GitHub Release next to the Windows installer (windows-installer.yml).
 # On a PR that touches this file the apps are only built and kept as
-# workflow artifacts; "Run workflow" publishes them to the chosen tag.
+# workflow artifacts; a v* tag, or "Run workflow" (which checks out that
+# tag), publishes them to the release of the same tag.
 #
 # None of these are store-signed yet:
 # - macOS: unsigned .app (first open: right-click > Open).
@@ -14,11 +15,12 @@ on:
   pull_request:
     paths:
       - '.github/workflows/release-apps.yml'
+  push:
+    tags: ['v*']
   workflow_dispatch:
     inputs:
       tag:
-        description: Release tag to attach the apps to
-        default: v1.0.0
+        description: Existing release tag to build and attach the apps to
         required: true
 
 permissions:
@@ -37,6 +39,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref }}
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
@@ -58,10 +62,10 @@ jobs:
           name: DropClip-Android
           path: out/DropClip-Android.apk
       - name: Attach to release
-        if: github.event_name == 'workflow_dispatch'
+        if: github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/')
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ inputs.tag }}
+          tag_name: ${{ inputs.tag || github.ref_name }}
           files: out/DropClip-Android.apk
 
   macos:
@@ -70,6 +74,8 @@ jobs:
     runs-on: macos-15-intel
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref }}
       - uses: subosito/flutter-action@v2
         with:
           channel: stable
@@ -91,10 +97,10 @@ jobs:
           name: DropClip-macOS
           path: out/DropClip-macOS.zip
       - name: Attach to release
-        if: github.event_name == 'workflow_dispatch'
+        if: github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/')
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ inputs.tag }}
+          tag_name: ${{ inputs.tag || github.ref_name }}
           files: out/DropClip-macOS.zip
 
   ios:
@@ -102,6 +108,8 @@ jobs:
     runs-on: macos-15-intel
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref }}
       - uses: subosito/flutter-action@v2
         with:
           channel: stable
@@ -120,8 +128,8 @@ jobs:
           name: DropClip-iOS-unsigned
           path: out/DropClip-iOS-unsigned.ipa
       - name: Attach to release
-        if: github.event_name == 'workflow_dispatch'
+        if: github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/')
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ inputs.tag }}
+          tag_name: ${{ inputs.tag || github.ref_name }}
           files: out/DropClip-iOS-unsigned.ipa

@@ -18,10 +18,32 @@ try {
     Where-Object { $_.Path -eq $exe } | Stop-Process -Force
   Start-Sleep -Milliseconds 500
 
-  if (Test-Path $Target) { Remove-Item $Target -Recurse -Force }
-  New-Item -ItemType Directory -Force $Target | Out-Null
-  Expand-Archive -Path $zip -DestinationPath $Target -Force
-  Copy-Item (Join-Path $here 'uninstall.ps1') $Target -Force
+  # Extract beside the target and prove the package is complete before
+  # touching the old install: a truncated zip or a full disk must not leave
+  # the user with no working DropClip at all.
+  $parent = Split-Path -Parent $Target
+  $leaf = Split-Path -Leaf $Target
+  $stage = Join-Path $parent "$leaf.new"
+  $backup = Join-Path $parent "$leaf.old"
+  if (Test-Path $stage) { Remove-Item $stage -Recurse -Force }
+  New-Item -ItemType Directory -Force $stage | Out-Null
+  Expand-Archive -Path $zip -DestinationPath $stage -Force
+  if (-not (Test-Path (Join-Path $stage 'dropclip_desktop.exe'))) {
+    throw 'The update package is incomplete (dropclip_desktop.exe is missing).'
+  }
+  Copy-Item (Join-Path $here 'uninstall.ps1') $stage -Force
+
+  if (Test-Path $backup) { Remove-Item $backup -Recurse -Force }
+  if (Test-Path $Target) { Rename-Item -LiteralPath $Target -NewName "$leaf.old" }
+  try {
+    Rename-Item -LiteralPath $stage -NewName $leaf
+  } catch {
+    # Put the old version back so the shortcut still works.
+    if (Test-Path $backup) { Rename-Item -LiteralPath $backup -NewName $leaf }
+    throw
+  }
+  # The new version is live; an AV lock on the backup is not fatal.
+  if (Test-Path $backup) { try { Remove-Item $backup -Recurse -Force } catch { } }
 
   if (-not $NoShortcuts) {
     $shell = New-Object -ComObject WScript.Shell

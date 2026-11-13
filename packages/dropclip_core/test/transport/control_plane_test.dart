@@ -52,6 +52,19 @@ void main() {
   const idA = '11111111-1111-4111-8111-111111111111';
   const idB = '22222222-2222-4222-8222-222222222222';
 
+  test('default heartbeat follows the protocol constants (45 s pong timeout)',
+      () {
+    final sess = ControlPlaneSession(
+      localHello: _hello(id: idA),
+      channel: _InMemoryControlChannel(),
+      initialClock: Hlc(l: 1000, c: 0, d: idA),
+      nowMs: () => 1000,
+    );
+    expect(sess.pingInterval, ProtocolConstants.pingInterval);
+    expect(sess.pongTimeout, ProtocolConstants.pongTimeout);
+    expect(sess.pongTimeout, const Duration(seconds: 45));
+  });
+
   group('ControlPlaneSession & ReconnectEngine (T1.5)', () {
     test('completes hello/hello.ack handshake and exchanges messages',
         () async {

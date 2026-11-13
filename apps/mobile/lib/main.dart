@@ -19,7 +19,12 @@ Future<void> main() async {
     onReceived: (text, from) =>
         received.value = ['$from: $text', ...received.value].take(20).toList(),
   );
-  await node.reconnect();
+  try {
+    await node.reconnect();
+  } on Object {
+    // Start offline rather than never showing the UI; discovery and the
+    // resume hook will try again.
+  }
   // Back from the background: the socket is usually dead by then.
   AppLifecycleListener(onResume: node.reconnect);
   runApp(DropClipMobileApp(

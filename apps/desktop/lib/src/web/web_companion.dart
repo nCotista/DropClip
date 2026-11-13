@@ -16,9 +16,15 @@ class WebSession {
   final String name;
   final DateTime since;
   final DateTime expiresAt;
+
+  /// First clipboard id created after this browser linked; older clips were
+  /// already on the PC before the user trusted it and are never shown.
+  final int sinceClipId;
+
   DateTime lastSeen;
 
-  WebSession(this.id, this.name, this.since, this.expiresAt) : lastSeen = since;
+  WebSession(this.id, this.name, this.since, this.expiresAt, this.sinceClipId)
+      : lastSeen = since;
 }
 
 /// A clip shown to linked browsers.
@@ -32,7 +38,9 @@ class WebCompanion {
   static final _ctrlOrBidi =
       RegExp(r'[\x00-\x1f\x7f\u202a-\u202e\u2066-\u2069]');
 
-  final Directory downloads;
+  /// Where browser uploads land; follows Settings like incoming transfers.
+  Directory downloads;
+
   final String page;
 
   /// Text a browser sent, with the browser's name (onto the PC clipboard,
@@ -126,6 +134,8 @@ class WebCompanion {
             'content-type': 'text/html; charset=utf-8',
             'cache-control': 'no-store',
             'referrer-policy': 'no-referrer',
+            'x-content-type-options': 'nosniff',
+            'x-frame-options': 'DENY',
           });
         }
         if (path == 'web/api/claim' && r.method == 'POST') return _claim(r);
@@ -138,6 +148,7 @@ class WebCompanion {
           ('POST', 'web/api/clip') => await _clip(r, s),
           ('POST', 'web/api/image') => await _image(r, s),
           ('POST', 'web/api/upload') => await _upload(r, s),
+          ('POST', 'web/api/unlink') => _unlink(s),
           ('GET', _) when path.startsWith('web/api/file/') =>
             await _download(path.substring('web/api/file/'.length), s),
           _ => _json(404, {'error': 'unknown'}),
@@ -218,7 +229,7 @@ class WebCompanion {
         : (clean.length > 64 ? clean.substring(0, 64) : clean);
     final token = _random(32);
     final expiresAt = t.add(sessionTtl);
-    final s = WebSession(_random(8), safeName, t, expiresAt);
+    final s = WebSession(_random(8), safeName, t, expiresAt, _nextClip);
     _tokens[sha256.convert(utf8.encode(token)).toString()] = s;
     _publish();
     return _json(200, {
@@ -226,6 +237,12 @@ class WebCompanion {
       'session': s.id,
       'expires_at': expiresAt.millisecondsSinceEpoch,
     });
+  }
+
+  /// Clearing `localStorage` alone would leave this token usable for hours.
+  Response _unlink(WebSession s) {
+    revoke(s.id);
+    return _json(200, {'ok': true});
   }
 
   Future<Response> _state(Request r, WebSession s) async {
@@ -243,7 +260,9 @@ class WebCompanion {
     return _json(200, {
       'clips': [
         for (final c in _clips)
-          if (c.id > after)
+          // Never hand a freshly linked browser the history from before it
+          // was linked, however small its `after` cursor is.
+          if (c.id > after && c.id >= s.sinceClipId)
             {'id': c.id, 'text': c.text, 'from': c.from, 'at': c.at}
       ],
       'files': files,
