@@ -38,7 +38,8 @@ class _WebLinkDialogState extends State<WebLinkDialog> {
 
   Future<void> _next() async {
     final base = await widget.baseUrl();
-    if (mounted) setState(() => _url = '$base#c=${widget.web.newCode()}');
+    if (!mounted || !widget.web.isEnabled()) return;
+    setState(() => _url = '$base#c=${widget.web.newCode()}');
   }
 
   @override
