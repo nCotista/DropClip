@@ -28,6 +28,8 @@ dev_dependencies:
   crypto: ^3.0.8
   flutter_test:
     sdk: flutter
+  integration_test:
+    sdk: flutter
   lints: ^3.0.0
   shelf: ^1.4.3
 

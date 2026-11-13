@@ -75,6 +75,8 @@ class MobileNode implements MobilePeer {
 
   DeviceIdentity get me => ids.identity;
 
+  int get _tier => me.os == 'ios' ? 3 : 2;
+
   @override
   Stream<Set<String>> get connectedChanges => mesh.peerChanges;
   @override
@@ -104,9 +106,10 @@ class MobileNode implements MobilePeer {
       deviceId: me.deviceId,
       name: me.name,
       os: me.os,
-      tier: 2,
+      tier: _tier,
       appVersion: '1.0.0',
-      capabilities: const ['clip.text', 'clip.push'],
+      capabilities:
+          _tier == 3 ? const ['clip.text'] : const ['clip.text', 'clip.push'],
       tombstonesHash: '',
       tombstoneCount: 0);
 
@@ -123,7 +126,7 @@ class MobileNode implements MobilePeer {
           'E_PAIRING_INVALID', 'not a DropClip QR');
     }
     final d = await PairingClient.pairWithQr(
-        qr: qr, me: me, store: store, confirmSas: confirm);
+        qr: qr, me: me, store: store, confirmSas: confirm, tier: _tier);
     return _connect(d, qr['ip'] as String, qr['port'] as int);
   }
 
@@ -137,7 +140,7 @@ class MobileNode implements MobilePeer {
         me: me,
         store: store,
         confirmSas: confirm,
-        tier: 2);
+        tier: _tier);
     return _connect(d, host, port);
   }
 
