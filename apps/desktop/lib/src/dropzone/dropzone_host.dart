@@ -41,6 +41,7 @@ class DropzoneHost extends StatefulWidget {
 
 class _DropzoneHostState extends State<DropzoneHost> {
   DropzoneController get _dz => widget.controller;
+  bool _picking = false;
 
   @override
   void initState() {
@@ -53,12 +54,18 @@ class _DropzoneHostState extends State<DropzoneHost> {
 
   /// Click instead of drag: the chosen files join the Dropzone like a drop.
   Future<void> _browse() async {
-    final paths = await widget.pickFiles();
-    if (paths.isEmpty) return;
-    await _dz.addDropped([
-      for (final p in paths)
-        (name: p.split(RegExp(r'[\\/]')).last, path: p, isFolder: false)
-    ]);
+    if (_picking) return;
+    _picking = true;
+    try {
+      final paths = await widget.pickFiles();
+      if (paths.isEmpty) return;
+      await _dz.addDropped([
+        for (final p in paths)
+          (name: p.split(RegExp(r'[\\/]')).last, path: p, isFolder: false)
+      ]);
+    } finally {
+      _picking = false;
+    }
   }
 
   @override
