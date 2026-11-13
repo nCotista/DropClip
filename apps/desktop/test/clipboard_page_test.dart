@@ -12,7 +12,7 @@ Future<void> _pump(
   ShellStatus status = demoShellStatus,
   ValueChanged<ClipItem>? onCopy,
   VoidCallback? onSendClipboard,
-  void Function(String path)? onOpenFile,
+  void Function(String path, {bool reveal})? onOpenFile,
 }) async {
   tester.view.physicalSize = const Size(1000, 900);
   tester.view.devicePixelRatio = 1;
@@ -30,6 +30,17 @@ Future<void> _pump(
 }
 
 void main() {
+  test('Explorer gets backslashes; reveal selects the file', () {
+    const p = r'C:\Users\me/Downloads/DropClip/report.pdf';
+    const win = r'C:\Users\me\Downloads\DropClip\report.pdf';
+    final open = openCommand(p, reveal: false, macOS: false);
+    expect(open.$1, 'explorer.exe');
+    expect(open.$2, [win]);
+    expect(openCommand(p, reveal: true, macOS: false).$2, ['/select,$win']);
+    expect(openCommand('/Users/me/x.pdf', reveal: true, macOS: true).$2,
+        ['-R', '/Users/me/x.pdf']);
+  });
+
   group('ClipboardPage (T1.12, FR-04, SF-03)', () {
     testWidgets('a received file opens from its row', (tester) async {
       final opened = <String>[];
@@ -51,13 +62,19 @@ void main() {
             ],
           ),
           onCopy: copied.add,
-          onOpenFile: opened.add);
+          onOpenFile: (p, {bool reveal = false}) =>
+              opened.add(reveal ? 'reveal $p' : p));
 
       // Only the file row gets the open button; text keeps "copy again".
       expect(find.byKey(const Key('clip-open-file')), findsOneWidget);
       await tester.tap(find.text('📎 report.pdf'));
       await tester.tap(find.byKey(const Key('clip-open-file')));
-      expect(opened, ['/downloads/report.pdf', '/downloads/report.pdf']);
+      await tester.tap(find.byKey(const Key('clip-show-in-folder')));
+      expect(opened, [
+        '/downloads/report.pdf',
+        '/downloads/report.pdf',
+        'reveal /downloads/report.pdf'
+      ]);
       expect(copied, isEmpty);
     });
 

@@ -30,6 +30,9 @@ class DropzoneController extends ChangeNotifier {
     browseRequests.value++;
   }
 
+  /// Takes one dropped item back out, e.g. a file chosen by mistake.
+  void remove(String path) => _set(() => _items.remove(path));
+
   /// Closes the overlay and forgets the dropped items.
   void close() => _set(() {
         _open = false;

@@ -8,10 +8,22 @@ import 'clipboard_aside.dart';
 import 'demo_data.dart';
 import 'l10n/strings.dart';
 
-/// Opens [path] in its default app (Explorer / Finder decide which).
-Future<void> openWithSystem(String path) =>
-    Process.run(Platform.isMacOS ? 'open' : 'explorer.exe', [path],
-        runInShell: false);
+/// The command that opens [path] in its default app, or with [reveal]
+/// shows it selected in its folder. Explorer needs backslashes: given
+/// `C:\Users\me/Downloads/x.pdf` it silently opens Documents instead.
+(String, List<String>) openCommand(String path,
+    {required bool reveal, required bool macOS}) {
+  if (macOS) return ('open', [if (reveal) '-R', path]);
+  final win = path.replaceAll('/', r'\');
+  return ('explorer.exe', [reveal ? '/select,$win' : win]);
+}
+
+/// Opens [path] in its default app, or shows it in its folder.
+Future<void> openWithSystem(String path, {bool reveal = false}) {
+  final (exe, args) =
+      openCommand(path, reveal: reveal, macOS: Platform.isMacOS);
+  return Process.run(exe, args);
+}
 
 /// Below this page width the [ClipboardAside] is hidden.
 const double asideMinPageWidth = 900;
@@ -28,8 +40,9 @@ class ClipboardPage extends StatefulWidget {
   final VoidCallback? onOpenDropzone;
   final VoidCallback? onLinkWeb;
 
-  /// Opens a received file; defaults to the OS (tests pass their own).
-  final void Function(String path)? onOpenFile;
+  /// Opens a received file ([reveal]: show it in its folder); defaults to
+  /// the OS (tests pass their own).
+  final void Function(String path, {bool reveal})? onOpenFile;
 
   const ClipboardPage({
     super.key,
@@ -146,6 +159,10 @@ class _ClipboardPageState extends State<ClipboardPage> {
             onOpen: clip.path == null
                 ? null
                 : () => (widget.onOpenFile ?? openWithSystem)(clip.path!),
+            onReveal: clip.path == null
+                ? null
+                : () => (widget.onOpenFile ?? openWithSystem)(clip.path!,
+                    reveal: true),
           ),
         if (s.suppressedClips > 0) ...[
           const SizedBox(height: DropClipSpacing.md),
@@ -182,7 +199,11 @@ class _ClipTile extends StatelessWidget {
   /// Set for a received file: the row opens it.
   final VoidCallback? onOpen;
 
-  const _ClipTile({required this.clip, required this.onCopy, this.onOpen});
+  /// Set for a received file: shows it in its folder.
+  final VoidCallback? onReveal;
+
+  const _ClipTile(
+      {required this.clip, required this.onCopy, this.onOpen, this.onReveal});
 
   @override
   Widget build(BuildContext context) {
@@ -209,12 +230,20 @@ class _ClipTile extends StatelessWidget {
             style: TextStyle(color: c.textSecondary)),
         onTap: onOpen,
         trailing: onOpen != null
-            ? IconButton(
-                key: const Key('clip-open-file'),
-                tooltip: Strings.of(context).openFile,
-                icon: const Icon(Icons.open_in_new_rounded),
-                onPressed: onOpen,
-              )
+            ? Row(mainAxisSize: MainAxisSize.min, children: [
+                IconButton(
+                  key: const Key('clip-open-file'),
+                  tooltip: Strings.of(context).openFile,
+                  icon: const Icon(Icons.open_in_new_rounded),
+                  onPressed: onOpen,
+                ),
+                IconButton(
+                  key: const Key('clip-show-in-folder'),
+                  tooltip: Strings.of(context).showInFolder,
+                  icon: const Icon(Icons.folder_open_rounded),
+                  onPressed: onReveal,
+                ),
+              ])
             : IconButton(
                 tooltip: Strings.of(context).copyAgain,
                 icon: const Icon(Icons.copy_rounded),
