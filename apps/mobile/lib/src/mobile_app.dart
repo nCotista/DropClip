@@ -137,107 +137,305 @@ class _Home extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = MobileStrings.of(context);
-    return Scaffold(
-      appBar: AppBar(title: const Text('DropClip'), actions: [
-        IconButton(
-            key: const Key('settings'),
-            tooltip: t.settings,
-            icon: const Icon(Icons.settings_outlined),
-            onPressed: () => Navigator.of(context).push(MaterialPageRoute<void>(
-                builder: (_) => _SettingsPage(app: app)))),
-      ]),
-      floatingActionButton: FloatingActionButton.extended(
-          key: const Key('pair'),
-          onPressed: () => showDialog<void>(
-              context: context, builder: (_) => _PairDialog(app.node)),
-          icon: const Icon(Icons.add_link),
-          label: Text(t.pairWithComputer)),
-      body: ListView(
-          padding: const EdgeInsets.fromLTRB(16, 16, 16, 96),
-          children: [
-            Row(children: [
-              Expanded(
-                child: FilledButton.icon(
-                    key: const Key('send-clipboard'),
-                    onPressed: () => _send(context),
-                    icon: const Icon(Icons.send),
-                    label: Text(t.sendClipboard)),
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: FilledButton.tonalIcon(
-                    key: const Key('send-file'),
-                    onPressed: () => _sendFile(context),
-                    icon: const Icon(Icons.attach_file),
-                    label: Text(t.sendFile)),
-              ),
+    final c = DropClipColors.of(context);
+    void pair() => showDialog<void>(
+        context: context, builder: (_) => _PairDialog(app.node));
+    return StreamBuilder<Set<String>>(
+      stream: app.node.connectedChanges,
+      initialData: app.node.connected,
+      builder: (_, live) => ValueListenableBuilder<List<TrustedDevice>>(
+        valueListenable: app.node.trusted,
+        builder: (_, devices, __) {
+          final online = [
+            for (final d in devices)
+              if (live.data?.contains(d.deviceId) ?? false) d
+          ];
+          return Scaffold(
+            appBar: AppBar(title: const Text('DropClip'), actions: [
+              if (devices.isNotEmpty)
+                IconButton(
+                    key: const Key('pair'),
+                    tooltip: t.pairWithComputer,
+                    icon: const Icon(Icons.add_link),
+                    onPressed: pair),
+              IconButton(
+                  key: const Key('settings'),
+                  tooltip: t.settings,
+                  icon: const Icon(Icons.settings_outlined),
+                  onPressed: () => Navigator.of(context).push(
+                      MaterialPageRoute<void>(
+                          builder: (_) => _SettingsPage(app: app)))),
             ]),
-            const SizedBox(height: 16),
-            StreamBuilder<Set<String>>(
-              stream: app.node.connectedChanges,
-              initialData: app.node.connected,
-              builder: (_, live) => ValueListenableBuilder<List<TrustedDevice>>(
-                valueListenable: app.node.trusted,
-                builder: (_, list, __) => Column(children: [
-                  if (list.isEmpty) Text(t.noPaired),
-                  for (final d in list)
-                    ListTile(
-                      leading: const Icon(Icons.computer),
-                      title: Text(d.name),
-                      subtitle: Text(live.data?.contains(d.deviceId) ?? false
-                          ? t.connected
-                          : t.offline),
-                      trailing: IconButton(
-                          key: Key('remove-${d.deviceId}'),
-                          tooltip: t.remove,
-                          icon: const Icon(Icons.link_off),
-                          onPressed: () => _forget(context, d)),
-                    ),
+            body: ListView(
+              padding: const EdgeInsets.all(DropClipSpacing.lg),
+              children: [
+                _StatusCard(
+                  title: devices.isEmpty
+                      ? t.statusNoPair
+                      : online.isEmpty
+                          ? t.statusOffline
+                          : t.statusConnected(online.first.name),
+                  hint: devices.isEmpty
+                      ? t.statusNoPairHint
+                      : online.isEmpty
+                          ? t.statusOfflineHint
+                          : t.statusConnectedHint,
+                  live: online.isNotEmpty,
+                  action: devices.isEmpty
+                      ? FilledButton.icon(
+                          key: const Key('pair'),
+                          style: FilledButton.styleFrom(
+                              backgroundColor: c.onAccent,
+                              foregroundColor: c.accent),
+                          onPressed: pair,
+                          icon: const Icon(Icons.add_link),
+                          label: Text(t.pairWithComputer))
+                      : null,
+                ),
+                const SizedBox(height: DropClipSpacing.md),
+                Row(children: [
+                  Expanded(
+                      child: _ActionTile(
+                          key: const Key('send-clipboard'),
+                          icon: Icons.content_paste_go_rounded,
+                          label: t.sendClipboard,
+                          onTap: () => _send(context))),
+                  const SizedBox(width: DropClipSpacing.md),
+                  Expanded(
+                      child: _ActionTile(
+                          key: const Key('send-file'),
+                          icon: Icons.upload_file_rounded,
+                          label: t.sendFile,
+                          onTap: () => _sendFile(context))),
                 ]),
-              ),
-            ),
-            const Divider(),
-            ValueListenableBuilder<List<ReceivedClip>>(
-              valueListenable: app.received,
-              builder: (_, clips, __) => Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    Row(children: [
-                      Expanded(
-                          child: Text(t.received,
-                              style: Theme.of(context).textTheme.titleSmall)),
-                      if (clips.isNotEmpty)
-                        TextButton.icon(
-                            key: const Key('clear'),
-                            onPressed: () => app.received.value = const [],
-                            icon: const Icon(Icons.delete_sweep_outlined),
-                            label: Text(t.clear)),
-                    ]),
-                    if (clips.isEmpty)
-                      Padding(
-                          padding: const EdgeInsets.symmetric(vertical: 12),
-                          child: Text(t.nothingYet,
-                              style: Theme.of(context).textTheme.bodySmall)),
-                    for (final c in clips)
-                      ListTile(
-                        leading: const Icon(Icons.content_paste),
-                        title: Text(c.text,
-                            maxLines: 3, overflow: TextOverflow.ellipsis),
-                        subtitle: Text(t.fromDevice(c.from)),
+                if (devices.isNotEmpty) ...[
+                  _Section(t.computers),
+                  for (final d in devices)
+                    Card(
+                      margin: const EdgeInsets.only(bottom: DropClipSpacing.sm),
+                      child: ListTile(
+                        leading: Stack(clipBehavior: Clip.none, children: [
+                          Icon(Icons.laptop_windows_rounded,
+                              color: c.textSecondary),
+                          Positioned(
+                            right: -2,
+                            bottom: -2,
+                            child: Container(
+                              width: 10,
+                              height: 10,
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                color: online.contains(d)
+                                    ? c.success
+                                    : c.textTertiary,
+                                border: Border.all(color: c.surface, width: 2),
+                              ),
+                            ),
+                          ),
+                        ]),
+                        title: Text(d.name),
+                        subtitle: Text(
+                            online.contains(d) ? t.connected : t.offline,
+                            style: TextStyle(
+                                color: online.contains(d)
+                                    ? c.success
+                                    : c.textSecondary)),
                         trailing: IconButton(
-                          tooltip: t.copyAgain,
-                          icon: const Icon(Icons.copy_rounded),
-                          onPressed: () async {
-                            await app.writeClipboard(c.text);
-                            if (context.mounted) _toast(context, t.copied);
-                          },
-                        ),
+                            key: Key('remove-${d.deviceId}'),
+                            tooltip: t.remove,
+                            icon: const Icon(Icons.link_off),
+                            onPressed: () => _forget(context, d)),
                       ),
-                  ]),
+                    ),
+                ],
+                ValueListenableBuilder<List<ReceivedClip>>(
+                  valueListenable: app.received,
+                  builder: (_, clips, __) => Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        _Section(t.received,
+                            trailing: clips.isEmpty
+                                ? null
+                                : TextButton.icon(
+                                    key: const Key('clear'),
+                                    onPressed: () =>
+                                        app.received.value = const [],
+                                    icon: const Icon(
+                                        Icons.delete_sweep_outlined,
+                                        size: 18),
+                                    label: Text(t.clear))),
+                        if (clips.isEmpty)
+                          Padding(
+                            padding: const EdgeInsets.symmetric(
+                                vertical: DropClipSpacing.xl),
+                            child: Column(children: [
+                              Icon(Icons.inbox_rounded,
+                                  size: 40, color: c.textTertiary),
+                              const SizedBox(height: DropClipSpacing.sm),
+                              Text(t.nothingYet,
+                                  style: TextStyle(color: c.textSecondary)),
+                            ]),
+                          ),
+                        for (final clip in clips)
+                          Card(
+                            margin: const EdgeInsets.only(
+                                bottom: DropClipSpacing.sm),
+                            child: ListTile(
+                              onTap: () => _copy(context, clip.text),
+                              leading: Icon(
+                                  _isLink(clip.text)
+                                      ? Icons.link_rounded
+                                      : Icons.notes_rounded,
+                                  color: _isLink(clip.text)
+                                      ? c.cyan
+                                      : c.textAccent),
+                              title: Text(clip.text,
+                                  maxLines: 3, overflow: TextOverflow.ellipsis),
+                              subtitle: Text(t.fromDevice(clip.from),
+                                  style: TextStyle(color: c.textSecondary)),
+                              trailing: IconButton(
+                                tooltip: t.copyAgain,
+                                icon: const Icon(Icons.copy_rounded),
+                                onPressed: () => _copy(context, clip.text),
+                              ),
+                            ),
+                          ),
+                      ]),
+                ),
+              ],
             ),
-          ]),
+          );
+        },
+      ),
     );
   }
+
+  Future<void> _copy(BuildContext context, String text) async {
+    await app.writeClipboard(text);
+    if (context.mounted) _toast(context, MobileStrings.of(context).copied);
+  }
+
+  static bool _isLink(String text) {
+    final uri = Uri.tryParse(text.trim());
+    return uri != null && uri.hasScheme && uri.host.isNotEmpty;
+  }
+}
+
+/// The big card on top: are we connected, and what to do next.
+class _StatusCard extends StatelessWidget {
+  final String title, hint;
+  final bool live;
+  final Widget? action;
+
+  const _StatusCard(
+      {required this.title,
+      required this.hint,
+      required this.live,
+      this.action});
+
+  @override
+  Widget build(BuildContext context) {
+    final c = DropClipColors.of(context);
+    return Container(
+      padding: const EdgeInsets.all(DropClipSpacing.lg),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(DropClipRadius.window),
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: live
+              ? [c.accent, Color.lerp(c.accent, c.cyan, 0.55)!]
+              : [c.accent, Color.lerp(c.accent, Colors.black, 0.25)!],
+        ),
+      ),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(children: [
+          Icon(live ? Icons.wifi_tethering_rounded : Icons.wifi_off_rounded,
+              color: c.onAccent),
+          const SizedBox(width: DropClipSpacing.sm),
+          Expanded(
+            child: Text(title,
+                style: TextStyle(
+                    color: c.onAccent,
+                    fontSize: 18,
+                    fontWeight: FontWeight.w700)),
+          ),
+        ]),
+        const SizedBox(height: DropClipSpacing.xs),
+        Text(hint, style: TextStyle(color: c.onAccent.withValues(alpha: 0.85))),
+        if (action != null) ...[
+          const SizedBox(height: DropClipSpacing.md),
+          action!,
+        ],
+      ]),
+    );
+  }
+}
+
+/// A large square button for the two main actions.
+class _ActionTile extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final VoidCallback onTap;
+
+  const _ActionTile(
+      {super.key,
+      required this.icon,
+      required this.label,
+      required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    final c = DropClipColors.of(context);
+    return Material(
+      color: c.surface,
+      shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(DropClipRadius.card),
+          side: BorderSide(color: c.border)),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(DropClipRadius.card),
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: DropClipSpacing.xl),
+          child: Column(children: [
+            CircleAvatar(
+              radius: 24,
+              backgroundColor: c.accent.withValues(alpha: 0.15),
+              child: Icon(icon, color: c.textAccent),
+            ),
+            const SizedBox(height: DropClipSpacing.sm),
+            Text(label,
+                textAlign: TextAlign.center,
+                style: const TextStyle(fontWeight: FontWeight.w600)),
+          ]),
+        ),
+      ),
+    );
+  }
+}
+
+class _Section extends StatelessWidget {
+  final String title;
+  final Widget? trailing;
+
+  const _Section(this.title, {this.trailing});
+
+  @override
+  Widget build(BuildContext context) => Padding(
+        padding: const EdgeInsets.only(
+            top: DropClipSpacing.xl, bottom: DropClipSpacing.sm),
+        child: Row(children: [
+          Expanded(
+            child: Text(title.toUpperCase(),
+                style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: 0.8,
+                    color: DropClipColors.of(context).textTertiary)),
+          ),
+          if (trailing != null) trailing!,
+        ]),
+      );
 }
 
 class _SettingsPage extends StatelessWidget {

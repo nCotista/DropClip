@@ -19,8 +19,6 @@ class MobileStrings {
   String get sendClipboard => _t('Send clipboard', 'ส่งคลิปบอร์ด');
   String get sendFile => _t('Send file', 'ส่งไฟล์');
   String get sent => _t('Sent', 'ส่งแล้ว');
-  String get noPaired =>
-      _t('No paired computers yet', 'ยังไม่มีคอมพิวเตอร์ที่จับคู่');
   String get connected => _t('Connected', 'เชื่อมต่ออยู่');
   String get offline => _t('Offline', 'ออฟไลน์');
   String get remove => _t('Remove', 'ลบ');
@@ -43,6 +41,20 @@ class MobileStrings {
   String sendFailed(String why) =>
       _t('Could not send: $why', 'ส่งไม่สำเร็จ: $why');
   String get settings => _t('Settings', 'ตั้งค่า');
+  String get computers => _t('Computers', 'คอมพิวเตอร์');
+  String get statusNoPair => _t('No computer yet', 'ยังไม่มีคอมพิวเตอร์');
+  String get statusNoPairHint => _t(
+      'On the computer: Devices → Pair new device, then pair here.',
+      'บนคอม: หน้าอุปกรณ์ → จับคู่อุปกรณ์ใหม่ แล้วจับคู่ที่นี่');
+  String get statusOffline => _t('Not connected', 'ยังไม่ได้เชื่อมต่อ');
+  String get statusOfflineHint => _t(
+      'Open DropClip on the computer, on the same Wi-Fi.',
+      'เปิด DropClip บนคอม และต่อ Wi-Fi วงเดียวกัน');
+  String statusConnected(String name) =>
+      _t('Connected to $name', 'เชื่อมต่อกับ $name');
+  String get statusConnectedHint => _t(
+      'Copied text arrives here; tap a clip to copy it again.',
+      'ข้อความที่คัดลอกบนคอมจะมาที่นี่ แตะเพื่อคัดลอกอีกครั้ง');
   String get thisPhone => _t('This phone', 'มือถือเครื่องนี้');
   String get language => _t('Language', 'ภาษา');
   String get syncClipboard => _t('Sync clipboard', 'ซิงก์คลิปบอร์ด');

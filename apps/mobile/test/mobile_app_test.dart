@@ -221,7 +221,7 @@ void main() {
     await tester.tap(find.byKey(const Key('confirm-remove')));
     await tester.pumpAndSettle();
     expect(peer.forgotten, ['pc']);
-    expect(find.text('No paired computers yet'), findsOneWidget);
+    expect(find.text('No computer yet'), findsOneWidget);
   });
 
   testWidgets('send file goes to the connected computer', (tester) async {
@@ -288,7 +288,7 @@ void main() {
     await _app(tester, peer,
         received: const [(from: 'Office PC', text: 'hello')],
         clipboard: 'from phone');
-    expect(find.text('No paired computers yet'), findsOneWidget);
+    expect(find.text('No computer yet'), findsOneWidget);
     expect(find.text('hello'), findsOneWidget);
 
     await tester.tap(find.byKey(const Key('pair')));
