@@ -231,7 +231,7 @@ Future<void> main(List<String> args) async {
       myFingerprint: node.me.fp,
       trusted: node.trusted,
       connectedChanges: node.mesh.peerChanges,
-      connected: node.mesh.connected,
+      connected: () => node.mesh.connected,
       nearby: discovery.peers,
       onPairNew: pairNew,
       onPairWith: (peer) => showDialog<void>(
