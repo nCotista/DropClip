@@ -4,6 +4,7 @@ import 'dart:io';
 
 import 'package:dropclip_clipboard/dropclip_clipboard.dart';
 import 'package:dropclip_core/dropclip_core.dart';
+import 'package:dropclip_protocol/dropclip_protocol.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
@@ -238,6 +239,22 @@ Future<void> main(List<String> args) async {
     onSuppressed: () => status.value = status.value
         .copyWith(suppressedClips: status.value.suppressedClips + 1),
   );
+  // A received file shows in the clipboard list; a PNG also goes onto the
+  // PC clipboard (and on to peers) so it can be pasted right away.
+  files.onSaved = (file, from) async {
+    final size = await file.length();
+    final head = size < 8 ? const <int>[] : await file.openRead(0, 8).first;
+    const png = [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A];
+    if (listEquals(head, png) && size <= ProtocolConstants.clipboardMaxSize) {
+      await clipboard.takeImage(await file.readAsBytes(), from);
+    } else {
+      showClip((
+        type: ClipType.text,
+        preview: '📎 ${file.uri.pathSegments.last}',
+        from: from,
+      ));
+    }
+  };
   // Dropzone targets: nearby devices plus linked browsers.
   final targets = ValueNotifier<List<NearbyDevice>>(const []);
   void updateTargets() => targets.value = [
