@@ -8,24 +8,63 @@ import 'clipboard_aside.dart';
 import 'demo_data.dart';
 import 'l10n/strings.dart';
 
+typedef OpenRunner = Future<ProcessResult> Function(
+    String exe, List<String> args, {required bool runInShell});
+
+Future<ProcessResult> _runNoShell(String exe, List<String> args,
+    {required bool runInShell}) {
+  return Process.run(exe, args, runInShell: runInShell);
+}
+
 /// The command that opens [path] in its default app, or with [reveal]
 /// shows it selected in its folder. Explorer needs backslashes: given
 /// `C:\Users\me/Downloads/x.pdf` it silently opens Documents instead.
 (String, List<String>) openCommand(String path,
-    {required bool reveal, required bool macOS}) {
-  if (macOS) return ('open', [if (reveal) '-R', path]);
-  final win = path.replaceAll('/', r'\');
-  // Separate args: a name with spaces gets quoted on its own
-  // (`/select, "C:\a b.pdf"`); quoting `/select,...` as one breaks it.
-  return ('explorer.exe', [if (reveal) '/select,', win]);
+    {required bool reveal, required bool macOS, bool? windows}) {
+  final isWin = windows ?? !macOS;
+  if (macOS) {
+    final target = path.startsWith('-') ? './$path' : path;
+    return ('open', [if (reveal) '-R', target]);
+  }
+  if (isWin) {
+    final win = path.replaceAll('/', r'\');
+    // Separate args: a name with spaces gets quoted on its own
+    // (`/select, "C:\a b.pdf"`); quoting `/select,...` as one breaks it.
+    return ('explorer.exe', [if (reveal) '/select,', win]);
+  }
+  final raw = reveal ? File(path).parent.path : path;
+  final target = raw.startsWith('-') ? './$raw' : raw;
+  return ('xdg-open', [target]);
+}
+
+/// Runs the platform opener for [path] with `runInShell: false`; returns
+/// `false` if [path] is missing or launching fails.
+@visibleForTesting
+Future<bool> runOpenWithSystem(
+  String path, {
+  bool reveal = false,
+  bool? macOS,
+  bool? windows,
+  OpenRunner? run,
+}) async {
+  if (await FileSystemEntity.type(path) == FileSystemEntityType.notFound) {
+    return false;
+  }
+  final (exe, args) = openCommand(path,
+      reveal: reveal,
+      macOS: macOS ?? Platform.isMacOS,
+      windows: windows ?? Platform.isWindows);
+  try {
+    final res = await (run ?? _runNoShell)(exe, args, runInShell: false);
+    return res.exitCode == 0;
+  } on ProcessException {
+    return false;
+  }
 }
 
 /// Opens [path] in its default app, or shows it in its folder.
-Future<void> openWithSystem(String path, {bool reveal = false}) {
-  final (exe, args) =
-      openCommand(path, reveal: reveal, macOS: Platform.isMacOS);
-  return Process.run(exe, args);
-}
+Future<void> openWithSystem(String path, {bool reveal = false}) =>
+    runOpenWithSystem(path, reveal: reveal);
 
 /// Below this page width the [ClipboardAside] is hidden.
 const double asideMinPageWidth = 900;

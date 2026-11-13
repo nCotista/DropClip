@@ -51,7 +51,9 @@ typedef _Device = ({
 });
 
 Future<_Device> _device(String name,
-    {void Function(ClipEvent)? onClip, SyncPolicy Function()? policy}) async {
+    {void Function(ClipEvent)? onClip,
+    SyncPolicy Function()? policy,
+    void Function(String)? onWarn}) async {
   final shown = <ClipEvent>[];
   final dir = await Directory.systemTemp.createTemp('dc_clip_');
   final node = await DesktopNode.start(
@@ -66,7 +68,8 @@ Future<_Device> _device(String name,
       changes: os.changes.stream,
       windows: true,
       onClip: onClip ?? shown.add,
-      policy: policy ?? () => const SyncPolicy());
+      policy: policy ?? () => const SyncPolicy(),
+      onWarn: onWarn);
   await bridge.start();
   addTearDown(() async {
     await bridge.stop();
@@ -263,5 +266,42 @@ void main() {
     expect(a.shown.last.from, 'iPhone');
     final gotPhone = await fromPhone.timeout(const Duration(seconds: 5));
     expect(utf8.decode(gotPhone.first.data), 'from iPhone');
+  });
+
+  test('takeSavedFile injects valid PNG and falls back on corrupt/non-PNG',
+      () async {
+    final warns = <String>[];
+    final d = await _device('PC', onWarn: warns.add);
+    final tmp = await Directory.systemTemp.createTemp('dc_saved_');
+    addTearDown(() => tmp.delete(recursive: true));
+
+    final good = File('${tmp.path}/ok.png');
+    final pngBytes = encodePng(RgbaImage(2, 2, Uint8List(16)));
+    await good.writeAsBytes(pngBytes);
+    var fallbacks = 0;
+    await d.bridge.takeSavedFile(good, 'Phone', onFallback: () => fallbacks++);
+    expect(fallbacks, 0);
+    expect(d.os.items?.first.data, pngBytes);
+    expect(good.existsSync(), isTrue);
+
+    final bad = File('${tmp.path}/bad.png');
+    const badPng = [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 9];
+    await bad.writeAsBytes(badPng);
+    await d.bridge.takeSavedFile(bad, 'Phone', onFallback: () => fallbacks++);
+    expect(fallbacks, 1);
+    expect(bad.existsSync(), isTrue);
+    expect(warns, contains('clipboard: invalid PNG skipped'));
+
+    final txt = File('${tmp.path}/notes.txt');
+    await txt.writeAsString('hello');
+    await d.bridge.takeSavedFile(txt, 'Phone', onFallback: () => fallbacks++);
+    expect(fallbacks, 2);
+
+    await d.bridge.takeSavedFile(
+      File('${tmp.path}/missing.png'),
+      'Phone',
+      onFallback: () => fallbacks++,
+    );
+    expect(fallbacks, 2);
   });
 }

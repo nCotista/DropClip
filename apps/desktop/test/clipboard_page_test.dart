@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:dropclip_desktop/src/clipboard_page.dart';
 import 'package:dropclip_desktop/src/demo_data.dart';
 import 'package:dropclip_ui/dropclip_ui.dart';
@@ -39,6 +41,62 @@ void main() {
     expect(openCommand(p, reveal: true, macOS: false).$2, ['/select,', win]);
     expect(openCommand('/Users/me/x.pdf', reveal: true, macOS: true).$2,
         ['-R', '/Users/me/x.pdf']);
+    expect(
+        openCommand('/tmp/a/x.pdf', reveal: false, macOS: false,
+            windows: false),
+        ('xdg-open', ['/tmp/a/x.pdf']));
+    expect(
+        openCommand('/tmp/a/x.pdf', reveal: true, macOS: false, windows: false),
+        ('xdg-open', ['/tmp/a']));
+    expect(openCommand('-bad.pdf', reveal: false, macOS: true),
+        ('open', ['./-bad.pdf']));
+  });
+
+  test('runOpenWithSystem guards missing files, shell flags, and failures',
+      () async {
+    final tmp = await Directory.systemTemp.createTemp('dc_open_');
+    addTearDown(() => tmp.delete(recursive: true));
+
+    var calls = 0;
+    final missing = await runOpenWithSystem(
+      '${tmp.path}/gone.pdf',
+      run: (exe, args, {required bool runInShell}) async {
+        calls++;
+        return ProcessResult(0, 0, '', '');
+      },
+    );
+    expect(missing, isFalse);
+    expect(calls, 0);
+
+    final weird = File('${tmp.path}/a & calc | b.txt');
+    await weird.writeAsString('hi');
+    late String gotExe;
+    late List<String> gotArgs;
+    late bool gotShell;
+    final ok = await runOpenWithSystem(
+      weird.path,
+      macOS: false,
+      windows: false,
+      run: (exe, args, {required bool runInShell}) async {
+        gotExe = exe;
+        gotArgs = args;
+        gotShell = runInShell;
+        return ProcessResult(0, 0, '', '');
+      },
+    );
+    expect(ok, isTrue);
+    expect(gotExe, 'xdg-open');
+    expect(gotArgs, [weird.path]);
+    expect(gotShell, isFalse);
+
+    final boom = await runOpenWithSystem(
+      weird.path,
+      macOS: true,
+      windows: false,
+      run: (_, __, {required bool runInShell}) =>
+          Future.error(const ProcessException('open', [])),
+    );
+    expect(boom, isFalse);
   });
 
   group('ClipboardPage (T1.12, FR-04, SF-03)', () {
