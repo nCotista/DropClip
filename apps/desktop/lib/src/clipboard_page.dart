@@ -15,7 +15,9 @@ import 'l10n/strings.dart';
     {required bool reveal, required bool macOS}) {
   if (macOS) return ('open', [if (reveal) '-R', path]);
   final win = path.replaceAll('/', r'\');
-  return ('explorer.exe', [reveal ? '/select,$win' : win]);
+  // Separate args: a name with spaces gets quoted on its own
+  // (`/select, "C:\a b.pdf"`); quoting `/select,...` as one breaks it.
+  return ('explorer.exe', [if (reveal) '/select,', win]);
 }
 
 /// Opens [path] in its default app, or shows it in its folder.

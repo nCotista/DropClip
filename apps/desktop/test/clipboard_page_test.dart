@@ -36,7 +36,7 @@ void main() {
     final open = openCommand(p, reveal: false, macOS: false);
     expect(open.$1, 'explorer.exe');
     expect(open.$2, [win]);
-    expect(openCommand(p, reveal: true, macOS: false).$2, ['/select,$win']);
+    expect(openCommand(p, reveal: true, macOS: false).$2, ['/select,', win]);
     expect(openCommand('/Users/me/x.pdf', reveal: true, macOS: true).$2,
         ['-R', '/Users/me/x.pdf']);
   });
