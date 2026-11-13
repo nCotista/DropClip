@@ -77,8 +77,8 @@ void main() {
   }
 
   test('opt-in off by default and refuses requests once disabled', () async {
-    final off = WebCompanion(
-        downloads: dir, page: 'x', onText: (_, __) async {});
+    final off =
+        WebCompanion(downloads: dir, page: 'x', onText: (_, __) async {});
     expect(off.isEnabled(), isFalse);
     expect(() => off.newCode(), throwsStateError);
     final r = await off.handler(Request('GET', Uri.parse('https://x/web')));

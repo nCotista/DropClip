@@ -10,8 +10,14 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:shelf/shelf.dart';
 
 /// A desktop as the phone sees it: pairing host, mTLS server and mesh.
-Future<({PairingHost pairing, PeerMesh mesh, int port, String id})> _desktop(
-    Directory dir) async {
+Future<
+    ({
+      PairingHost pairing,
+      PeerMesh mesh,
+      int port,
+      String id,
+      TrustedDeviceStore store
+    })> _desktop(Directory dir) async {
   final keys = InMemorySecureKeyStore();
   final ids = DeviceIdentityManager(
       storageDir: Directory('${dir.path}/d'), keyStore: keys);
@@ -52,7 +58,8 @@ Future<({PairingHost pairing, PeerMesh mesh, int port, String id})> _desktop(
     pairing: pairing,
     mesh: mesh,
     port: server.port,
-    id: ids.identity.deviceId
+    id: ids.identity.deviceId,
+    store: store
   );
 }
 
@@ -148,4 +155,79 @@ void main() {
     }
     expect(phone.trusted.value, isEmpty);
   });
+
+  Future<MobileNode> phoneAt(Directory dir, String os) async {
+    final phone = await MobileNode.start(
+        dir: Directory('${dir.path}/phone'),
+        keys: InMemorySecureKeyStore(),
+        name: 'Test phone',
+        os: os,
+        writeClipboard: (_) async {},
+        onReceived: (_, __) {});
+    addTearDown(phone.close);
+    return phone;
+  }
+
+  for (final os in ['ios', 'android']) {
+    for (final mode in ['pin', 'qr']) {
+      test('$os advertises its tier in hello and $mode pairing', () async {
+        final dir = await Directory.systemTemp.createTemp('dc_tier_');
+        addTearDown(() => dir.delete(recursive: true));
+        final desk = await _desktop(dir);
+        final phone = await phoneAt(dir, os);
+        final expectedTier = os == 'ios' ? 3 : 2;
+        expect(phone.hello.tier, expectedTier);
+        expect(phone.hello.capabilities.contains('clip.push'), os == 'android');
+        final session = desk.pairing.open(ip: '127.0.0.1', port: desk.port);
+        final sub = desk.pairing.events.listen((e) {
+          if (e is PairingSasReady) desk.pairing.confirm(true);
+        });
+        addTearDown(sub.cancel);
+        final paired =
+            desk.pairing.events.firstWhere((e) => e is PairingCompleted);
+        if (mode == 'pin') {
+          await phone.pair(
+              '127.0.0.1', desk.port, session.pin, (_, __) async => true);
+        } else {
+          await phone.pairWithQr(
+              jsonEncode(session.qr.toJson()), (_, __) async => true);
+        }
+        await paired;
+        expect(desk.store.activeDevices.single.tier, expectedTier);
+        expect(desk.store.activeDevices.single.os, os);
+      });
+    }
+  }
+
+  for (final failure in ['wrong PIN', 'malformed QR', 'wrong QR fingerprint']) {
+    test('iOS $failure never creates trust', () async {
+      final dir = await Directory.systemTemp.createTemp('dc_ios_reject_');
+      addTearDown(() => dir.delete(recursive: true));
+      final desk = await _desktop(dir);
+      final phone = await phoneAt(dir, 'ios');
+      final session = desk.pairing.open(ip: '127.0.0.1', port: desk.port);
+      final sub = desk.pairing.events.listen((e) {
+        if (e is PairingSasReady) desk.pairing.confirm(false);
+      });
+      addTearDown(sub.cancel);
+      final Future<TrustedDevice> attempt;
+      if (failure == 'wrong PIN') {
+        final wrong = session.pin == '000000' ? '111111' : '000000';
+        attempt =
+            phone.pair('127.0.0.1', desk.port, wrong, (_, __) async => true);
+      } else {
+        final qr = session.qr.toJson();
+        final fp = qr['fp'] as String;
+        qr['fp'] = (fp[0] == 'a' ? 'b' : 'a') + fp.substring(1);
+        attempt = phone.pairWithQr(
+            failure == 'malformed QR' ? 'not a qr' : jsonEncode(qr),
+            (_, __) async => true);
+      }
+      await expectLater(attempt, throwsA(anything));
+      expect(phone.trusted.value, isEmpty);
+      expect(desk.store.activeDevices, isEmpty);
+      expect(phone.hello.tier, 3);
+      expect(phone.hello.capabilities, isNot(contains('clip.push')));
+    });
+  }
 }
