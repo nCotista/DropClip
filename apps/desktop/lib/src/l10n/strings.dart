@@ -33,6 +33,8 @@ abstract class Strings {
   String get languageSub;
   String get startAtLogin;
   String get startAtLoginSub;
+  String get webCompanion;
+  String get webCompanionSub;
   String get syncAuto;
   String get syncAutoSub;
   String get typesToSync;
@@ -165,6 +167,11 @@ class EnStrings extends Strings {
   @override
   String get startAtLoginSub =>
       'Stays hidden in the menubar / system tray, no window';
+  @override
+  String get webCompanion => 'Web companion (/web)';
+  @override
+  String get webCompanionSub =>
+      'Allow a linked phone browser over local HTTPS (expires in 8 hours)';
   @override
   String get syncAuto => 'Sync clipboard automatically';
   @override
@@ -386,6 +393,11 @@ class ThStrings extends Strings {
   @override
   String get startAtLoginSub =>
       'ซ่อนอยู่ในแถบเมนูหรือ System Tray โดยไม่เปิดหน้าต่าง';
+  @override
+  String get webCompanion => 'เว็บคอมพาเนียน (/web)';
+  @override
+  String get webCompanionSub =>
+      'เปิดให้เบราว์เซอร์มือถือเชื่อมต่อผ่าน HTTPS ในวง LAN (หมดอายุใน 8 ชม.)';
   @override
   String get syncAuto => 'ซิงก์คลิปบอร์ดอัตโนมัติ';
   @override

@@ -13,7 +13,8 @@ void main() {
     final web = WebCompanion(
         downloads: Directory.systemTemp,
         page: '',
-        writeClipboard: (_) async {});
+        writeClipboard: (_) async {},
+        enabled: true);
     await tester.pumpWidget(MaterialApp(
         home: Scaffold(
             body: WebLinkDialog(

@@ -29,6 +29,9 @@ class AppConfig {
   /// The first-run firewall explanation was dismissed.
   final bool firstRunDone;
 
+  /// Opt-in flag enabling the local HTTPS `/web` browser companion.
+  final bool webCompanionEnabled;
+
   const AppConfig({
     required this.deviceName,
     this.autoAccept = false,
@@ -40,6 +43,7 @@ class AppConfig {
     this.logLevel = 'info',
     this.language = AppLanguage.th,
     this.firstRunDone = false,
+    this.webCompanionEnabled = false,
   });
 
   static const _logLevels = {'debug', 'info', 'warn', 'error'};
@@ -59,6 +63,7 @@ class AppConfig {
         'log_level': logLevel,
         'language': language.name,
         'first_run_done': firstRunDone,
+        'web_companion_enabled': webCompanionEnabled,
       };
 
   /// Invalid or missing values fall back to the default; each one is
@@ -109,6 +114,8 @@ class AppConfig {
       logLevel: pick<String>('log_level', d.logLevel, _logLevels.contains),
       language: langOk ? AppLanguage.values.byName(lang as String) : d.language,
       firstRunDone: pick<bool>('first_run_done', d.firstRunDone, (_) => true),
+      webCompanionEnabled: pick<bool>(
+          'web_companion_enabled', d.webCompanionEnabled, (_) => true),
     );
   }
 
@@ -122,6 +129,7 @@ class AppConfig {
     bool? autoStart,
     AppLanguage? language,
     bool? firstRunDone,
+    bool? webCompanionEnabled,
   }) =>
       AppConfig(
         deviceName: deviceName ?? this.deviceName,
@@ -136,6 +144,7 @@ class AppConfig {
         logLevel: logLevel,
         language: language ?? this.language,
         firstRunDone: firstRunDone ?? this.firstRunDone,
+        webCompanionEnabled: webCompanionEnabled ?? this.webCompanionEnabled,
       );
 }
 

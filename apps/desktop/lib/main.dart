@@ -184,14 +184,17 @@ Future<void> main(List<String> args) async {
   final native = NativeClipboard(FlutterClipboardChannel(),
       log: (m) => log.debug('clipboard', m));
 
-  // Tier 3 web: phones without the app use a browser at /web. Text they
-  // send lands on this clipboard, so it also syncs on to paired peers.
+  // Tier 3 web: opt-in only, phones without the app use a browser at /web.
   final web = WebCompanion(
     downloads: files.downloads,
     page: webCompanionPage,
     writeClipboard: (text) => native
         .write([ClipboardItem(mime: ClipMime.text, data: utf8.encode(text))]),
+    isEnabled: () => store.config.value.webCompanionEnabled,
   );
+  store.config.addListener(() {
+    if (!store.config.value.webCompanionEnabled) web.revokeAll();
+  });
   node.webHandler = web.handler;
 
   final clipboard = ClipboardBridge(
@@ -241,6 +244,17 @@ Future<void> main(List<String> args) async {
     );
   }
 
+  Future<void> openWebLink() => showDialog<void>(
+        context: navigator.currentContext!,
+        builder: (_) => WebLinkDialog(
+          web: web,
+          baseUrl: () async {
+            final ip = await localAddress();
+            return 'https://$ip:${node.server.port}/web';
+          },
+        ),
+      );
+
   final app = DropClipDesktopApp(
     hiddenLaunch: hidden,
     status: status.value,
@@ -255,33 +269,29 @@ Future<void> main(List<String> args) async {
       ),
     ),
     navigatorKey: navigator,
-    devicesPage: DevicesPage(
-      myName: node.me.name,
-      myFingerprint: node.me.fp,
-      trusted: node.trusted,
-      connectedChanges: node.mesh.peerChanges,
-      connected: node.mesh.connected,
-      nearby: discovery.peers,
-      onPairNew: pairNew,
-      onPairWith: (peer) => showDialog<void>(
-        context: navigator.currentContext!,
-        barrierDismissible: false,
-        builder: (_) => ClientPairingDialog(
-          peerName: peer.record.name,
-          pair: (pin, confirm) => node.pairWith(peer, pin, confirm),
+    devicesPage: ValueListenableBuilder<AppConfig>(
+      valueListenable: store.config,
+      builder: (_, c, __) => DevicesPage(
+        myName: node.me.name,
+        myFingerprint: node.me.fp,
+        trusted: node.trusted,
+        connectedChanges: node.mesh.peerChanges,
+        connected: node.mesh.connected,
+        nearby: discovery.peers,
+        onPairNew: pairNew,
+        onPairWith: (peer) => showDialog<void>(
+          context: navigator.currentContext!,
+          barrierDismissible: false,
+          builder: (_) => ClientPairingDialog(
+            peerName: peer.record.name,
+            pair: (pin, confirm) => node.pairWith(peer, pin, confirm),
+          ),
         ),
-      ),
-      onForget: (d) => node.forget(d.deviceId),
-      quarantined: node.quarantined,
-      onSettle: (d, remove) =>
-          node.settleQuarantine(d.deviceId, remove: remove),
-      onLinkWeb: () => showDialog<void>(
-        context: navigator.currentContext!,
-        builder: (_) => WebLinkDialog(
-          web: web,
-          baseUrl: () async =>
-              'https://${await localAddress()}:${node.server.port}/web',
-        ),
+        onForget: (d) => node.forget(d.deviceId),
+        quarantined: node.quarantined,
+        onSettle: (d, remove) =>
+            node.settleQuarantine(d.deviceId, remove: remove),
+        onLinkWeb: c.webCompanionEnabled ? openWebLink : null,
       ),
     ),
     // §3.1: explain the Windows Firewall prompt once, on first run.

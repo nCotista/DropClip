@@ -24,6 +24,7 @@ void main() {
         'log_level': 'info',
         'language': 'th',
         'first_run_done': false,
+        'web_companion_enabled': false,
       });
     });
 
@@ -38,6 +39,7 @@ void main() {
         autoStart: false,
         language: AppLanguage.en,
         firstRunDone: true,
+        webCompanionEnabled: true,
       );
       final back = AppConfig.fromJson(c.toJson(), defaultDeviceName: 'x');
       expect(back.toJson(), c.toJson());
