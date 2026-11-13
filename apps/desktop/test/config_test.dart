@@ -165,4 +165,85 @@ void main() {
           '/Users/a/Library/Application Support/DropClip/config.json');
     });
   });
+
+  group('ConfigStore.migrateMacSandboxData', () {
+    Directory containerSupport() => Directory(
+          '${dir.path}/Library/Containers/${ConfigStore.macBundleId}'
+          '/Data/Library/Application Support/DropClip',
+        );
+
+    Directory realSupport() =>
+        Directory('${dir.path}/Library/Application Support/DropClip');
+
+    test('migrates config and nested folders when target is absent', () async {
+      final src = containerSupport();
+      await File('${src.path}/config.json')
+          .create(recursive: true)
+          .then((f) => f.writeAsString('{"device_name":"OldMac"}'));
+      await File('${src.path}/identity/device.json')
+          .create(recursive: true)
+          .then((f) => f.writeAsString('{"id":"dev-1"}'));
+      await File('${src.path}/trust/peers.json')
+          .create(recursive: true)
+          .then((f) => f.writeAsString('[{"id":"win-1"}]'));
+
+      final migrated =
+          await ConfigStore.migrateMacSandboxData({'HOME': dir.path});
+
+      expect(migrated, isTrue);
+      expect(await File('${realSupport().path}/config.json').readAsString(),
+          '{"device_name":"OldMac"}');
+      expect(
+          await File('${realSupport().path}/identity/device.json')
+              .readAsString(),
+          '{"id":"dev-1"}');
+      expect(
+          await File('${realSupport().path}/trust/peers.json').readAsString(),
+          '[{"id":"win-1"}]');
+    });
+
+    test('migrates when target directory exists but is empty', () async {
+      await Directory(containerSupport().path).create(recursive: true);
+      await File('${containerSupport().path}/config.json')
+          .writeAsString('{"auto_accept":true}');
+      await realSupport().create(recursive: true);
+
+      final migrated =
+          await ConfigStore.migrateMacSandboxData({'HOME': dir.path});
+
+      expect(migrated, isTrue);
+      expect(await File('${realSupport().path}/config.json').readAsString(),
+          '{"auto_accept":true}');
+    });
+
+    test('skips migration without overwriting non-empty target', () async {
+      await Directory(containerSupport().path).create(recursive: true);
+      await File('${containerSupport().path}/config.json')
+          .writeAsString('{"device_name":"Container"}');
+      await realSupport().create(recursive: true);
+      await File('${realSupport().path}/config.json')
+          .writeAsString('{"device_name":"Real"}');
+
+      final migrated =
+          await ConfigStore.migrateMacSandboxData({'HOME': dir.path});
+
+      expect(migrated, isFalse);
+      expect(await File('${realSupport().path}/config.json').readAsString(),
+          '{"device_name":"Real"}');
+    });
+
+    test('no-ops when container is missing, empty, or HOME is unset', () async {
+      expect(
+          await ConfigStore.migrateMacSandboxData({'HOME': dir.path}), isFalse);
+      expect(realSupport().existsSync(), isFalse);
+
+      await containerSupport().create(recursive: true);
+      expect(
+          await ConfigStore.migrateMacSandboxData({'HOME': dir.path}), isFalse);
+      expect(realSupport().existsSync(), isFalse);
+
+      expect(await ConfigStore.migrateMacSandboxData(const {}), isFalse);
+      expect(await ConfigStore.migrateMacSandboxData({'HOME': ''}), isFalse);
+    });
+  });
 }

@@ -94,6 +94,9 @@ class TrayController {
     if (_events != null) await host.setMenu(_menu);
   }
 
+  /// Brings the main desktop window to the foreground.
+  Future<void> show() => host.showWindow();
+
   Future<void> stop() async {
     await _events?.cancel();
     _events = null;

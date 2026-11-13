@@ -300,4 +300,104 @@ void main() {
     expect(b.updates.last.state, 'failed');
     expect(File('${b.dir.path}/Downloads/ghost.txt').existsSync(), isFalse);
   });
+
+  test('resuming from an existing .part reports the resumed offset right away',
+      () async {
+    final a = await _device('A'), b = await _device('B');
+    await _pairAndLink(a.node, b.node);
+    final sent = await _file(a.dir, 'resume.bin', kStreamingChunkSize + 100);
+    // Pre-populate .part with 1 MiB + 50 B so GET .../status truncates back to
+    // the 1 MiB chunk boundary and emits immediate incoming progress.
+    final part = File('${b.dir.path}/Downloads/resume.bin.part');
+    await part.create(recursive: true);
+    final seed = await sent
+        .openRead(0, kStreamingChunkSize + 50)
+        .fold<BytesBuilder>(
+            BytesBuilder(copy: false), (buf, chunk) => buf..add(chunk));
+    await part.writeAsBytes(seed.takeBytes());
+
+    await a.files.send(b.node.me.deviceId, 'B', [sent]);
+
+    expect(
+      b.updates.map((u) => (u.done, u.state)),
+      contains((kStreamingChunkSize, 'in_progress')),
+    );
+    expect(b.updates.last.state, 'complete');
+    expect(
+      await computeFileSha256(File('${b.dir.path}/Downloads/resume.bin')),
+      await computeFileSha256(sent),
+    );
+  });
+
+  test('an aborted upload POST marks the incoming transfer failed immediately',
+      () async {
+    final a = await _device('A'),
+        b = await _device('B', stallTimeout: const Duration(seconds: 30));
+    await _pairAndLink(a.node, b.node);
+    final me = a.node.me.deviceId;
+    const tid = '00000000-0000-4000-8000-0000000000f3';
+    final accepted = a.node.mesh.messages.firstWhere(
+      (m) =>
+          m.envelope.type == MessageType.fileAccept &&
+          m.envelope.payload['transfer_id'] == tid,
+    );
+    await a.node.mesh.broadcast(
+      Envelope(
+        type: MessageType.fileOffer,
+        msgId: '00000000-0000-4000-8000-0000000000f4',
+        origin: me,
+        hlc: Hlc.now(me),
+        ts: DateTime.now().millisecondsSinceEpoch,
+        payload: {
+          'transfer_id': tid,
+          'items': [
+            FileOfferItem(
+              itemId: 'i0',
+              path: 'broken.bin',
+              size: 100,
+              sha256: '00',
+              mime: 'application/octet-stream',
+              modifiedAt: 0,
+            ).toJson()
+          ],
+          'manifest': false,
+          'total_size': 100,
+          'total_count': 1,
+        },
+      ),
+      to: b.node.me.deviceId,
+    );
+    await accepted.timeout(const Duration(seconds: 5));
+
+    final client = await PinnedTransportClient.forIdentity(
+      identity: a.node.ids,
+      store: a.node.store,
+      expectedFp: b.node.me.fp,
+    );
+    try {
+      final req = await client.httpClient.openUrl(
+        'POST',
+        Uri(
+          scheme: 'https',
+          host: '127.0.0.1',
+          port: b.node.server.port,
+          path: '/api/v1/file/$tid/i0',
+        ),
+      );
+      req.headers.set('x-offset', '0');
+      req.contentLength = 100;
+      req.add([1, 2, 3, 4, 5]);
+      await req.flush();
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+      req.abort();
+      await req.done.then<void>((_) {}, onError: (Object _) {});
+    } finally {
+      client.close(force: true);
+    }
+
+    for (var i = 0; i < 100 && b.updates.lastOrNull?.state != 'failed'; i++) {
+      await Future<void>.delayed(const Duration(milliseconds: 20));
+    }
+    expect(b.updates.map((u) => u.state), ['in_progress', 'failed']);
+  });
 }

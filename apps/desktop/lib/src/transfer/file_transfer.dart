@@ -308,6 +308,10 @@ class FileTransfers {
         await raf.truncate(offset);
         await raf.close();
       }
+      if (offset > 0 && identical(_incoming[tid], t)) {
+        t.received[item.itemId] = offset;
+        _report(tid, t, 'in_progress');
+      }
       return _json(200, {'offset': offset, 'state': 'in_progress'});
     }
     var at = int.tryParse(r.headers['x-offset'] ?? '') ?? -1;
@@ -347,6 +351,9 @@ class FileTransfers {
     } on ProtocolException catch (e) {
       if (_incoming.remove(tid) != null) _report(tid, t, 'failed');
       return _json(e.httpStatus, e.toHttpJson());
+    } on Object {
+      if (_incoming.remove(tid) != null) _report(tid, t, 'failed');
+      return _json(500, {'error': 'transfer_failed'});
     }
   }
 

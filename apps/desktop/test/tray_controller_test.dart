@@ -112,6 +112,11 @@ void main() {
       await host.emit(const TrayClicked());
       expect(host.calls, ['show']);
     });
+
+    test('show asks the host to show the window', () async {
+      await tray.show();
+      expect(host.calls, ['show']);
+    });
   });
 
   group('native tray menu language (NFR-L01)', () {
