@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:crypto/crypto.dart';
 import 'package:dropclip_core/dropclip_core.dart';
@@ -16,8 +17,21 @@ Future<
       PeerMesh mesh,
       int port,
       String id,
-      TrustedDeviceStore store
+      TrustedDeviceStore store,
+      Map<String, BytesBuilder> files,
     })> _desktop(Directory dir) async {
+  // A minimal desktop receiver: accepts every offer and keeps the bytes.
+  final files = <String, BytesBuilder>{};
+  Future<Response> fileRoute(Request r) async {
+    final seg = r.url.pathSegments; // api v1 file <tid> <item|finish>[/status]
+    if (seg.length == 6) return Response.ok('{"offset":0}');
+    if (seg[4] == 'finish') return Response.ok('{}');
+    await for (final b in r.read()) {
+      files.putIfAbsent(seg[3], BytesBuilder.new).add(b);
+    }
+    return Response.ok('{}');
+  }
+
   final keys = InMemorySecureKeyStore();
   final ids = DeviceIdentityManager(
       storageDir: Directory('${dir.path}/d'), keyStore: keys);
@@ -44,13 +58,31 @@ Future<
   server = await TlsTransportServer.bindForIdentity(
       identity: ids,
       store: store,
-      pinnedHandler: (_) => Response.notFound(null),
+      pinnedHandler: (r) async => r.url.path.startsWith('api/v1/file/')
+          ? await fileRoute(r)
+          : Response.notFound(null),
       pairingHandler: pairing.handler,
       webSocket: (r, fp) => unawaited(mesh.accept(r, fp)),
       address: InternetAddress.loopbackIPv4,
       firstPort: 0,
       lastPort: 0);
+  final offers = mesh.messages
+      .where((m) => m.envelope.type == MessageType.fileOffer)
+      .listen((m) => mesh.broadcast(
+          Envelope(
+              type: MessageType.fileAccept,
+              msgId: '00000000-0000-4000-8000-0000000000cc',
+              origin: ids.identity.deviceId,
+              hlc: Hlc.now(ids.identity.deviceId),
+              ts: DateTime.now().millisecondsSinceEpoch,
+              payload: {
+                'transfer_id': m.envelope.payload['transfer_id'],
+                'accepted_items': ['i0'],
+                'auto': true
+              }),
+          to: m.peerId));
   addTearDown(() async {
+    await offers.cancel();
     await mesh.close();
     await server.close(force: true);
   });
@@ -59,7 +91,8 @@ Future<
     mesh: mesh,
     port: server.port,
     id: ids.identity.deviceId,
-    store: store
+    store: store,
+    files: files,
   );
 }
 
@@ -154,6 +187,48 @@ void main() {
       await Future<void>.delayed(const Duration(milliseconds: 50));
     }
     expect(phone.trusted.value, isEmpty);
+  });
+
+  test('phone sends a file to the desktop, then removes it', () async {
+    final dir = await Directory.systemTemp.createTemp('dc_mobile_file_');
+    addTearDown(() => dir.delete(recursive: true));
+    final desk = await _desktop(dir);
+    final phone = await MobileNode.start(
+        dir: Directory('${dir.path}/phone'),
+        keys: InMemorySecureKeyStore(),
+        name: 'Pixel',
+        os: 'android',
+        writeClipboard: (_) async {},
+        onReceived: (_, __) {});
+    addTearDown(phone.close);
+    final pin = desk.pairing.open(ip: '127.0.0.1', port: desk.port).pin;
+    desk.pairing.events.listen((e) {
+      if (e is PairingSasReady) desk.pairing.confirm(true);
+    });
+    final linked = desk.mesh.peerChanges.firstWhere((p) => p.isNotEmpty);
+    await phone.pair('127.0.0.1', desk.port, pin, (_, __) async => true);
+    await linked.timeout(const Duration(seconds: 5));
+    for (var i = 0; i < 100 && !phone.connected.contains(desk.id); i++) {
+      await Future<void>.delayed(const Duration(milliseconds: 20));
+    }
+
+    final photo = File('${dir.path}/photo.jpg');
+    await photo.writeAsBytes(List<int>.generate(300000, (i) => i % 251));
+    final progress = <int>[];
+    await phone.sendFile(desk.id, photo.path,
+        onProgress: (sent, _) => progress.add(sent));
+    expect(desk.files.values.single.toBytes(), await photo.readAsBytes());
+    expect(progress.last, 300000);
+
+    // Remove: the desktop is told (deviceRevoked) and the phone forgets it.
+    final told = desk.mesh.messages
+        .firstWhere((m) => m.envelope.type == MessageType.deviceRevoked);
+    await phone.forget(desk.id);
+    expect((await told.timeout(const Duration(seconds: 5))).peerId,
+        phone.me.deviceId);
+    expect(phone.trusted.value, isEmpty);
+    expect(phone.connected, isEmpty);
+    await expectLater(phone.sendFile(desk.id, photo.path), throwsStateError);
   });
 
   Future<MobileNode> phoneAt(Directory dir, String os) async {
