@@ -41,13 +41,13 @@ void main() {
     expect(openCommand(p, reveal: true, macOS: false).$2, ['/select,', win]);
     expect(openCommand('/Users/me/x.pdf', reveal: true, macOS: true).$2,
         ['-R', '/Users/me/x.pdf']);
-    expect(
-        openCommand('/tmp/a/x.pdf', reveal: false, macOS: false,
-            windows: false),
-        ('xdg-open', ['/tmp/a/x.pdf']));
-    expect(
-        openCommand('/tmp/a/x.pdf', reveal: true, macOS: false, windows: false),
-        ('xdg-open', ['/tmp/a']));
+    const lin = '/tmp/a/x.pdf';
+    final openLin =
+        openCommand(lin, reveal: false, macOS: false, windows: false);
+    final revLin =
+        openCommand(lin, reveal: true, macOS: false, windows: false);
+    expect(openLin, ('xdg-open', [lin]));
+    expect(revLin, ('xdg-open', ['/tmp/a']));
     expect(openCommand('-bad.pdf', reveal: false, macOS: true),
         ('open', ['./-bad.pdf']));
   });
@@ -93,8 +93,9 @@ void main() {
       weird.path,
       macOS: true,
       windows: false,
-      run: (_, __, {required bool runInShell}) =>
-          Future.error(const ProcessException('open', [])),
+      run: (_, __, {required bool runInShell}) async {
+        throw const ProcessException('open', []);
+      },
     );
     expect(boom, isFalse);
   });

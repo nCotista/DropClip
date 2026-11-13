@@ -9,10 +9,16 @@ import 'demo_data.dart';
 import 'l10n/strings.dart';
 
 typedef OpenRunner = Future<ProcessResult> Function(
-    String exe, List<String> args, {required bool runInShell});
+  String exe,
+  List<String> args, {
+  required bool runInShell,
+});
 
-Future<ProcessResult> _runNoShell(String exe, List<String> args,
-    {required bool runInShell}) {
+Future<ProcessResult> _runNoShell(
+  String exe,
+  List<String> args, {
+  required bool runInShell,
+}) {
   return Process.run(exe, args, runInShell: runInShell);
 }
 
@@ -50,10 +56,12 @@ Future<bool> runOpenWithSystem(
   if (await FileSystemEntity.type(path) == FileSystemEntityType.notFound) {
     return false;
   }
-  final (exe, args) = openCommand(path,
-      reveal: reveal,
-      macOS: macOS ?? Platform.isMacOS,
-      windows: windows ?? Platform.isWindows);
+  final (exe, args) = openCommand(
+    path,
+    reveal: reveal,
+    macOS: macOS ?? Platform.isMacOS,
+    windows: windows ?? Platform.isWindows,
+  );
   try {
     final res = await (run ?? _runNoShell)(exe, args, runInShell: false);
     return res.exitCode == 0;
