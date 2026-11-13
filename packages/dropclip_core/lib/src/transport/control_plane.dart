@@ -51,6 +51,15 @@ class ControlPlaneSession {
   Timer? _pingTimer;
   Timer? _pongTimer;
   bool _closed = false;
+  int _clockSkewMs = 0;
+
+  /// Clock differences up to this are treated as none: latency and normal
+  /// NTP error, so peers with good clocks see unchanged timestamps.
+  static const int clockSkewToleranceMs = 5000;
+
+  /// A peer whose wall clock is further off than this is refused (the
+  /// handshake fails with a clock-drift error instead of compensating).
+  static const int maxClockSkewMs = 24 * 60 * 60 * 1000;
 
   ControlPlaneSession({
     required this.localHello,
@@ -72,6 +81,13 @@ class ControlPlaneSession {
   HelloPayload? get remoteHello => _remoteHello;
   int? get negotiatedVersion => _negotiatedVersion;
   Hlc get clock => _clock;
+
+  /// The peer's wall clock minus ours (ms), measured from its `hello` or
+  /// `hello_ack`; 0 within [clockSkewToleranceMs]. Every later frame from the
+  /// peer has its `hlc.l` and `ts` shifted by this into our clock, so a PC
+  /// whose clock is a few minutes off still connects and syncs instead of
+  /// failing the 60 s drift bound (§10.3) on every frame.
+  int get clockSkewMs => _clockSkewMs;
 
   /// Starts listening and sends the initial `hello` frame (§6.2).
   Future<void> start({bool sendInitialHello = true}) async {
@@ -141,9 +157,21 @@ class ControlPlaneSession {
 
   Future<void> _handleRawFrame(String rawFrame) async {
     if (_closed) return;
-    final Envelope env;
+    Envelope env;
     try {
       env = Envelope.decodeWire(rawFrame);
+      if (env.type == MessageType.hello || env.type == MessageType.helloAck) {
+        final skew = env.ts - _nowMs();
+        if (skew.abs() > maxClockSkewMs) {
+          throw ClockDriftException(
+            localPhysicalTimeMs: _nowMs(),
+            remotePhysicalTimeMs: env.ts,
+            maxDriftMs: maxClockSkewMs,
+          );
+        }
+        _clockSkewMs = skew.abs() <= clockSkewToleranceMs ? 0 : skew;
+      }
+      env = _toLocalClock(env);
       _clock = _clock.merge(env.hlc, _nowMs());
     } on ClockDriftException catch (e) {
       await _sendErrorAndMaybeClose(
@@ -217,6 +245,20 @@ class ControlPlaneSession {
     _pingTimer = Timer.periodic(pingInterval, (_) {
       unawaited(sendPing());
     });
+  }
+
+  /// [env] with its timestamps moved from the peer's clock into ours.
+  Envelope _toLocalClock(Envelope env) {
+    if (_clockSkewMs == 0) return env;
+    return Envelope(
+      v: env.v,
+      type: env.type,
+      msgId: env.msgId,
+      origin: env.origin,
+      hlc: Hlc.raw(l: env.hlc.l - _clockSkewMs, c: env.hlc.c, d: env.hlc.d),
+      ts: env.ts - _clockSkewMs,
+      payload: env.payload,
+    );
   }
 
   Future<void> _sendErrorAndMaybeClose(

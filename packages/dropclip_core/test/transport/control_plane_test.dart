@@ -100,6 +100,135 @@ void main() {
       await sessB.shutdown(1000, 'done');
     });
 
+    test('peers whose clocks are 10 minutes apart still connect and sync',
+        () async {
+      final chanA = _InMemoryControlChannel();
+      final chanB = _InMemoryControlChannel();
+      chanA.peer = chanB;
+      chanB.peer = chanA;
+      const behind = 10 * 60 * 1000;
+      final receivedOnA = <Envelope>[];
+      final receivedOnB = <Envelope>[];
+
+      // A has the right time; B's clock is 10 minutes slow.
+      final sessA = ControlPlaneSession(
+        localHello: _hello(id: idA),
+        channel: chanA,
+        initialClock: Hlc(l: 1000000, c: 0, d: idA),
+        nowMs: () => 1000000,
+        onMessage: receivedOnA.add,
+      );
+      final sessB = ControlPlaneSession(
+        localHello: _hello(id: idB),
+        channel: chanB,
+        initialClock: Hlc(l: 1000000 - behind, c: 0, d: idB),
+        nowMs: () => 1000000 - behind,
+        onMessage: receivedOnB.add,
+      );
+
+      await sessB.start(sendInitialHello: false);
+      await sessA.start(sendInitialHello: true);
+      await Future<void>.delayed(Duration.zero);
+
+      // Before: B dropped A's frames as > 60 s in the future and never
+      // finished the handshake.
+      expect(sessA.isReady, isTrue);
+      expect(sessB.isReady, isTrue);
+      expect(sessB.clockSkewMs, behind);
+      expect(sessA.clockSkewMs, -behind);
+      expect(chanB.closedCode, isNull);
+
+      await sessA.sendEnvelope(
+        MessageType.clipboardClear,
+        const <String, dynamic>{'reason': 'manual'},
+      );
+      await sessB.sendEnvelope(
+        MessageType.clipboardClear,
+        const <String, dynamic>{'reason': 'manual'},
+      );
+      await Future<void>.delayed(Duration.zero);
+
+      // Each side sees the other's timestamps in its own clock.
+      expect(receivedOnB.single.ts, 1000000 - behind);
+      expect(receivedOnB.single.hlc.l, 1000000 - behind);
+      expect(receivedOnA.single.ts, 1000000);
+      expect(receivedOnA.single.hlc.l, 1000000);
+
+      await sessA.shutdown(1000, 'done');
+      await sessB.shutdown(1000, 'done');
+    });
+
+    test('a few seconds of clock difference is left alone', () async {
+      final chanA = _InMemoryControlChannel();
+      final chanB = _InMemoryControlChannel();
+      chanA.peer = chanB;
+      chanB.peer = chanA;
+
+      final sessA = ControlPlaneSession(
+        localHello: _hello(id: idA),
+        channel: chanA,
+        initialClock: Hlc(l: 1000000, c: 0, d: idA),
+        nowMs: () => 1000000,
+      );
+      final sessB = ControlPlaneSession(
+        localHello: _hello(id: idB),
+        channel: chanB,
+        initialClock: Hlc(l: 997000, c: 0, d: idB),
+        nowMs: () => 997000,
+      );
+
+      await sessB.start(sendInitialHello: false);
+      await sessA.start(sendInitialHello: true);
+      await Future<void>.delayed(Duration.zero);
+
+      expect(sessB.isReady, isTrue);
+      expect(sessA.clockSkewMs, 0);
+      expect(sessB.clockSkewMs, 0);
+      await sessA.shutdown(1000, 'done');
+      await sessB.shutdown(1000, 'done');
+    });
+
+    test('a frame > 60 s ahead after the handshake is still rejected',
+        () async {
+      final chanA = _InMemoryControlChannel();
+      final chanB = _InMemoryControlChannel();
+      chanA.peer = chanB;
+      chanB.peer = chanA;
+      var nowA = 1000000;
+      final receivedOnB = <Envelope>[];
+
+      final sessA = ControlPlaneSession(
+        localHello: _hello(id: idA),
+        channel: chanA,
+        initialClock: Hlc(l: 1000000, c: 0, d: idA),
+        nowMs: () => nowA,
+      );
+      final sessB = ControlPlaneSession(
+        localHello: _hello(id: idB),
+        channel: chanB,
+        initialClock: Hlc(l: 1000000, c: 0, d: idB),
+        nowMs: () => 1000000,
+        onMessage: receivedOnB.add,
+      );
+
+      await sessB.start(sendInitialHello: false);
+      await sessA.start(sendInitialHello: true);
+      await Future<void>.delayed(Duration.zero);
+      expect(sessB.clockSkewMs, 0);
+
+      // A jumps 2 minutes ahead mid-session: the §10.3 bound still holds.
+      nowA += 2 * 60 * 1000;
+      await sessA.sendEnvelope(
+        MessageType.clipboardClear,
+        const <String, dynamic>{'reason': 'manual'},
+      );
+      await Future<void>.delayed(Duration.zero);
+      expect(receivedOnB, isEmpty);
+
+      await sessA.shutdown(1000, 'done');
+      await sessB.shutdown(1000, 'done');
+    });
+
     test('closes with 4003 E_UNSUPPORTED_VERSION on incompatible version',
         () async {
       final chanA = _InMemoryControlChannel();
