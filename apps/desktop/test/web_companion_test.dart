@@ -1,6 +1,8 @@
 import 'dart:convert';
 import 'dart:io';
+import 'dart:typed_data';
 
+import 'package:dropclip_clipboard/dropclip_clipboard.dart';
 import 'package:dropclip_core/dropclip_core.dart';
 import 'package:dropclip_desktop/src/web/web_companion.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -12,16 +14,19 @@ void main() {
   late TlsTransportServer server;
   late HttpClient browser;
   final written = <String>[];
+  final images = <int>[];
   var clock = DateTime(2026, 11, 12, 10);
   var enabled = true;
 
   setUp(() async {
     dir = await Directory.systemTemp.createTemp('dc_web_');
     written.clear();
+    images.clear();
     enabled = true;
     web = WebCompanion(
       downloads: Directory('${dir.path}/Downloads'),
       page: '<title>DropClip</title>',
+      onImage: (png, from) async => images.add(png.length),
       onText: (t, from) async {
         written.add(t);
         web.addClip(t, from);
@@ -158,5 +163,23 @@ void main() {
     expect((await call('GET', '/web/api/file/$fid', token: token)).status, 404);
     web.revoke(web.sessions.value.single.id);
     expect((await call('GET', '/web/api/state', token: token)).status, 401);
+  });
+
+  test('images: PNG goes to the PC clipboard, anything else is refused',
+      () async {
+    final token = await link();
+    final png = encodePng(RgbaImage(4, 4, Uint8List(64)));
+    final ok = await call('POST', '/web/api/image', token: token, bytes: png);
+    expect(ok.status, 200);
+    expect(images, [png.length]);
+    final bad = await call('POST', '/web/api/image',
+        token: token, bytes: utf8.encode('jpeg?'));
+    expect(bad.status, 415);
+    final corrupt = await call('POST', '/web/api/image',
+        token: token, bytes: [...png]..[16] ^= 1);
+    expect(corrupt.status, 415);
+    expect(images, [png.length]);
+    final noTok = await call('POST', '/web/api/image', bytes: png);
+    expect(noTok.status, 401);
   });
 }

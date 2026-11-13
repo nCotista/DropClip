@@ -5,6 +5,7 @@ import 'dart:math';
 import 'dart:typed_data';
 
 import 'package:crypto/crypto.dart';
+import 'package:dropclip_clipboard/dropclip_clipboard.dart';
 import 'package:dropclip_protocol/dropclip_protocol.dart';
 import 'package:flutter/foundation.dart';
 import 'package:shelf/shelf.dart';
@@ -27,6 +28,7 @@ typedef WebClip = ({int id, String text, String from, int at});
 class WebCompanion {
   static const int _maxClaimBytes = 4 * 1024;
   static const int _maxClipJsonBytes = 2 << 20;
+  static const int _maxImageBytes = 32 << 20;
   static final _ctrlOrBidi =
       RegExp(r'[\x00-\x1f\x7f\u202a-\u202e\u2066-\u2069]');
 
@@ -37,6 +39,9 @@ class WebCompanion {
   /// its history and paired peers; the host also echoes it back via
   /// [addClip]).
   final Future<void> Function(String text, String from) onText;
+
+  /// A PNG a browser sent for the PC clipboard (the page converts photos).
+  final Future<void> Function(Uint8List png, String from)? onImage;
   final void Function(String text, String from)? onReceived;
   final bool Function() isEnabled;
   final Duration codeTtl;
@@ -56,6 +61,7 @@ class WebCompanion {
     required this.downloads,
     required this.page,
     required this.onText,
+    this.onImage,
     this.onReceived,
     bool Function()? isEnabled,
     bool enabled = false,
@@ -130,6 +136,7 @@ class WebCompanion {
         return switch ((r.method, path)) {
           ('GET', 'web/api/state') => await _state(r, s),
           ('POST', 'web/api/clip') => await _clip(r, s),
+          ('POST', 'web/api/image') => await _image(r, s),
           ('POST', 'web/api/upload') => await _upload(r, s),
           ('GET', _) when path.startsWith('web/api/file/') =>
             await _download(path.substring('web/api/file/'.length), s),
@@ -251,6 +258,23 @@ class WebCompanion {
       return _json(400, {'error': 'empty or too long'});
     }
     await onText(rawText, s.name);
+    return _json(200, {'ok': true});
+  }
+
+  /// An image for the PC clipboard: valid PNG only, at most 32 MiB (§11.3).
+  Future<Response> _image(Request r, WebSession s) async {
+    final body = await _readLimited(r, _maxImageBytes);
+    if (body.error != null) return body.error!;
+    final png = body.bytes!;
+    try {
+      decodePng(png);
+    } on NormalizationException {
+      return _json(415, {'error': 'PNG expected'});
+    } on FormatException {
+      return _json(415, {'error': 'PNG expected'});
+    }
+    if (onImage == null) return _json(404, {'error': 'unsupported'});
+    await onImage!(png, s.name);
     return _json(200, {'ok': true});
   }
 

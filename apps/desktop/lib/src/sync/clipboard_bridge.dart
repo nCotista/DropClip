@@ -169,13 +169,22 @@ class ClipboardBridge {
   /// Text from outside the mesh (a phone browser, copy again): written to
   /// the OS clipboard, shown in history and sent to peers. The native
   /// watcher skips changes made by our own writes, so this does all three.
-  Future<void> takeText(String text, String from, {ClipType? type}) async {
+  Future<void> takeText(String text, String from, {ClipType? type}) {
     final raw = Uint8List.fromList(utf8.encode(text));
     final uri = Uri.tryParse(text.trim());
     final kind = type ??
         (uri != null && uri.hasScheme && uri.host.isNotEmpty
             ? ClipType.url
             : ClipType.text);
+    return _takeLocal(kind, raw, from);
+  }
+
+  /// A PNG from outside the mesh (a phone browser): PC clipboard (PNG +
+  /// DIBV5 on Windows), history, and peers (as a blob, §9.3).
+  Future<void> takeImage(Uint8List png, String from) =>
+      _takeLocal(ClipType.image, png, from);
+
+  Future<void> _takeLocal(ClipType kind, Uint8List raw, String from) async {
     engine.onLocalChange(LocalClip(kind, raw));
     engine.noteOwnWrite(sha256.convert(raw).toString());
     await native.write(clipboardItemsFor(kind, raw, windows: windows));

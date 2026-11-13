@@ -178,6 +178,14 @@ void main() {
     expect((await written).map((i) => i.mime), ['text/plain', 'text/uri-list']);
     // Our own write is invisible to the watcher, so history adds it itself.
     expect(d.shown.last.preview, 'https://dropclip.dev');
+    // A photo from a phone browser: PNG + CF_DIBV5 on the PC, in history.
+    final png = encodePng(RgbaImage(2, 2, Uint8List(16)));
+    final image = d.os.writes.stream.first;
+    await d.bridge.takeImage(png, 'iPhone');
+    final wroteImg = await image;
+    expect(wroteImg.map((i) => i.mime), ['image/png', 'image/x-win-dibv5']);
+    expect(d.shown.last.type, ClipType.image);
+    expect(d.shown.last.from, 'iPhone');
   });
 
   test('Settings decide what syncs and for how long (FR-05)', () {
