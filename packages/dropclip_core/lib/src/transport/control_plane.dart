@@ -160,11 +160,12 @@ class ControlPlaneSession {
     Envelope env;
     try {
       env = Envelope.decodeWire(rawFrame);
-      if (env.type == MessageType.hello || env.type == MessageType.helloAck) {
-        final skew = env.ts - _nowMs();
+      final now = _nowMs();
+      if (_remoteHello == null && _isHello(env.type)) {
+        final skew = env.ts - now;
         if (skew.abs() > maxClockSkewMs) {
           throw ClockDriftException(
-            localPhysicalTimeMs: _nowMs(),
+            localPhysicalTimeMs: now,
             remotePhysicalTimeMs: env.ts,
             maxDriftMs: maxClockSkewMs,
           );
@@ -172,7 +173,7 @@ class ControlPlaneSession {
         _clockSkewMs = skew.abs() <= clockSkewToleranceMs ? 0 : skew;
       }
       env = _toLocalClock(env);
-      _clock = _clock.merge(env.hlc, _nowMs());
+      _clock = _clock.merge(env.hlc, now);
     } on ClockDriftException catch (e) {
       await _sendErrorAndMaybeClose(
         const ProtocolException(
@@ -187,7 +188,7 @@ class ControlPlaneSession {
       return;
     }
 
-    if (env.type == MessageType.hello || env.type == MessageType.helloAck) {
+    if (_isHello(env.type)) {
       await _handleHandshake(env);
       return;
     }
@@ -246,6 +247,9 @@ class ControlPlaneSession {
       unawaited(sendPing());
     });
   }
+
+  static bool _isHello(MessageType t) =>
+      t == MessageType.hello || t == MessageType.helloAck;
 
   /// [env] with its timestamps moved from the peer's clock into ours.
   Envelope _toLocalClock(Envelope env) {

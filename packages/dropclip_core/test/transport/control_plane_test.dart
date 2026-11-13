@@ -229,6 +229,89 @@ void main() {
       await sessB.shutdown(1000, 'done');
     });
 
+    test('rejects hello when clock difference exceeds 24 hours', () async {
+      const overMax = 25 * 60 * 60 * 1000;
+      const baseNow = 200000000;
+      for (final offset in const <int>[overMax, -overMax]) {
+        final chanA = _InMemoryControlChannel();
+        final chanB = _InMemoryControlChannel();
+        chanA.peer = chanB;
+        chanB.peer = chanA;
+
+        final sessA = ControlPlaneSession(
+          localHello: _hello(id: idA),
+          channel: chanA,
+          initialClock: Hlc(l: baseNow + offset, c: 0, d: idA),
+          nowMs: () => baseNow + offset,
+        );
+        final sessB = ControlPlaneSession(
+          localHello: _hello(id: idB),
+          channel: chanB,
+          initialClock: Hlc(l: baseNow, c: 0, d: idB),
+          nowMs: () => baseNow,
+        );
+
+        await sessB.start(sendInitialHello: false);
+        await sessA.start(sendInitialHello: true);
+        await Future<void>.delayed(Duration.zero);
+
+        expect(sessB.isReady, isFalse);
+        expect(sessB.clockSkewMs, 0);
+        expect(
+          chanB.sentFrames.any((f) => f.contains('"code":"E_MALFORMED"')),
+          isTrue,
+        );
+
+        await sessA.shutdown(1000, 'done');
+        await sessB.shutdown(1000, 'done');
+      }
+    });
+
+    test('duplicate hello after handshake cannot change clock skew', () async {
+      final chanA = _InMemoryControlChannel();
+      final chanB = _InMemoryControlChannel();
+      chanA.peer = chanB;
+      chanB.peer = chanA;
+      var nowA = 1000000;
+      final receivedOnB = <Envelope>[];
+
+      final sessA = ControlPlaneSession(
+        localHello: _hello(id: idA),
+        channel: chanA,
+        initialClock: Hlc(l: 1000000, c: 0, d: idA),
+        nowMs: () => nowA,
+      );
+      final sessB = ControlPlaneSession(
+        localHello: _hello(id: idB),
+        channel: chanB,
+        initialClock: Hlc(l: 1000000, c: 0, d: idB),
+        nowMs: () => 1000000,
+        onMessage: receivedOnB.add,
+      );
+
+      await sessB.start(sendInitialHello: false);
+      await sessA.start(sendInitialHello: true);
+      await Future<void>.delayed(Duration.zero);
+      expect(sessB.clockSkewMs, 0);
+
+      // A sends a second hello with +30 s ts, then jumps +70 s ahead.
+      nowA = 1030000;
+      await sessA.sendEnvelope(MessageType.hello, _hello(id: idA).toJson());
+      await Future<void>.delayed(Duration.zero);
+      expect(sessB.clockSkewMs, 0);
+
+      nowA = 1070000;
+      await sessA.sendEnvelope(
+        MessageType.clipboardClear,
+        const <String, dynamic>{'reason': 'manual'},
+      );
+      await Future<void>.delayed(Duration.zero);
+      expect(receivedOnB, isEmpty);
+
+      await sessA.shutdown(1000, 'done');
+      await sessB.shutdown(1000, 'done');
+    });
+
     test('closes with 4003 E_UNSUPPORTED_VERSION on incompatible version',
         () async {
       final chanA = _InMemoryControlChannel();
