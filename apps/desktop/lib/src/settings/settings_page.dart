@@ -65,6 +65,12 @@ class SettingsPage extends StatelessWidget {
                 value: c.autoStart,
                 onChanged: (v) => set(c.copyWith(autoStart: v)),
               ),
+              _Toggle(
+                title: s.webCompanion,
+                subtitle: s.webCompanionSub,
+                value: c.webCompanionEnabled,
+                onChanged: (v) => set(c.copyWith(webCompanionEnabled: v)),
+              ),
               _Header(s.clipboard),
               _Toggle(
                 title: s.syncAuto,

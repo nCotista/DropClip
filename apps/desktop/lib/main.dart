@@ -28,6 +28,9 @@ import 'src/shell.dart';
 import 'src/transfers_and_devices_pages.dart';
 import 'src/tray_controller.dart';
 import 'src/tray_menu.dart';
+import 'src/web/web_companion.dart';
+import 'src/web/web_link_dialog.dart';
+import 'src/web/web_page.dart';
 import 'src/transfer/file_transfer.dart';
 import 'src/transfer/receive_dialog.dart';
 
@@ -180,14 +183,43 @@ Future<void> main(List<String> args) async {
 
   final native = NativeClipboard(FlutterClipboardChannel(),
       log: (m) => log.debug('clipboard', m));
+
+  // Tier 3 web: opt-in only, phones without the app use a browser at /web.
+  final web = WebCompanion(
+    downloads: files.downloads,
+    page: webCompanionPage,
+    writeClipboard: (text) => native
+        .write([ClipboardItem(mime: ClipMime.text, data: utf8.encode(text))]),
+    isEnabled: () => store.config.value.webCompanionEnabled,
+  );
+  store.config.addListener(() {
+    if (!store.config.value.webCompanionEnabled) web.revokeAll();
+  });
+  node.webHandler = web.handler;
+
   final clipboard = ClipboardBridge(
     node: node,
     native: native,
     changes: native.changes,
     windows: !isMacOS,
-    onClip: showClip,
+    onClip: (e) {
+      showClip(e);
+      if (e.type != ClipType.image) {
+        web.addClip(
+            e.preview, e.from == 'me' ? store.config.value.deviceName : e.from);
+      }
+    },
     policy: () => syncPolicyFor(store.config.value),
   );
+  // Dropzone targets: nearby devices plus linked browsers.
+  final targets = ValueNotifier<List<NearbyDevice>>(const []);
+  void updateTargets() => targets.value = [
+        ...discovery.nearby.value,
+        for (final s in web.sessions.value)
+          NearbyDevice(s.name, 'Browser', PeerReach.online, id: 'web:${s.id}'),
+      ];
+  discovery.nearby.addListener(updateTargets);
+  web.sessions.addListener(updateTargets);
 
   // UI-03: this device hosts a session; the other types its PIN.
   Future<void> pairNew() async {
@@ -212,6 +244,17 @@ Future<void> main(List<String> args) async {
     );
   }
 
+  Future<void> openWebLink() => showDialog<void>(
+        context: navigator.currentContext!,
+        builder: (_) => WebLinkDialog(
+          web: web,
+          baseUrl: () async {
+            final ip = await localAddress();
+            return 'https://$ip:${node.server.port}/web';
+          },
+        ),
+      );
+
   final app = DropClipDesktopApp(
     hiddenLaunch: hidden,
     status: status.value,
@@ -226,26 +269,30 @@ Future<void> main(List<String> args) async {
       ),
     ),
     navigatorKey: navigator,
-    devicesPage: DevicesPage(
-      myName: node.me.name,
-      myFingerprint: node.me.fp,
-      trusted: node.trusted,
-      connectedChanges: node.mesh.peerChanges,
-      connected: () => node.mesh.connected,
-      nearby: discovery.peers,
-      onPairNew: pairNew,
-      onPairWith: (peer) => showDialog<void>(
-        context: navigator.currentContext!,
-        barrierDismissible: false,
-        builder: (_) => ClientPairingDialog(
-          peerName: peer.record.name,
-          pair: (pin, confirm) => node.pairWith(peer, pin, confirm),
+    devicesPage: ValueListenableBuilder<AppConfig>(
+      valueListenable: store.config,
+      builder: (_, c, __) => DevicesPage(
+        myName: node.me.name,
+        myFingerprint: node.me.fp,
+        trusted: node.trusted,
+        connectedChanges: node.mesh.peerChanges,
+        connected: () => node.mesh.connected,
+        nearby: discovery.peers,
+        onPairNew: pairNew,
+        onPairWith: (peer) => showDialog<void>(
+          context: navigator.currentContext!,
+          barrierDismissible: false,
+          builder: (_) => ClientPairingDialog(
+            peerName: peer.record.name,
+            pair: (pin, confirm) => node.pairWith(peer, pin, confirm),
+          ),
         ),
+        onForget: (d) => node.forget(d.deviceId),
+        quarantined: node.quarantined,
+        onSettle: (d, remove) =>
+            node.settleQuarantine(d.deviceId, remove: remove),
+        onLinkWeb: c.webCompanionEnabled ? openWebLink : null,
       ),
-      onForget: (d) => node.forget(d.deviceId),
-      quarantined: node.quarantined,
-      onSettle: (d, remove) =>
-          node.settleQuarantine(d.deviceId, remove: remove),
     ),
     // §3.1: explain the Windows Firewall prompt once, on first run.
     banner: isMacOS
@@ -266,12 +313,20 @@ Future<void> main(List<String> args) async {
       feed: _LoggerFeed(log),
       child: DropzoneHost(
         controller: dropzone,
-        devices: discovery.nearby,
+        devices: targets,
         onSend: (device, items) {
           final paths = [
             for (final i in items)
               if (!i.isFolder && i.path != null) File(i.path!)
           ];
+          final id = device.id ?? '';
+          if (id.startsWith('web:')) {
+            web.offer(id.substring(4), paths);
+            dropzone.close();
+            ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                content: Text(Strings.of(context).sentToBrowser(device.name))));
+            return;
+          }
           final paired = node.trusted.value.any((d) => d.deviceId == device.id);
           if (!paired || paths.isEmpty) {
             ScaffoldMessenger.of(context).showSnackBar(SnackBar(

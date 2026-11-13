@@ -14,7 +14,7 @@ Future<DesktopNode> _node(String name) async {
       os: DeviceOs.windows);
   addTearDown(() async {
     await node.close();
-    await dir.delete(recursive: true);
+    await dir.delete(recursive: true).catchError((Object _) => dir);
   });
   return node;
 }
@@ -27,9 +27,31 @@ DiscoveredPeer _seen(DesktopNode n, PeerTrust trust) => DiscoveredPeer(
     trust: trust);
 
 void main() {
+  test('QR address skips virtual adapters and prefers Wi-Fi', () {
+    ({String name, InternetAddress address}) nic(String n, String ip) =>
+        (name: n, address: InternetAddress(ip));
+    expect(
+        pickLanAddress([
+          nic('VirtualBox Host-Only Network', '192.168.56.1'),
+          nic('vEthernet (WSL)', '172.20.0.1'),
+          nic('Bluetooth Network', '10.0.0.9'),
+          nic('Wi-Fi', '10.201.250.85'),
+        ]),
+        '10.201.250.85');
+    // Windows names the VirtualBox adapter just "Ethernet 2".
+    expect(
+        pickLanAddress([
+          nic('Ethernet 2', '192.168.56.1'),
+          nic('Ethernet', '192.168.1.20'),
+        ]),
+        '192.168.1.20');
+    expect(pickLanAddress([nic('Loopback', '127.0.0.1')]), '127.0.0.1');
+  });
+
   test('identity, port and fingerprint survive a restart', () async {
     final dir = await Directory.systemTemp.createTemp('dc_node_');
-    addTearDown(() => dir.delete(recursive: true));
+    addTearDown(
+        () => dir.delete(recursive: true).catchError((Object _) => dir));
     final keys = InMemorySecureKeyStore();
     Future<DesktopNode> boot() => DesktopNode.start(
         dir: dir, keys: keys, name: 'PC', os: DeviceOs.windows);

@@ -14,7 +14,8 @@ List<String> _all(Strings s) => [
       s.clipboard, s.transfers, s.devices, s.settings, s.workspace, //
       s.thisDevice, s.devicesVerified(3), s.notAvailable('X', 'T1.9'),
       s.sendClipboard, s.pairing, s.application, s.languageSub,
-      s.startAtLogin, s.startAtLoginSub, s.syncAuto, s.syncAutoSub,
+      s.startAtLogin, s.startAtLoginSub, s.webCompanion, s.webCompanionSub,
+      s.syncAuto, s.syncAutoSub,
       s.typesToSync, s.typesToSyncSub, s.text, s.links, s.images,
       s.ttlTitle, s.ttlSub, s.receivingFiles, s.autoAccept, s.autoAcceptSub,
       s.destination, s.destinationSub, s.autoStartFailed, s.ttl(null),

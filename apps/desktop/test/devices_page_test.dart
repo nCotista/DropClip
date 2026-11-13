@@ -189,6 +189,7 @@ void main() {
                     settled.add('${d.deviceId}:$remove')))));
 
     expect(find.text('This PC'), findsOneWidget);
+    expect(find.byKey(const Key('link-web')), findsNothing);
     expect(find.text('Connected'), findsOneWidget);
     expect(find.text('Offline'), findsOneWidget);
     // A trusted peer is not offered for pairing again.

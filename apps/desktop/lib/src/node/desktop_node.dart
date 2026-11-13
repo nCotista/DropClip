@@ -29,6 +29,9 @@ class DesktopNode {
   /// Paired-only HTTP routes by path prefix, e.g. `api/v1/blob/` (§9.1).
   final routes = <String, Handler>{};
 
+  /// The browser companion at `/web` (no client cert; own token auth).
+  Handler? webHandler;
+
   final _addresses = <String, (String, int)>{};
 
   DesktopNode._(this.ids, this.store, this.pairing, this.mesh, this.server,
@@ -95,6 +98,7 @@ class DesktopNode {
       pinnedHandler: (r) => node._route(r),
       pairingHandler: pairing.handler,
       webSocket: (req, fp) => unawaited(mesh.accept(req, fp)),
+      webHandler: (r) => node.webHandler?.call(r) ?? Response.notFound(null),
     );
     log?.call('listening on ${server.port}');
     return node = DesktopNode._(ids, store, pairing, mesh, server, revocation);
@@ -246,12 +250,35 @@ class DesktopNode {
   }
 }
 
-/// The first non-loopback IPv4 address, shown for manual pairing.
-Future<String> localAddress() async {
-  for (final i in await NetworkInterface.list(type: InternetAddressType.IPv4)) {
-    for (final a in i.addresses) {
-      if (!a.isLoopback && !a.isLinkLocal) return a.address;
-    }
-  }
-  return InternetAddress.loopbackIPv4.address;
+/// The LAN IPv4 address other devices reach this PC on, for the pairing
+/// and web QR codes.
+Future<String> localAddress() async => pickLanAddress([
+      for (final i
+          in await NetworkInterface.list(type: InternetAddressType.IPv4))
+        for (final a in i.addresses) (name: i.name, address: a)
+    ]);
+
+/// Skips loopback, link-local and named virtual adapters, puts subnets
+/// used by VirtualBox / Docker / WSL last, and prefers Wi-Fi.
+String pickLanAddress(List<({String name, InternetAddress address})> all) {
+  final virtualName = RegExp(
+      r'virtualbox|vmware|vethernet|hyper-v|wsl|docker|vbox|tun|tap|'
+      r'zerotier|tailscale|loopback',
+      caseSensitive: false);
+  final virtualNet = RegExp(r'^(192\.168\.56\.|172\.(1[6-9]|2\d|3[01])\.)');
+  int rank(({String name, InternetAddress address}) c) =>
+      (virtualNet.hasMatch(c.address.address) ? 2 : 0) +
+      (RegExp(r'wi-?fi|wlan|wireless', caseSensitive: false).hasMatch(c.name)
+          ? 0
+          : 1);
+  final usable = all
+      .where((c) =>
+          !c.address.isLoopback &&
+          !c.address.isLinkLocal &&
+          !virtualName.hasMatch(c.name))
+      .toList()
+    ..sort((a, b) => rank(a).compareTo(rank(b)));
+  return usable.isEmpty
+      ? InternetAddress.loopbackIPv4.address
+      : usable.first.address.address;
 }

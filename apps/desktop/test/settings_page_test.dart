@@ -49,6 +49,7 @@ void main() {
       await pump(tester);
       Switch sw(String label) => tester.widget<Switch>(_switchFor(label));
       expect(sw('Start at login').value, isTrue);
+      expect(sw('Web companion (/web)').value, isFalse);
       expect(sw('Sync clipboard automatically').value, isTrue);
       expect(sw('Accept files automatically').value, isFalse);
       expect(find.text('~/Downloads/DropClip'), findsOneWidget);
@@ -61,6 +62,10 @@ void main() {
       await tester.tap(_switchFor('Accept files automatically'));
       await tester.pump();
       expect(saved.last.autoAccept, isTrue);
+
+      await tester.tap(_switchFor('Web companion (/web)'));
+      await tester.pump();
+      expect(saved.last.webCompanionEnabled, isTrue);
 
       await tester.tap(find.text('Images'));
       await tester.pump();
