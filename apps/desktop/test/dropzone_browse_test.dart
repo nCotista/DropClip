@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:dropclip_desktop/src/demo_data.dart';
@@ -52,6 +53,36 @@ void main() {
     expect(asked, 1);
     expect(dz.items.single.name, 'report.pdf');
     expect(dz.items.single.bytes, 3);
+  });
+
+  testWidgets('ignores extra clicks while the file dialog is already open',
+      (tester) async {
+    final pending = Completer<List<String>>();
+    final dz = DropzoneController();
+    var asked = 0;
+    await tester.pumpWidget(MaterialApp(
+      theme: buildDropClipTheme(Brightness.dark),
+      builder: (_, child) => DropzoneHost(
+        controller: dz,
+        devices: ValueNotifier(const <NearbyDevice>[]),
+        nativeDrop: false,
+        pickFiles: () {
+          asked++;
+          return pending.future;
+        },
+        child: child!,
+      ),
+      home: const Scaffold(body: Text('app')),
+    ));
+    dz.browse();
+    dz.browse();
+    await tester.pump();
+    expect(asked, 1);
+    pending.complete(const []);
+    await tester.pump();
+    dz.browse();
+    await tester.pump();
+    expect(asked, 2);
   });
 }
 
