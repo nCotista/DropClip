@@ -310,6 +310,11 @@ Future<void> main(List<String> args) async {
     onOpenDropzone: dropzone.show,
     onSendClipboard: clipboard.sendNow,
     onPair: pairNew,
+    // Home screen: the companion is opt-in, so when it is off this opens
+    // Settings, where the switch is, instead of a QR that would not work.
+    onLinkWeb: () => store.config.value.webCompanionEnabled
+        ? openWebLink()
+        : section.value = ShellSection.settings,
     onCopyClip: (c) {
       if (c.kind == ClipKind.image) return;
       clipboard.copyAgain(

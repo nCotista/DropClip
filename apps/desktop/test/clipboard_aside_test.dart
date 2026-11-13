@@ -38,18 +38,21 @@ void main() {
       expect(find.text('Manual'), findsOneWidget);
     });
 
-    testWidgets('pair and dropzone call back', (tester) async {
-      var pair = 0, drop = 0;
+    testWidgets('link web, pair and dropzone call back', (tester) async {
+      var pair = 0, drop = 0, web = 0;
       await _pump(
           tester,
           ClipboardAside(
               status: _status(),
               onPair: () => pair++,
-              onOpenDropzone: () => drop++));
+              onOpenDropzone: () => drop++,
+              onLinkWeb: () => web++));
 
+      // Linking a phone browser is the first thing on the home screen.
+      await tester.tap(find.byKey(const Key('home-link-web')));
       await tester.tap(find.text('Pair new device'));
       await tester.tap(find.text('Drop files to send'));
-      expect((pair, drop), (1, 1));
+      expect((web, pair, drop), (1, 1, 1));
     });
 
     testWidgets('latency shows the latest p95 under the 1,000 ms target',

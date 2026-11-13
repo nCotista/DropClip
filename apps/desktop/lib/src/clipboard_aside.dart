@@ -14,11 +14,15 @@ class ClipboardAside extends StatelessWidget {
   final VoidCallback? onPair;
   final VoidCallback? onOpenDropzone;
 
+  /// Link a phone browser (Tier 3 web), first thing on the home screen.
+  final VoidCallback? onLinkWeb;
+
   const ClipboardAside({
     super.key,
     required this.status,
     this.onPair,
     this.onOpenDropzone,
+    this.onLinkWeb,
   });
 
   @override
@@ -29,6 +33,15 @@ class ClipboardAside extends StatelessWidget {
     return ListView(
       padding: const EdgeInsets.all(DropClipSpacing.xl),
       children: [
+        if (onLinkWeb != null) ...[
+          FilledButton.icon(
+            key: const Key('home-link-web'),
+            onPressed: onLinkWeb,
+            icon: const Icon(Icons.phone_iphone, size: 18),
+            label: Text(t.linkPhoneWeb),
+          ),
+          const SizedBox(height: DropClipSpacing.lg),
+        ],
         Row(children: [
           Expanded(
             child: Text(t.nearbyDevices,
