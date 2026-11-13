@@ -101,6 +101,10 @@ DropClip/
 | **4** | **นายปัณณ์ ศรีเจริญชัยกุล (ปัน)** | `NET` | TLS 1.3 Transport (`T1.4`), WebSocket Control Plane (`T1.5`), Windows Native (`T1.7`), Image Normalizer (`T1.8`), Streaming File Engine (`T1.10`, `T1.11`) |
 | **5** | **นายปรมินทร์ มุขอาษา (ตามด)** | `QA` | Structured Logger (`T0.3`), Protocol Fuzzer (`T4.2`), Benchmark & Chaos Soak Verification (`T4.1`, `T4.3`), Usability & SUS Study (`T4.4`) |
 
+### Contributors / Acknowledgements
+
+- **OpenAI Codex** — AI-assisted development, testing, and debugging alongside **Kueranan (เกื้อ / MOB)**.
+
 ---
 
 ## 5. คู่มือการทดสอบใช้งานจริงสำหรับผู้ใช้งานทั่วไปแบบไม่ต้องเขียนโค้ด (Non-Coder Testing Manual)
