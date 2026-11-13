@@ -165,6 +165,29 @@ void main() {
     expect((await call('GET', '/web/api/state', token: token)).status, 401);
   });
 
+  test('a freshly linked browser never sees pre-link clipboard history',
+      () async {
+    // Copied before the user scanned the QR: must stay on the PC.
+    web.addClip('old password', 'Laptop');
+    final token = await link();
+    web.addClip('copied after linking', 'Laptop');
+
+    final st = await call('GET', '/web/api/state?after=0', token: token);
+    final clips =
+        (jsonDecode(st.body) as Map<String, Object?>)['clips'] as List<Object?>;
+    expect([for (final c in clips) (c as Map<String, Object?>)['text']],
+        ['copied after linking']);
+  });
+
+  test('unlink revokes the token on the desktop, not only in the browser',
+      () async {
+    final token = await link();
+    expect((await call('GET', '/web/api/state', token: token)).status, 200);
+    expect((await call('POST', '/web/api/unlink', token: token)).status, 200);
+    expect((await call('GET', '/web/api/state', token: token)).status, 401);
+    expect(web.sessions.value, isEmpty);
+  });
+
   test('images: PNG goes to the PC clipboard, anything else is refused',
       () async {
     final token = await link();

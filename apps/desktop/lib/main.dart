@@ -134,14 +134,12 @@ Future<void> main(List<String> args) async {
   refreshDevices();
   node.trusted.addListener(refreshDevices);
   node.mesh.peerChanges.listen((_) => refreshDevices());
-  // File transfer with paired peers (T1.10/T1.11) into Downloads/DropClip.
+  // Transfer with paired peers into the Settings folder (FR-12).
   final transfers = ValueNotifier<List<DesktopTransferRecord>>(const []);
-  final home = Platform.environment[isMacOS ? 'HOME' : 'USERPROFILE'] ?? '.';
   final navigator = GlobalKey<NavigatorState>();
   final files = FileTransfers(
     node: node,
-    downloads: Directory('$home${Platform.pathSeparator}Downloads'
-        '${Platform.pathSeparator}DropClip'),
+    downloads: store.config.value.destinationDirectory,
     decide: (peer, items) async {
       if (store.config.value.autoAccept) return true;
       final context = navigator.currentContext;
@@ -213,6 +211,15 @@ Future<void> main(List<String> args) async {
     if (!store.config.value.webCompanionEnabled) web.revokeAll();
   });
   node.webHandler = web.handler;
+
+  /// Settings → destination folder applies to the next transfer, not only
+  /// after a restart.
+  void applyDestination() {
+    files.setDestination(store.config.value.destinationDirectory);
+    web.downloads = files.downloads;
+  }
+
+  store.config.addListener(applyDestination);
 
   clipboard = ClipboardBridge(
     node: node,

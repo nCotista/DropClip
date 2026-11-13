@@ -230,4 +230,16 @@ void main() {
       expect(phone.hello.capabilities, isNot(contains('clip.push')));
     });
   }
+
+  test('a corrupt hosts.json is ignored instead of crashing startup', () async {
+    final dir = await Directory.systemTemp.createTemp('dc_hosts_');
+    addTearDown(() => dir.delete(recursive: true));
+    final base = Directory('${dir.path}/phone');
+    await base.create(recursive: true);
+    await File('${base.path}/hosts.json').writeAsString('{"broken":');
+
+    final phone = await phoneAt(dir, 'android');
+    await expectLater(phone.reconnect(), completes);
+    expect(File('${base.path}/hosts.json.corrupt').existsSync(), isTrue);
+  });
 }

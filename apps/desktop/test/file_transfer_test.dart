@@ -1,8 +1,10 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 import 'dart:math';
 import 'dart:typed_data';
 
+import 'package:crypto/crypto.dart';
 import 'package:dropclip_core/dropclip_core.dart';
 import 'package:dropclip_desktop/src/node/desktop_node.dart';
 import 'package:dropclip_desktop/src/transfer/file_transfer.dart';
@@ -149,6 +151,55 @@ void main() {
     expect(got.existsSync(), isTrue);
     expect(got.lengthSync(), 0);
     expect(a.updates.last.state, 'complete');
+  });
+
+  test('a finish with missing bytes is failed, never shown as complete',
+      () async {
+    final a = await _device('A'), b = await _device('B');
+    await _pairAndLink(a.node, b.node);
+    final me = a.node.me.deviceId;
+    const tid = '00000000-0000-4000-8000-0000000000c2';
+    final bytes = Uint8List.fromList(List<int>.filled(10, 7));
+
+    await a.node.mesh.broadcast(
+        Envelope(
+            type: MessageType.fileOffer,
+            msgId: '00000000-0000-4000-8000-0000000000c1',
+            origin: me,
+            hlc: Hlc.now(me),
+            ts: DateTime.now().millisecondsSinceEpoch,
+            payload: {
+              'transfer_id': tid,
+              'items': [
+                FileOfferItem(
+                        itemId: 'i0',
+                        path: 'partial.bin',
+                        size: bytes.length,
+                        sha256: sha256.convert(bytes).toString(),
+                        mime: 'application/octet-stream',
+                        modifiedAt: 0)
+                    .toJson()
+              ],
+              'manifest': false,
+              'total_size': bytes.length,
+              'total_count': 1,
+            }),
+        to: b.node.me.deviceId);
+    for (var i = 0; i < 100 && b.updates.isEmpty; i++) {
+      await Future<void>.delayed(const Duration(milliseconds: 20));
+    }
+    expect(b.updates.first.state, 'in_progress');
+
+    // The sender says "finish" without uploading a single byte.
+    await expectLater(
+        a.node.postTo(b.node.me.deviceId, '/api/v1/file/$tid/finish',
+            Stream.value(utf8.encode('{}'))),
+        throwsA(isA<ProtocolException>()));
+    for (var i = 0; i < 100 && b.updates.last.state != 'failed'; i++) {
+      await Future<void>.delayed(const Duration(milliseconds: 20));
+    }
+    expect(b.updates.last.state, 'failed');
+    expect(File('${b.dir.path}/Downloads/partial.bin').existsSync(), isFalse);
   });
 
   test('an accepted transfer whose sender goes quiet is shown as failed',

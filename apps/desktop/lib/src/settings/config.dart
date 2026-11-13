@@ -48,6 +48,17 @@ class AppConfig {
 
   static const _logLevels = {'debug', 'info', 'warn', 'error'};
 
+  /// [destinationDir] as an absolute directory, expanding a leading `~`.
+  Directory get destinationDirectory {
+    var path = destinationDir.trim();
+    if (path.startsWith('~')) {
+      final home =
+          Platform.environment[Platform.isMacOS ? 'HOME' : 'USERPROFILE'];
+      if (home != null && home.isNotEmpty) path = '$home${path.substring(1)}';
+    }
+    return Directory(path);
+  }
+
   Map<String, Object?> toJson() => {
         'version': version,
         'device_name': deviceName,

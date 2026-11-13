@@ -195,6 +195,24 @@ void main() {
     expect(dialer.mesh.linkAddress(other.id), isNull);
   });
 
+  test('reach(force: true) redials a socket that still looks open', () async {
+    final (dialer, other) = await pair();
+    await dialer.mesh.reach(other.id, '127.0.0.1', other.server.port);
+    await until(() => dialer.mesh.connected.contains(other.id));
+
+    // The phone resumes from doze: `isClosed` is still false, yet the link
+    // is dead. A plain reach does nothing; force must replace the session.
+    await dialer.mesh
+        .reach(other.id, '127.0.0.1', other.server.port, force: true);
+    await until(() => dialer.mesh.connected.contains(other.id));
+    expect(dialer.mesh.connected, {other.id});
+
+    final atDialer = dialer.mesh.messages.first;
+    await other.mesh.broadcast(_clip(other.id));
+    expect(
+        (await atDialer.timeout(const Duration(seconds: 5))).peerId, other.id);
+  });
+
   test('a dead address is skipped for one that works', () async {
     final backoff = _Recorded();
     final (dialer, other) = await pair(backoff: backoff);

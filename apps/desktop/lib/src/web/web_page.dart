@@ -256,7 +256,12 @@ const webCompanionPage = r'''<!doctype html>
       x.send(f);
     })();
   };
-  $('unlink').onclick = function () { unlinked(); toast('เลิกเชื่อมแล้ว'); };
+  $('unlink').onclick = function () {
+    // Tell the PC first: clearing localStorage alone leaves the token valid
+    // on the desktop for the rest of its 8-hour life.
+    var done = function () { unlinked(); toast('เลิกเชื่อมแล้ว'); };
+    if (token) api('POST', 'unlink').then(done, done); else done();
+  };
   document.addEventListener('visibilitychange', function () { if (!online && token) setOnline(false); });
 
   var code = (location.hash.match(/[#&]c=([\w-]+)/) || [])[1];
