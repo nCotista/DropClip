@@ -74,6 +74,51 @@ void main() {
           isNull);
       expect(c.copyWith(autoAccept: true).clipboardTtlSeconds, 60);
     });
+
+    test('resolveDestinationDirectory expands ~/ and avoids relative ./~', () {
+      const def = AppConfig(deviceName: 'PC');
+      expect(
+          def
+              .resolveDestinationDirectory({'HOME': '/Users/a'},
+                  isWindows: false)
+              .path,
+          '/Users/a/Downloads/DropClip');
+      expect(
+          def
+              .resolveDestinationDirectory({'USERPROFILE': r'C:\Users\a'},
+                  isWindows: true)
+              .path,
+          r'C:\Users\a\Downloads\DropClip');
+      expect(
+          const AppConfig(deviceName: 'PC', destinationDir: '~')
+              .resolveDestinationDirectory({'HOME': '/Users/a/'},
+                  isWindows: false)
+              .path,
+          '/Users/a');
+      final noHome = def.resolveDestinationDirectory({}, isWindows: false).path;
+      expect(noHome.startsWith('~'), isFalse);
+      expect(noHome.endsWith('Downloads/DropClip'), isTrue);
+    });
+
+    test('invalid ~user or blank destination_dir falls back cleanly', () {
+      final warns = <String>[];
+      final c = AppConfig.fromJson({'destination_dir': '~other/DropClip'},
+          defaultDeviceName: 'PC', onWarn: warns.add);
+      expect(c.destinationDir, '~/Downloads/DropClip');
+      expect(warns, hasLength(1));
+
+      final blank = AppConfig.fromJson({'destination_dir': '   '},
+          defaultDeviceName: 'PC', onWarn: warns.add);
+      expect(blank.destinationDir, '~/Downloads/DropClip');
+      expect(warns, hasLength(2));
+
+      expect(
+          const AppConfig(deviceName: 'PC', destinationDir: '~other/DropClip')
+              .resolveDestinationDirectory({'HOME': '/Users/a'},
+                  isWindows: false)
+              .path,
+          '/Users/a/Downloads/DropClip');
+    });
   });
 
   group('ConfigStore', () {

@@ -247,4 +247,51 @@ void main() {
     expect(a.updates.last.state, 'rejected');
     expect(Directory('${b.dir.path}/Downloads').existsSync(), isFalse);
   });
+
+  test('finish on an un-uploaded zero-byte item fails, never completes',
+      () async {
+    final a = await _device('A'), b = await _device('B');
+    await _pairAndLink(a.node, b.node);
+    final me = a.node.me.deviceId;
+    const tid = '00000000-0000-4000-8000-0000000000d2';
+
+    await a.node.mesh.broadcast(
+        Envelope(
+            type: MessageType.fileOffer,
+            msgId: '00000000-0000-4000-8000-0000000000d1',
+            origin: me,
+            hlc: Hlc.now(me),
+            ts: DateTime.now().millisecondsSinceEpoch,
+            payload: {
+              'transfer_id': tid,
+              'items': [
+                FileOfferItem(
+                        itemId: 'i0',
+                        path: 'ghost.txt',
+                        size: 0,
+                        sha256: sha256.convert(const <int>[]).toString(),
+                        mime: 'text/plain',
+                        modifiedAt: 0)
+                    .toJson()
+              ],
+              'manifest': false,
+              'total_size': 0,
+              'total_count': 1,
+            }),
+        to: b.node.me.deviceId);
+    for (var i = 0; i < 100 && b.updates.isEmpty; i++) {
+      await Future<void>.delayed(const Duration(milliseconds: 20));
+    }
+    expect(b.updates.first.state, 'in_progress');
+
+    await expectLater(
+        a.node.postTo(b.node.me.deviceId, '/api/v1/file/$tid/finish',
+            Stream.value(utf8.encode('{}'))),
+        throwsA(isA<ProtocolException>()));
+    for (var i = 0; i < 100 && b.updates.last.state != 'failed'; i++) {
+      await Future<void>.delayed(const Duration(milliseconds: 20));
+    }
+    expect(b.updates.last.state, 'failed');
+    expect(File('${b.dir.path}/Downloads/ghost.txt').existsSync(), isFalse);
+  });
 }

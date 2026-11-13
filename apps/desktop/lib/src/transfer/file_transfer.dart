@@ -262,13 +262,11 @@ class FileTransfers {
       return _json(404, {'error': 'unknown transfer'});
     }
     if (seg.length == 5 && seg[4] == 'finish') {
-      // "finish" is not proof the bytes arrived: require every item to be
-      // verified on disk, else fail instead of showing a green "complete".
+      // "finish" is not proof the bytes arrived: require every item (including
+      // 0-byte items) to be uploaded, verified, and renamed onto disk.
       final missing = [
         for (final i in t.items.values)
-          if (!t.completed.contains(i.itemId) &&
-              (t.received[i.itemId] ?? 0) != i.size)
-            i.itemId
+          if (!t.completed.contains(i.itemId)) i.itemId
       ];
       if (missing.isNotEmpty) {
         _incoming.remove(tid);

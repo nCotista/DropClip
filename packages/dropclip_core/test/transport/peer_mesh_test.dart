@@ -275,4 +275,18 @@ void main() {
         throwsA(anything));
     expect(x.mesh.connected, isEmpty);
   });
+
+  test('reach(force: true) stops cleanly if close() runs mid-shutdown',
+      () async {
+    final (dialer, other) = await pair();
+    await dialer.mesh.reach(other.id, '127.0.0.1', other.server.port);
+    await until(() => other.mesh.connected.contains(dialer.id));
+    await until(() => dialer.mesh.connected.contains(other.id));
+
+    final redial = dialer.mesh
+        .reach(other.id, '127.0.0.1', other.server.port, force: true);
+    await dialer.mesh.close();
+    await redial;
+    expect(dialer.mesh.connected, isEmpty);
+  });
 }

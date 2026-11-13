@@ -134,6 +134,7 @@ class PeerMesh {
       _failures.remove(peerId);
       _links.remove(peerId);
       await _sessions.remove(peerId)?.shutdown(1000, 'redial');
+      if (_closed || _trusted(peerId) == null) return;
       _emit();
     }
     final known = _candidates.putIfAbsent(peerId, () => []);
