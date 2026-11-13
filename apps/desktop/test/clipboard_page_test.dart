@@ -12,6 +12,7 @@ Future<void> _pump(
   ShellStatus status = demoShellStatus,
   ValueChanged<ClipItem>? onCopy,
   VoidCallback? onSendClipboard,
+  void Function(String path)? onOpenFile,
 }) async {
   tester.view.physicalSize = const Size(1000, 900);
   tester.view.devicePixelRatio = 1;
@@ -20,13 +21,46 @@ Future<void> _pump(
     theme: buildDropClipTheme(Brightness.dark),
     home: Scaffold(
       body: ClipboardPage(
-          status: status, onCopy: onCopy, onSendClipboard: onSendClipboard),
+          status: status,
+          onCopy: onCopy,
+          onSendClipboard: onSendClipboard,
+          onOpenFile: onOpenFile),
     ),
   ));
 }
 
 void main() {
   group('ClipboardPage (T1.12, FR-04, SF-03)', () {
+    testWidgets('a received file opens from its row', (tester) async {
+      final opened = <String>[];
+      final copied = <ClipItem>[];
+      await _pump(tester,
+          status: const ShellStatus(
+            networkName: '',
+            address: '',
+            verifiedDevices: 1,
+            activeTransfers: 0,
+            deviceCount: 1,
+            clips: [
+              ClipItem(ClipKind.text, '📎 report.pdf',
+                  sourceDevice: 'Laptop',
+                  age: '10:00',
+                  path: '/downloads/report.pdf'),
+              ClipItem(ClipKind.text, 'plain text',
+                  sourceDevice: 'Laptop', age: '10:01'),
+            ],
+          ),
+          onCopy: copied.add,
+          onOpenFile: opened.add);
+
+      // Only the file row gets the open button; text keeps "copy again".
+      expect(find.byKey(const Key('clip-open-file')), findsOneWidget);
+      await tester.tap(find.text('📎 report.pdf'));
+      await tester.tap(find.byKey(const Key('clip-open-file')));
+      expect(opened, ['/downloads/report.pdf', '/downloads/report.pdf']);
+      expect(copied, isEmpty);
+    });
+
     testWidgets('lists recent clips with source and age', (tester) async {
       await _pump(tester);
 

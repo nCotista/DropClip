@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:dropclip_ui/dropclip_ui.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -5,6 +7,11 @@ import 'package:flutter/services.dart';
 import 'clipboard_aside.dart';
 import 'demo_data.dart';
 import 'l10n/strings.dart';
+
+/// Opens [path] in its default app (Explorer / Finder decide which).
+Future<void> openWithSystem(String path) =>
+    Process.run(Platform.isMacOS ? 'open' : 'explorer.exe', [path],
+        runInShell: false);
 
 /// Below this page width the [ClipboardAside] is hidden.
 const double asideMinPageWidth = 900;
@@ -21,6 +28,9 @@ class ClipboardPage extends StatefulWidget {
   final VoidCallback? onOpenDropzone;
   final VoidCallback? onLinkWeb;
 
+  /// Opens a received file; defaults to the OS (tests pass their own).
+  final void Function(String path)? onOpenFile;
+
   const ClipboardPage({
     super.key,
     required this.status,
@@ -29,6 +39,7 @@ class ClipboardPage extends StatefulWidget {
     this.onPair,
     this.onOpenDropzone,
     this.onLinkWeb,
+    this.onOpenFile,
   });
 
   @override
@@ -129,7 +140,13 @@ class _ClipboardPageState extends State<ClipboardPage> {
                 Text(t.noClipsMatch, style: TextStyle(color: c.textTertiary)),
           ),
         for (final clip in clips)
-          _ClipTile(clip: clip, onCopy: () => _copy(clip)),
+          _ClipTile(
+            clip: clip,
+            onCopy: () => _copy(clip),
+            onOpen: clip.path == null
+                ? null
+                : () => (widget.onOpenFile ?? openWithSystem)(clip.path!),
+          ),
         if (s.suppressedClips > 0) ...[
           const SizedBox(height: DropClipSpacing.md),
           _SuppressedNotice(count: s.suppressedClips),
@@ -162,7 +179,10 @@ class _ClipTile extends StatelessWidget {
   final ClipItem clip;
   final VoidCallback onCopy;
 
-  const _ClipTile({required this.clip, required this.onCopy});
+  /// Set for a received file: the row opens it.
+  final VoidCallback? onOpen;
+
+  const _ClipTile({required this.clip, required this.onCopy, this.onOpen});
 
   @override
   Widget build(BuildContext context) {
@@ -187,11 +207,19 @@ class _ClipTile extends StatelessWidget {
         subtitle: Text(
             Strings.of(context).fromDevice(clip.sourceDevice, clip.age),
             style: TextStyle(color: c.textSecondary)),
-        trailing: IconButton(
-          tooltip: Strings.of(context).copyAgain,
-          icon: const Icon(Icons.copy_rounded),
-          onPressed: onCopy,
-        ),
+        onTap: onOpen,
+        trailing: onOpen != null
+            ? IconButton(
+                key: const Key('clip-open-file'),
+                tooltip: Strings.of(context).openFile,
+                icon: const Icon(Icons.open_in_new_rounded),
+                onPressed: onOpen,
+              )
+            : IconButton(
+                tooltip: Strings.of(context).copyAgain,
+                icon: const Icon(Icons.copy_rounded),
+                onPressed: onCopy,
+              ),
       ),
     );
   }

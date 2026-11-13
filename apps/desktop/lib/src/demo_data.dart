@@ -9,8 +9,11 @@ class ClipItem {
   final String sourceDevice;
   final String age;
 
+  /// A received file on disk: the row opens it instead of copying text.
+  final String? path;
+
   const ClipItem(this.kind, this.preview,
-      {required this.sourceDevice, required this.age});
+      {required this.sourceDevice, required this.age, this.path});
 }
 
 /// `online`: synced passively (Tier 1–2). `manual`: needs a user action,
