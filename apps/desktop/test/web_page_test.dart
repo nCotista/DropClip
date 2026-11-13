@@ -17,7 +17,7 @@ void main() {
     // Session token carries server expiry and is cleared once expired.
     expect(webCompanionPage, contains('expires_at'));
     expect(webCompanionPage, contains('Date.now() >= exp'));
-    expect(webCompanionPage,
-        isNot(contains('localStorage.setItem(KEY, token)')));
+    expect(
+        webCompanionPage, isNot(contains('localStorage.setItem(KEY, token)')));
   });
 }
