@@ -242,6 +242,16 @@ Future<void> main(List<String> args) async {
     );
   }
 
+  // Tier 3 web: the QR a phone scans to use DropClip in its browser.
+  Future<void> linkWeb() => showDialog<void>(
+        context: navigator.currentContext!,
+        builder: (_) => WebLinkDialog(
+          web: web,
+          baseUrl: () async =>
+              'https://${await localAddress()}:${node.server.port}/web',
+        ),
+      );
+
   final app = DropClipDesktopApp(
     hiddenLaunch: hidden,
     status: status.value,
@@ -276,14 +286,7 @@ Future<void> main(List<String> args) async {
       quarantined: node.quarantined,
       onSettle: (d, remove) =>
           node.settleQuarantine(d.deviceId, remove: remove),
-      onLinkWeb: () => showDialog<void>(
-        context: navigator.currentContext!,
-        builder: (_) => WebLinkDialog(
-          web: web,
-          baseUrl: () async =>
-              'https://${await localAddress()}:${node.server.port}/web',
-        ),
-      ),
+      onLinkWeb: linkWeb,
     ),
     // §3.1: explain the Windows Firewall prompt once, on first run.
     banner: isMacOS
@@ -299,6 +302,7 @@ Future<void> main(List<String> args) async {
     onOpenDropzone: dropzone.show,
     onSendClipboard: clipboard.sendNow,
     onPair: pairNew,
+    onLinkWeb: linkWeb,
     onCopyClip: (c) {
       if (c.kind == ClipKind.image) return;
       clipboard.copyAgain(

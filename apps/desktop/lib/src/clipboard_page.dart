@@ -19,6 +19,7 @@ class ClipboardPage extends StatefulWidget {
   final VoidCallback? onSendClipboard;
   final VoidCallback? onPair;
   final VoidCallback? onOpenDropzone;
+  final VoidCallback? onLinkWeb;
 
   const ClipboardPage({
     super.key,
@@ -27,6 +28,7 @@ class ClipboardPage extends StatefulWidget {
     this.onSendClipboard,
     this.onPair,
     this.onOpenDropzone,
+    this.onLinkWeb,
   });
 
   @override
@@ -148,6 +150,7 @@ class _ClipboardPageState extends State<ClipboardPage> {
                   status: s,
                   onPair: widget.onPair,
                   onOpenDropzone: widget.onOpenDropzone,
+                  onLinkWeb: widget.onLinkWeb,
                 ),
               ),
             ]),

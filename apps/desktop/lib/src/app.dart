@@ -29,6 +29,9 @@ class DropClipDesktopApp extends StatelessWidget {
   /// "Copy again" on a history item.
   final ValueChanged<ClipItem>? onCopyClip;
 
+  /// Link a phone browser (Tier 3 web) from the home screen.
+  final VoidCallback? onLinkWeb;
+
   /// Lets callbacks outside the widget tree open dialogs.
   final GlobalKey<NavigatorState>? navigatorKey;
 
@@ -48,6 +51,7 @@ class DropClipDesktopApp extends StatelessWidget {
     this.onPair,
     this.navigatorKey,
     this.onCopyClip,
+    this.onLinkWeb,
   });
 
   @override
@@ -70,7 +74,8 @@ class DropClipDesktopApp extends StatelessWidget {
                 onOpenDropzone: onOpenDropzone,
                 onSendClipboard: onSendClipboard,
                 onPair: onPair,
-                onCopyClip: onCopyClip)
+                onCopyClip: onCopyClip,
+                onLinkWeb: onLinkWeb)
             : ValueListenableBuilder<ShellStatus>(
                 valueListenable: liveStatus!,
                 builder: (_, s, __) => DesktopShell(
@@ -83,7 +88,8 @@ class DropClipDesktopApp extends StatelessWidget {
                     onOpenDropzone: onOpenDropzone,
                     onSendClipboard: onSendClipboard,
                     onPair: onPair,
-                    onCopyClip: onCopyClip),
+                    onCopyClip: onCopyClip,
+                    onLinkWeb: onLinkWeb),
               ),
       );
 }
