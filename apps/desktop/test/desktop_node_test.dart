@@ -293,8 +293,8 @@ void main() {
         if (e is PairingSasReady) host.pairing.confirm(true);
       });
       final done = pairing.firstWhere((e) => e is PairingCompleted);
-      await client.pairWith(_seen(host, PeerTrust.untrusted), session.pin,
-          (_, __) async => true);
+      final target = _seen(host, PeerTrust.untrusted);
+      await client.pairWith(target, session.pin, (_, __) async => true);
       await done;
 
       final up = host.mesh.peerChanges.firstWhere((p) => p.isNotEmpty);
