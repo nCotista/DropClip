@@ -807,10 +807,12 @@ void main() {
           aBig ? p.aText : p.iText,
           aBig ? p.aFiles : p.iFiles);
       addTearDown(restarted.close);
-      final linked = restarted.connectedChanges
-          .firstWhere((ids) => ids.contains(initiator.me.deviceId));
       await initiator.reconnect();
-      await linked.timeout(const Duration(seconds: 12));
+      for (var i = 0; i < 600; i++) {
+        if (restarted.connected.contains(initiator.me.deviceId)) break;
+        await Future<void>.delayed(const Duration(milliseconds: 20));
+      }
+      expect(restarted.connected, contains(initiator.me.deviceId));
       final f = File('${dir.path}/r.txt')..writeAsStringSync('after-restart');
       final got = initiatorFiles.first;
       await restarted.sendFile(initiator.me.deviceId, f.path);
