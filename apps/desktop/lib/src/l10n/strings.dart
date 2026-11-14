@@ -35,6 +35,12 @@ abstract class Strings {
   String get startAtLoginSub;
   String get webCompanion;
   String get webCompanionSub;
+
+  // Connection (network adapter)
+  String get connection;
+  String get networkAdapter;
+  String get networkAdapterSub;
+  String get networkAutomatic;
   String get syncAuto;
   String get syncAutoSub;
   String get typesToSync;
@@ -179,6 +185,16 @@ class EnStrings extends Strings {
   @override
   String get webCompanionSub =>
       'Allow a linked phone browser over local HTTPS (expires in 8 hours)';
+  @override
+  String get connection => 'Connection';
+  @override
+  String get networkAdapter => 'Network adapter';
+  @override
+  String get networkAdapterSub =>
+      'Which connection other devices use to reach this PC. Automatic skips '
+      'hypervisor switches, VPNs and Wi-Fi Direct.';
+  @override
+  String get networkAutomatic => 'Automatic';
   @override
   String get syncAuto => 'Sync clipboard automatically';
   @override
@@ -421,6 +437,16 @@ class ThStrings extends Strings {
   @override
   String get webCompanionSub =>
       'เปิดให้เบราว์เซอร์มือถือเชื่อมต่อผ่าน HTTPS ในวง LAN (หมดอายุใน 8 ชม.)';
+  @override
+  String get connection => 'การเชื่อมต่อ';
+  @override
+  String get networkAdapter => 'อแดปเตอร์เครือข่าย';
+  @override
+  String get networkAdapterSub =>
+      'เลือกการเชื่อมต่อที่อุปกรณ์อื่นใช้เข้าถึงเครื่องนี้ โหมดอัตโนมัติจะข้าม '
+      'สวิตช์เสมือน VPN และ Wi-Fi Direct';
+  @override
+  String get networkAutomatic => 'อัตโนมัติ';
   @override
   String get syncAuto => 'ซิงก์คลิปบอร์ดอัตโนมัติ';
   @override

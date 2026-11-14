@@ -19,6 +19,7 @@ List<String> _all(Strings s) => [
       s.typesToSync, s.typesToSyncSub, s.text, s.links, s.images,
       s.ttlTitle, s.ttlSub, s.receivingFiles, s.autoAccept, s.autoAcceptSub,
       s.destination, s.destinationSub, s.autoStartFailed, s.ttl(null),
+      s.connection, s.networkAdapter, s.networkAdapterSub, s.networkAutomatic,
       s.ttl(30), s.ttl(300), s.firewallTitle, s.firewallBody,
       s.firewallPublic, s.gotIt,
       // Clipboard page, side panel, tray menu

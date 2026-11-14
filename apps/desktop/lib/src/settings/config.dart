@@ -32,6 +32,10 @@ class AppConfig {
   /// Opt-in flag enabling the local HTTPS `/web` browser companion.
   final bool webCompanionEnabled;
 
+  /// Network adapter other devices reach this PC on; empty = pick
+  /// automatically (skipping hypervisor switches and VPNs).
+  final String networkAdapter;
+
   const AppConfig({
     required this.deviceName,
     this.autoAccept = false,
@@ -44,6 +48,7 @@ class AppConfig {
     this.language = AppLanguage.th,
     this.firstRunDone = false,
     this.webCompanionEnabled = false,
+    this.networkAdapter = '',
   });
 
   static const _logLevels = {'debug', 'info', 'warn', 'error'};
@@ -103,6 +108,7 @@ class AppConfig {
         'language': language.name,
         'first_run_done': firstRunDone,
         'web_companion_enabled': webCompanionEnabled,
+        'network_adapter': networkAdapter,
       };
 
   /// Invalid or missing values fall back to the default; each one is
@@ -155,6 +161,8 @@ class AppConfig {
       firstRunDone: pick<bool>('first_run_done', d.firstRunDone, (_) => true),
       webCompanionEnabled: pick<bool>(
           'web_companion_enabled', d.webCompanionEnabled, (_) => true),
+      networkAdapter:
+          pick<String>('network_adapter', d.networkAdapter, (_) => true),
     );
   }
 
@@ -169,6 +177,7 @@ class AppConfig {
     AppLanguage? language,
     bool? firstRunDone,
     bool? webCompanionEnabled,
+    String? networkAdapter,
   }) =>
       AppConfig(
         deviceName: deviceName ?? this.deviceName,
@@ -184,6 +193,7 @@ class AppConfig {
         language: language ?? this.language,
         firstRunDone: firstRunDone ?? this.firstRunDone,
         webCompanionEnabled: webCompanionEnabled ?? this.webCompanionEnabled,
+        networkAdapter: networkAdapter ?? this.networkAdapter,
       );
 }
 

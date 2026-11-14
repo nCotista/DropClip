@@ -130,7 +130,7 @@ Future<void> main(List<String> args) async {
     deviceCount: 0,
   ));
   Future<void> refreshNetwork() async {
-    final lan = await localLan();
+    final lan = await localLan(prefer: store.config.value.networkAdapter);
     status.value = status.value.copyWith(
       networkName: lan?.name ?? '—',
       address: lan == null ? '—' : '${lan.address}:${node.server.port}',
@@ -234,6 +234,17 @@ Future<void> main(List<String> args) async {
 
   store.config.addListener(applyDestination);
 
+  /// Settings → network adapter applies to the pairing and web addresses
+  /// without a restart, so a PC with a hypervisor switch can be switched to
+  /// the connection its phones can actually reach.
+  void applyNetwork() {
+    node.networkAdapter = store.config.value.networkAdapter;
+    unawaited(refreshNetwork());
+  }
+
+  store.config.addListener(applyNetwork);
+  applyNetwork();
+
   clipboard = ClipboardBridge(
     node: node,
     native: native,
@@ -305,7 +316,8 @@ Future<void> main(List<String> args) async {
         builder: (_) => WebLinkDialog(
           web: web,
           baseUrl: () async {
-            final ip = await localAddress();
+            final ip =
+                await localAddress(prefer: store.config.value.networkAdapter);
             return 'https://$ip:${node.server.port}/web';
           },
         ),
@@ -316,7 +328,10 @@ Future<void> main(List<String> args) async {
     status: status.value,
     liveStatus: status,
     section: section,
-    settingsPage: SettingsPage(config: store.config, onChanged: configs.update),
+    settingsPage: SettingsPage(
+        config: store.config,
+        onChanged: configs.update,
+        adapters: lanAdapterNames),
     transfersPage: ValueListenableBuilder<List<DesktopTransferRecord>>(
       valueListenable: transfers,
       builder: (_, list, __) => DesktopTransfersPage(

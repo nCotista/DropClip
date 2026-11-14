@@ -17,8 +17,15 @@ class SettingsPage extends StatelessWidget {
   /// Saves (and applies OS side effects of) a new config; may throw.
   final Future<void> Function(AppConfig next) onChanged;
 
+  /// Adapter names for the network picker; null shows only "Automatic",
+  /// which keeps widget tests independent of the host's network.
+  final Future<List<String>> Function()? adapters;
+
   const SettingsPage(
-      {super.key, required this.config, required this.onChanged});
+      {super.key,
+      required this.config,
+      required this.onChanged,
+      this.adapters});
 
   Future<void> _apply(BuildContext context, AppConfig next) async {
     try {
@@ -78,6 +85,16 @@ class SettingsPage extends StatelessWidget {
                 subtitle: s.webCompanionSub,
                 value: c.webCompanionEnabled,
                 onChanged: (v) => set(c.copyWith(webCompanionEnabled: v)),
+              ),
+              _Header(s.connection),
+              _Row(
+                title: s.networkAdapter,
+                subtitle: s.networkAdapterSub,
+                trailing: _AdapterPicker(
+                  value: c.networkAdapter,
+                  load: adapters,
+                  onChanged: (v) => set(c.copyWith(networkAdapter: v)),
+                ),
               ),
               _Header(s.clipboard),
               _Toggle(
@@ -270,5 +287,64 @@ class _Toggle extends StatelessWidget {
         subtitle: subtitle,
         trailing: Semantics(
             label: title, child: Switch(value: value, onChanged: onChanged)),
+      );
+}
+
+/// Network adapter chooser: "Automatic" plus every adapter that has an
+/// address, so a PC with a hypervisor switch or VPN can be pinned to the
+/// connection its phones can actually reach.
+class _AdapterPicker extends StatefulWidget {
+  final String value;
+  final Future<List<String>> Function()? load;
+  final ValueChanged<String> onChanged;
+
+  const _AdapterPicker(
+      {required this.value, required this.load, required this.onChanged});
+
+  @override
+  State<_AdapterPicker> createState() => _AdapterPickerState();
+}
+
+class _AdapterPickerState extends State<_AdapterPicker> {
+  late Future<List<String>> _names;
+
+  @override
+  void initState() {
+    super.initState();
+    _names = _load();
+  }
+
+  Future<List<String>> _load() async {
+    try {
+      return await widget.load?.call() ?? const <String>[];
+    } on Object {
+      // A vanished adapter must not break the Settings page.
+      return const <String>[];
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) => FutureBuilder<List<String>>(
+        future: _names,
+        builder: (context, snap) {
+          final names = <String>{
+            '',
+            ...?snap.data,
+            // Keep a saved adapter selectable even while it is unplugged.
+            if (widget.value.isNotEmpty) widget.value,
+          };
+          return DropdownButton<String>(
+            key: const Key('network-adapter'),
+            value: widget.value,
+            items: [
+              for (final n in names)
+                DropdownMenuItem(
+                    value: n,
+                    child: Text(
+                        n.isEmpty ? Strings.of(context).networkAutomatic : n)),
+            ],
+            onChanged: (v) => widget.onChanged(v ?? ''),
+          );
+        },
       );
 }
