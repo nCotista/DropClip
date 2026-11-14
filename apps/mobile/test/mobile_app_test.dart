@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:dropclip_core/dropclip_core.dart';
 import 'package:dropclip_mobile/src/mobile_app.dart';
@@ -10,8 +11,6 @@ class _FakePeer implements MobilePeer {
   final ValueNotifier<List<TrustedDevice>> trusted = ValueNotifier(const []);
   @override
   Stream<Set<String>> get connectedChanges => const Stream.empty();
-  @override
-  Set<String> get connected => const {};
   final sent = <String>[];
   String? pairedWith;
   Future<void>? beforeSas, afterMatch;
@@ -44,13 +43,71 @@ class _FakePeer implements MobilePeer {
 
   @override
   void sendText(String text) => sent.add(text);
+
+  @override
+  String get myName => 'Pixel 8';
+
+  final forgotten = <String>[];
+  @override
+  Future<void> forget(String deviceId) async {
+    forgotten.add(deviceId);
+    trusted.value = [
+      for (final d in trusted.value)
+        if (d.deviceId != deviceId) d
+    ];
+  }
+
+  Set<String> online = const {};
+  @override
+  Set<String> get connected => online;
+
+  final files = <String>[];
+  @override
+  Future<void> sendFile(String deviceId, String path,
+      {void Function(int sent, int total)? onProgress}) async {
+    onProgress?.call(5, 10);
+    onProgress?.call(10, 10);
+    files.add('$deviceId $path');
+  }
+}
+
+const _pc = TrustedDevice(
+    deviceId: 'pc',
+    name: 'Office PC',
+    os: 'windows',
+    tier: 1,
+    fp: '',
+    pairedAt: 0,
+    lastSeenAt: 0);
+
+Future<
+        ({
+          ValueNotifier<List<ReceivedClip>> received,
+          ValueNotifier<MobileSettings> settings,
+          List<String> clipboard,
+          List<String> opened,
+        })>
+    _app(WidgetTester tester, _FakePeer peer,
+        {List<ReceivedClip> received = const [],
+        String? clipboard,
+        String? picked}) async {
+  final r = ValueNotifier(received);
+  final s = ValueNotifier(const MobileSettings());
+  final written = <String>[];
+  final opened = <String>[];
+  await tester.pumpWidget(DropClipMobileApp(
+      node: peer,
+      received: r,
+      settings: s,
+      readClipboard: () async => clipboard,
+      writeClipboard: (t) async => written.add(t),
+      pickFile: () async => picked,
+      openFile: (p) async => opened.add(p)));
+  return (received: r, settings: s, clipboard: written, opened: opened);
 }
 
 Future<void> _start(WidgetTester tester, _FakePeer peer) async {
-  await tester.pumpWidget(DropClipMobileApp(
-      node: peer,
-      received: ValueNotifier(const <String>[]),
-      readClipboard: () async => null));
+  await _app(tester, peer);
   await tester.tap(find.byKey(const Key('pair')));
   await tester.pumpAndSettle();
   await tester.enterText(find.byKey(const Key('host')), '127.0.0.1');
@@ -144,15 +201,108 @@ void main() {
     expect(peer.trusted.value, isEmpty);
   });
 
+  testWidgets('copy again puts a received clip back; clear empties the list',
+      (tester) async {
+    final app = await _app(tester, _FakePeer(),
+        received: const [(from: 'Office PC', text: 'hello', path: null)]);
+    expect(find.text('From Office PC'), findsOneWidget);
+    await tester.tap(find.byTooltip('Copy again'));
+    await tester.pump();
+    expect(app.clipboard, ['hello']);
+    await tester.tap(find.byKey(const Key('clear')));
+    await tester.pump();
+    expect(app.received.value, isEmpty);
+    expect(find.text('Nothing received yet'), findsOneWidget);
+  });
+
+  testWidgets('a received file opens from its row', (tester) async {
+    final app = await _app(tester, _FakePeer(), received: const [
+      (from: 'Office PC', text: 'report.pdf', path: '/dl/DropClip/report.pdf')
+    ]);
+    await tester.tap(find.byKey(const Key('file-report.pdf')));
+    await tester.tap(find.byTooltip('Open'));
+    expect(app.opened, ['/dl/DropClip/report.pdf', '/dl/DropClip/report.pdf']);
+    expect(app.clipboard, isEmpty);
+  });
+
+  testWidgets('a paired computer can be removed after confirming',
+      (tester) async {
+    final peer = _FakePeer()..trusted.value = const [_pc];
+    await _app(tester, peer);
+    await tester.tap(find.byKey(const Key('remove-pc')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('confirm-remove')));
+    await tester.pumpAndSettle();
+    expect(peer.forgotten, ['pc']);
+    expect(find.text('No computer yet'), findsOneWidget);
+  });
+
+  testWidgets('send file goes to the connected computer', (tester) async {
+    final peer = _FakePeer()
+      ..trusted.value = const [_pc]
+      ..online = {'pc'};
+    await _app(tester, peer, picked: '/sdcard/Download/report.pdf');
+    await tester.tap(find.byKey(const Key('send-file')));
+    await tester.pumpAndSettle();
+    expect(peer.files, ['pc /sdcard/Download/report.pdf']);
+    expect(find.text('Sent report.pdf'), findsOneWidget);
+  });
+
+  testWidgets('send file with no computer connected says so', (tester) async {
+    final peer = _FakePeer()..trusted.value = const [_pc];
+    await _app(tester, peer, picked: '/x.pdf');
+    await tester.tap(find.byKey(const Key('send-file')));
+    await tester.pump();
+    expect(peer.files, isEmpty);
+    expect(find.text('No computer is connected'), findsOneWidget);
+  });
+
+  testWidgets('settings: Thai switches the screen, sync off stops sending',
+      (tester) async {
+    final peer = _FakePeer();
+    final app = await _app(tester, peer, clipboard: 'secret');
+    await tester.tap(find.byKey(const Key('settings')));
+    await tester.pumpAndSettle();
+    expect(find.text('Pixel 8'), findsOneWidget);
+    await tester.tap(find.byKey(const Key('sync-switch')));
+    await tester.tap(find.text('ไทย'));
+    await tester.pumpAndSettle();
+    expect(
+        app.settings.value,
+        isA<MobileSettings>()
+            .having((s) => s.syncEnabled, 'sync', false)
+            .having((s) => s.language, 'language', 'th'));
+    expect(find.text('ตั้งค่า'), findsOneWidget);
+
+    await tester.pageBack();
+    await tester.pumpAndSettle();
+    expect(find.text('ส่งคลิปบอร์ด'), findsOneWidget);
+    await tester.tap(find.byKey(const Key('send-clipboard')));
+    await tester.pump();
+    expect(peer.sent, isEmpty);
+    expect(find.text('ซิงก์คลิปบอร์ดปิดอยู่'), findsOneWidget);
+  });
+
+  test('settings survive a restart and a broken file gives defaults', () async {
+    final dir = await Directory.systemTemp.createTemp('dc_settings_');
+    addTearDown(() => dir.delete(recursive: true));
+    final f = File('${dir.path}/settings.json');
+    expect((await MobileSettings.load(f)).syncEnabled, isTrue);
+    await const MobileSettings(language: 'th', syncEnabled: false).save(f);
+    final back = await MobileSettings.load(f);
+    expect((back.language, back.syncEnabled), ('th', false));
+    await f.writeAsString('{broken');
+    expect((await MobileSettings.load(f)).language, 'en');
+  });
+
   testWidgets('pair by IP + PIN with SAS, then send the clipboard',
       (tester) async {
     final peer = _FakePeer();
-    await tester.pumpWidget(DropClipMobileApp(
-        node: peer,
-        received: ValueNotifier(const ['Office PC: hello']),
-        readClipboard: () async => 'from phone'));
-    expect(find.text('No paired computers yet'), findsOneWidget);
-    expect(find.text('Office PC: hello'), findsOneWidget);
+    await _app(tester, peer,
+        received: const [(from: 'Office PC', text: 'hello', path: null)],
+        clipboard: 'from phone');
+    expect(find.text('No computer yet'), findsOneWidget);
+    expect(find.text('hello'), findsOneWidget);
 
     await tester.tap(find.byKey(const Key('pair')));
     await tester.pumpAndSettle();
