@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:crypto/crypto.dart';
 import 'package:dropclip_clipboard/dropclip_clipboard.dart';
@@ -248,6 +249,47 @@ class ClipboardBridge {
     }
     engine.dispose();
     await native.stop();
+  }
+
+  static const _pngMagic = [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A];
+
+  static bool _hasPngMagic(List<int> bytes) {
+    if (bytes.length < _pngMagic.length) return false;
+    for (var i = 0; i < _pngMagic.length; i++) {
+      if (bytes[i] != _pngMagic[i]) return false;
+    }
+    return true;
+  }
+
+  /// Injects a valid received PNG (up to 32 MiB) into the clipboard and peer
+  /// sync; corrupt or oversized/non-PNG files stay on disk and invoke
+  /// [onFallback].
+  Future<void> takeSavedFile(
+    File file,
+    String from, {
+    required void Function() onFallback,
+  }) async {
+    try {
+      if (!await file.exists()) return;
+      final size = await file.length();
+      const max = ProtocolConstants.clipboardMaxSize;
+      if (size >= _pngMagic.length && size <= max) {
+        final head = await file.openRead(0, _pngMagic.length).first;
+        if (_hasPngMagic(head)) {
+          try {
+            final bytes = await file.readAsBytes();
+            decodePng(bytes);
+            await takeImage(bytes, from);
+            return;
+          } on Object {
+            onWarn?.call('clipboard: invalid PNG skipped');
+          }
+        }
+      }
+    } on Object {
+      onWarn?.call('clipboard: saved file inspect failed');
+    }
+    onFallback();
   }
 }
 

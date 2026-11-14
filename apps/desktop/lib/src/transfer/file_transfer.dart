@@ -64,6 +64,9 @@ class FileTransfers {
       decide;
   final void Function(TransferUpdate update) onUpdate;
 
+  /// A received file is complete and verified on disk.
+  void Function(File file, String peerName)? onSaved;
+
   /// How long the receiver's answer may take (the user reads a dialog).
   final Duration offerTimeout;
 
@@ -319,6 +322,7 @@ class FileTransfers {
         if (file != null) {
           saved = file.uri.pathSegments.last;
           t.completed.add(item.itemId);
+          onSaved?.call(file, t.peerName);
         }
         t.received[item.itemId] = at;
         if (identical(_incoming[tid], t)) _report(tid, t, 'in_progress');

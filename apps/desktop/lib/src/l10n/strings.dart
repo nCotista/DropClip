@@ -68,6 +68,9 @@ abstract class Strings {
   String get noClipsMatch;
   String fromDevice(String device, String age);
   String get copyAgain;
+  String get openFile;
+  String get showInFolder;
+  String get removeItem;
   String suppressed(int n);
 
   // Side panel
@@ -246,6 +249,12 @@ class EnStrings extends Strings {
   String fromDevice(String device, String age) => 'From $device · $age';
   @override
   String get copyAgain => 'Copy again';
+  @override
+  String get openFile => 'Open file';
+  @override
+  String get showInFolder => 'Show in folder';
+  @override
+  String get removeItem => 'Remove';
   @override
   String suppressed(int n) =>
       '${n == 1 ? '1 item' : '$n items'} from a password manager not synced '
@@ -477,6 +486,12 @@ class ThStrings extends Strings {
   String fromDevice(String device, String age) => 'จาก $device · $age';
   @override
   String get copyAgain => 'คัดลอกอีกครั้ง';
+  @override
+  String get openFile => 'เปิดไฟล์';
+  @override
+  String get showInFolder => 'เปิดตำแหน่งไฟล์';
+  @override
+  String get removeItem => 'ลบออก';
   @override
   String suppressed(int n) => 'ไม่ได้ซิงก์ $n รายการจากโปรแกรมจัดการรหัสผ่าน '
       '— ข้อมูลจากโปรแกรมจัดการรหัสผ่านจะไม่ออกจากเครื่องนี้';

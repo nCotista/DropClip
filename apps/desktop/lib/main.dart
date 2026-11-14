@@ -175,7 +175,7 @@ Future<void> main(List<String> args) async {
   });
 
   // Tier 1 clipboard sync with paired peers (T1.9, FR-03A).
-  void showClip(ClipEvent e) {
+  void showClip(ClipEvent e, {String? path}) {
     final updated = [
       ClipItem(
         switch (e.type) {
@@ -186,6 +186,7 @@ Future<void> main(List<String> args) async {
         e.preview,
         sourceDevice: e.from == 'me' ? store.config.value.deviceName : e.from,
         age: DateTime.now().toIso8601String().substring(11, 16),
+        path: path,
       ),
       ...status.value.clips,
     ].take(20).toList();
@@ -238,6 +239,19 @@ Future<void> main(List<String> args) async {
     onSuppressed: () => status.value = status.value
         .copyWith(suppressedClips: status.value.suppressedClips + 1),
   );
+  // A received file shows in the clipboard list; a valid PNG also goes onto
+  // the PC clipboard (and on to peers) so it can be pasted right away.
+  files.onSaved = (file, from) {
+    unawaited(clipboard.takeSavedFile(
+      file,
+      from,
+      onFallback: () => showClip((
+        type: ClipType.text,
+        preview: '📎 ${file.uri.pathSegments.last}',
+        from: from,
+      ), path: file.path),
+    ));
+  };
   // Dropzone targets: nearby devices plus linked browsers.
   final targets = ValueNotifier<List<NearbyDevice>>(const []);
   void updateTargets() => targets.value = [

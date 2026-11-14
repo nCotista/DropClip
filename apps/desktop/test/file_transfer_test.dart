@@ -17,6 +17,7 @@ typedef _Device = ({
   FileTransfers files,
   Directory dir,
   List<TransferUpdate> updates,
+  List<String> saved,
 });
 
 Future<_Device> _device(String name,
@@ -43,7 +44,10 @@ Future<_Device> _device(String name,
     await node.close();
     await dir.delete(recursive: true).catchError((Object _) => dir);
   });
-  return (node: node, files: files, dir: dir, updates: updates);
+  final saved = <String>[];
+  files.onSaved =
+      (file, from) => saved.add('$from: ${file.uri.pathSegments.last}');
+  return (node: node, files: files, dir: dir, updates: updates, saved: saved);
 }
 
 DiscoveredPeer _seen(DesktopNode n, PeerTrust trust) => DiscoveredPeer(
@@ -150,6 +154,8 @@ void main() {
     final got = File('${b.dir.path}/Downloads/empty.txt');
     expect(got.existsSync(), isTrue);
     expect(got.lengthSync(), 0);
+    // The app lists it in the clipboard history from this.
+    expect(b.saved, ['A: empty.txt']);
     expect(a.updates.last.state, 'complete');
   });
 

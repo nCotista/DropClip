@@ -134,6 +134,7 @@ class _DropzoneHostState extends State<DropzoneHost> {
           dragging: _dz.dragging,
           devices: widget.devices.value,
           onSend: widget.onSend,
+          onRemove: (i) => _dz.remove(i.path ?? i.name),
           onClose: _dz.close,
           onBrowse: _dz.browse,
         ),

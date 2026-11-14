@@ -44,6 +44,9 @@ class DropzonePanel extends StatefulWidget {
   /// Click on the drop area: choose files in the OS dialog instead.
   final VoidCallback? onBrowse;
 
+  /// Takes one item off the list before sending.
+  final void Function(DroppedItem item)? onRemove;
+
   const DropzonePanel({
     super.key,
     required this.items,
@@ -52,6 +55,7 @@ class DropzonePanel extends StatefulWidget {
     this.dragging = false,
     this.onSend,
     this.onBrowse,
+    this.onRemove,
   });
 
   @override
@@ -117,6 +121,22 @@ class _DropzonePanelState extends State<DropzonePanel> {
                 items: widget.items,
                 dragging: widget.dragging,
                 onBrowse: widget.onBrowse),
+            if (widget.items.isNotEmpty && widget.onRemove != null) ...[
+              const SizedBox(height: DropClipSpacing.sm),
+              Wrap(spacing: 6, runSpacing: 6, children: [
+                for (final i in widget.items)
+                  InputChip(
+                    key: Key('dropzone-item-${i.name}'),
+                    label: Text(i.isFolder ? '${i.name}/' : i.name,
+                        overflow: TextOverflow.ellipsis),
+                    // No tooltip: the Dropzone sits above the Navigator's Overlay.
+                    deleteButtonTooltipMessage: '',
+                    deleteIcon: Icon(Icons.close_rounded,
+                        size: 16, semanticLabel: s.removeItem),
+                    onDeleted: () => widget.onRemove!(i),
+                  ),
+              ]),
+            ],
             const SizedBox(height: DropClipSpacing.lg),
             Text(s.sendTo,
                 style: TextStyle(

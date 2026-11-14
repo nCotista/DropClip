@@ -73,6 +73,32 @@ void main() {
       expect(closed, 1);
     });
 
+    testWidgets('a file chosen by mistake can be removed before sending',
+        (tester) async {
+      final removed = <String>[];
+      await tester.pumpWidget(MaterialApp(
+        theme: buildDropClipTheme(Brightness.dark),
+        home: Scaffold(
+          body: SizedBox(
+            width: 400,
+            height: 640,
+            child: DropzonePanel(
+              items: _files,
+              devices: const [_pixel],
+              onClose: () {},
+              onSend: (_, __) {},
+              onRemove: (i) => removed.add(i.name),
+            ),
+          ),
+        ),
+      ));
+      final chip = find.byKey(const Key('dropzone-item-demo-recording.mov'));
+      expect(chip, findsOneWidget);
+      await tester.tap(find.descendant(
+          of: chip, matching: find.byIcon(Icons.close_rounded)));
+      expect(removed, ['demo-recording.mov']);
+    });
+
     testWidgets('clicking a device picks it', (tester) async {
       await show(tester);
       await tester.tap(find.text('Surface Laptop'));

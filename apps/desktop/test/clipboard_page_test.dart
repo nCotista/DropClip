@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:dropclip_desktop/src/clipboard_page.dart';
 import 'package:dropclip_desktop/src/demo_data.dart';
 import 'package:dropclip_ui/dropclip_ui.dart';
@@ -12,6 +14,7 @@ Future<void> _pump(
   ShellStatus status = demoShellStatus,
   ValueChanged<ClipItem>? onCopy,
   VoidCallback? onSendClipboard,
+  void Function(String path, {bool reveal})? onOpenFile,
 }) async {
   tester.view.physicalSize = const Size(1000, 900);
   tester.view.devicePixelRatio = 1;
@@ -20,13 +23,127 @@ Future<void> _pump(
     theme: buildDropClipTheme(Brightness.dark),
     home: Scaffold(
       body: ClipboardPage(
-          status: status, onCopy: onCopy, onSendClipboard: onSendClipboard),
+          status: status,
+          onCopy: onCopy,
+          onSendClipboard: onSendClipboard,
+          onOpenFile: onOpenFile),
     ),
   ));
 }
 
 void main() {
+  test('Explorer gets backslashes; reveal selects the file', () {
+    const p = r'C:\Users\me/Downloads/DropClip/report.pdf';
+    const win = r'C:\Users\me\Downloads\DropClip\report.pdf';
+    final open = openCommand(p, reveal: false, macOS: false);
+    expect(open.$1, 'explorer.exe');
+    expect(open.$2, [win]);
+    expect(openCommand(p, reveal: true, macOS: false).$2, ['/select,', win]);
+    expect(openCommand('/Users/me/x.pdf', reveal: true, macOS: true).$2,
+        ['-R', '/Users/me/x.pdf']);
+    const lin = '/tmp/a/x.pdf';
+    final openLin =
+        openCommand(lin, reveal: false, macOS: false, windows: false);
+    final revLin = openCommand(lin, reveal: true, macOS: false, windows: false);
+    // Records holding a List compare the List by identity: check the parts.
+    expect(openLin.$1, 'xdg-open');
+    expect(openLin.$2, [lin]);
+    expect(revLin.$1, 'xdg-open');
+    expect(revLin.$2, ['/tmp/a']);
+    final dash = openCommand('-bad.pdf', reveal: false, macOS: true);
+    expect(dash.$1, 'open');
+    expect(dash.$2, ['./-bad.pdf']);
+  });
+
+  test('runOpenWithSystem guards missing files, shell flags, and failures',
+      () async {
+    final tmp = await Directory.systemTemp.createTemp('dc_open_');
+    addTearDown(() => tmp.delete(recursive: true));
+
+    var calls = 0;
+    final missing = await runOpenWithSystem(
+      '${tmp.path}/gone.pdf',
+      run: (exe, args, {required bool runInShell}) async {
+        calls++;
+        return ProcessResult(0, 0, '', '');
+      },
+    );
+    expect(missing, isFalse);
+    expect(calls, 0);
+
+    // `|` is not allowed in Windows file names; `&` and spaces still test
+    // that nothing goes through a shell.
+    final weird = File(Platform.isWindows
+        ? '${tmp.path}/a & calc b.txt'
+        : '${tmp.path}/a & calc | b.txt');
+    await weird.writeAsString('hi');
+    late String gotExe;
+    late List<String> gotArgs;
+    late bool gotShell;
+    final ok = await runOpenWithSystem(
+      weird.path,
+      macOS: false,
+      windows: false,
+      run: (exe, args, {required bool runInShell}) async {
+        gotExe = exe;
+        gotArgs = args;
+        gotShell = runInShell;
+        return ProcessResult(0, 0, '', '');
+      },
+    );
+    expect(ok, isTrue);
+    expect(gotExe, 'xdg-open');
+    expect(gotArgs, [weird.path]);
+    expect(gotShell, isFalse);
+
+    final boom = await runOpenWithSystem(
+      weird.path,
+      macOS: true,
+      windows: false,
+      run: (_, __, {required bool runInShell}) async {
+        throw const ProcessException('open', []);
+      },
+    );
+    expect(boom, isFalse);
+  });
+
   group('ClipboardPage (T1.12, FR-04, SF-03)', () {
+    testWidgets('a received file opens from its row', (tester) async {
+      final opened = <String>[];
+      final copied = <ClipItem>[];
+      await _pump(tester,
+          status: const ShellStatus(
+            networkName: '',
+            address: '',
+            verifiedDevices: 1,
+            activeTransfers: 0,
+            deviceCount: 1,
+            clips: [
+              ClipItem(ClipKind.text, '📎 report.pdf',
+                  sourceDevice: 'Laptop',
+                  age: '10:00',
+                  path: '/downloads/report.pdf'),
+              ClipItem(ClipKind.text, 'plain text',
+                  sourceDevice: 'Laptop', age: '10:01'),
+            ],
+          ),
+          onCopy: copied.add,
+          onOpenFile: (p, {bool reveal = false}) =>
+              opened.add(reveal ? 'reveal $p' : p));
+
+      // Only the file row gets the open button; text keeps "copy again".
+      expect(find.byKey(const Key('clip-open-file')), findsOneWidget);
+      await tester.tap(find.text('📎 report.pdf'));
+      await tester.tap(find.byKey(const Key('clip-open-file')));
+      await tester.tap(find.byKey(const Key('clip-show-in-folder')));
+      expect(opened, [
+        '/downloads/report.pdf',
+        '/downloads/report.pdf',
+        'reveal /downloads/report.pdf'
+      ]);
+      expect(copied, isEmpty);
+    });
+
     testWidgets('lists recent clips with source and age', (tester) async {
       await _pump(tester);
 
