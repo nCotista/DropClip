@@ -13,4 +13,15 @@ abstract interface class MobilePeer {
   Future<TrustedDevice> pairWithQr(String scanned,
       Future<bool> Function(String sas, String hostName) confirm);
   void sendText(String text);
+
+  /// This phone's name, as paired computers see it.
+  String get myName;
+
+  /// Forgets a paired computer and tells it to forget this phone (§13.1).
+  Future<void> forget(String deviceId);
+
+  /// Sends the file at [path] to connected computer [deviceId] (FR-07);
+  /// [onProgress] gets bytes sent so far and the total.
+  Future<void> sendFile(String deviceId, String path,
+      {void Function(int sent, int total)? onProgress});
 }

@@ -1,6 +1,9 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <!-- TLS to paired desktops on the LAN (§4.3). -->
     <uses-permission android:name="android.permission.INTERNET"/>
+    <!-- Finding paired computers on the Wi-Fi with mDNS / NSD (§3). -->
+    <uses-permission android:name="android.permission.ACCESS_WIFI_STATE"/>
+    <uses-permission android:name="android.permission.CHANGE_WIFI_MULTICAST_STATE"/>
     <application
         android:label="DropClip"
         android:name="${applicationName}"

@@ -36,6 +36,15 @@ class _ObservedPeer implements MobilePeer {
   Future<TrustedDevice> pairWithQr(
           String qr, Future<bool> Function(String, String) confirm) =>
       node.pairWithQr(qr, confirm);
+
+  @override
+  String get myName => node.myName;
+  @override
+  Future<void> forget(String deviceId) => node.forget(deviceId);
+  @override
+  Future<void> sendFile(String deviceId, String path,
+          {void Function(int sent, int total)? onProgress}) =>
+      node.sendFile(deviceId, path, onProgress: onProgress);
 }
 
 typedef _Fixture = ({
@@ -118,8 +127,12 @@ Future<_Fixture> _start(WidgetTester tester, String mode) async {
   });
   await tester.pumpWidget(DropClipMobileApp(
       node: peer,
-      received: ValueNotifier(const <String>[]),
-      readClipboard: () async => null));
+      received: ValueNotifier(const <ReceivedClip>[]),
+      settings: ValueNotifier(const MobileSettings()),
+      readClipboard: () async => null,
+      writeClipboard: (_) async {},
+      pickFile: () async => null,
+      openFile: (_) async {}));
   await tester.tap(find.byKey(const Key('pair')));
   await tester.pumpAndSettle();
   await tester.enterText(find.byKey(const Key('host')), '127.0.0.1');
