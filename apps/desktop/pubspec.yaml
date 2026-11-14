@@ -1,6 +1,6 @@
 name: dropclip_desktop
 description: DropClip Desktop Application Target (macOS & Windows)
-version: 1.0.0
+version: 1.0.2+3
 publish_to: none
 
 environment:
