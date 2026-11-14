@@ -375,6 +375,7 @@ void main() {
       expectedFp: b.node.me.fp,
     );
     try {
+      // ignore: close_sinks, aborted mid-upload to test error handling.
       final req = await client.httpClient.openUrl(
         'POST',
         Uri(
