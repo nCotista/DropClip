@@ -19,7 +19,8 @@ void main() {
   late List<AppConfig> saved;
   Object? failWith;
 
-  Future<void> pump(WidgetTester tester) async {
+  Future<void> pump(WidgetTester tester,
+      {Future<List<String>> Function()? adapters}) async {
     tester.view.physicalSize = const Size(1280, 1000);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.reset);
@@ -28,6 +29,7 @@ void main() {
       home: Scaffold(
         body: SettingsPage(
           config: config,
+          adapters: adapters,
           onChanged: (next) async {
             if (failWith != null) throw failWith!;
             saved.add(next);
@@ -105,6 +107,16 @@ void main() {
       await tester.pump();
       expect(find.textContaining('Could not change'), findsOneWidget);
       expect(config.value.autoStart, isTrue);
+    });
+
+    testWidgets('the network adapter can be pinned by hand', (tester) async {
+      await pump(tester, adapters: () async => ['Wi-Fi', 'Ethernet']);
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('network-adapter')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Wi-Fi').last);
+      await tester.pumpAndSettle();
+      expect(saved.last.networkAdapter, 'Wi-Fi');
     });
   });
 

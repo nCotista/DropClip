@@ -34,6 +34,10 @@ class DesktopNode {
   /// The browser companion at `/web` (no client cert; own token auth).
   Handler? webHandler;
 
+  /// Settings → network adapter used for the pairing and web addresses;
+  /// empty means pick automatically.
+  String networkAdapter = '';
+
   final _addresses = <String, (String, int)>{};
 
   DesktopNode._(this.ids, this.store, this.pairing, this.mesh, this.server,
@@ -160,8 +164,8 @@ class DesktopNode {
   }
 
   /// Shows this PIN and QR on screen (UI-03); see [PairingHost.events].
-  Future<({String pin, QrPairingPayload qr})> openPairing() async =>
-      pairing.open(ip: await localAddress(), port: server.port);
+  Future<({String pin, QrPairingPayload qr})> openPairing() async => pairing
+      .open(ip: await localAddress(prefer: networkAdapter), port: server.port);
 
   /// Pairs with [peer] as the Client using the PIN shown on it.
   Future<TrustedDevice> pairWith(
@@ -294,17 +298,52 @@ class DesktopNode {
 }
 
 /// The LAN IPv4 address other devices reach this PC on, for the pairing
-/// and web QR codes.
-Future<String> localAddress() async =>
-    (await localLan())?.address ?? InternetAddress.loopbackIPv4.address;
+/// and web QR codes. [prefer] is the adapter picked in Settings.
+Future<String> localAddress({String? prefer}) async =>
+    (await localLan(prefer: prefer))?.address ??
+    InternetAddress.loopbackIPv4.address;
+
+/// Every adapter with a non-loopback IPv4, best first, for Settings → network
+/// adapter. Names are deduplicated and ordered by [adapterScore].
+Future<List<String>> lanAdapterNames() async {
+  final best = <String, int>{};
+  for (final c in await _lanCandidates()) {
+    final score = adapterScore(c);
+    final seen = best[c.name];
+    if (seen == null || score < seen) best[c.name] = score;
+  }
+  final names = best.keys.toList()
+    ..sort((a, b) {
+      final byScore = best[a]!.compareTo(best[b]!);
+      return byScore != 0
+          ? byScore
+          : a.toLowerCase().compareTo(b.toLowerCase());
+    });
+  return names;
+}
 
 /// The adapter other devices reach this PC on: its OS name (e.g. `Wi-Fi`)
 /// and IPv4 address, or null when the PC is on no network.
-Future<({String name, String address})?> localLan() async {
-  final all = [
-    for (final i in await NetworkInterface.list(type: InternetAddressType.IPv4))
-      for (final a in i.addresses) (name: i.name, address: a)
-  ];
+///
+/// [prefer] wins when that adapter is present and has an address, so a PC
+/// with a hypervisor switch or a VPN can be pinned to the real LAN instead
+/// of trusting the automatic pick.
+Future<({String name, String address})?> localLan({String? prefer}) async =>
+    chooseAdapter(await _lanCandidates(), prefer ?? '');
+
+/// Applies the Settings choice to [all]: [prefer] wins when that adapter has
+/// an address, otherwise [pickLanAddress] decides. Null when there is no
+/// usable adapter at all.
+@visibleForTesting
+({String name, String address})? chooseAdapter(
+    List<({String name, InternetAddress address})> all, String prefer) {
+  if (all.isEmpty) return null;
+  final wanted = prefer.trim();
+  if (wanted.isNotEmpty) {
+    for (final c in all) {
+      if (c.name == wanted) return (name: c.name, address: c.address.address);
+    }
+  }
   final address = pickLanAddress(all);
   for (final c in all) {
     if (c.address.address == address) return (name: c.name, address: address);
@@ -312,27 +351,77 @@ Future<({String name, String address})?> localLan() async {
   return null;
 }
 
-/// Skips loopback, link-local and named virtual adapters, puts subnets
-/// used by VirtualBox / Docker / WSL last, and prefers Wi-Fi.
+Future<List<({String name, InternetAddress address})>> _lanCandidates() async =>
+    [
+      for (final i
+          in await NetworkInterface.list(type: InternetAddressType.IPv4))
+        for (final a in i.addresses)
+          if (!a.isLoopback && !a.isLinkLocal) (name: i.name, address: a)
+    ];
+
+/// Adapter names that are never the LAN other devices reach this PC on:
+/// hypervisor switches, container runtimes, VPN/tunnel clients, and the
+/// Windows Wi-Fi Direct / hosted-network pseudo adapters. A PC with any of
+/// these used to be pinned to the wrong address depending on the order the
+/// OS happened to list them in.
+final RegExp _virtualAdapter = RegExp(
+    r'virtual|vethernet|hyper-?v|vmware|virtualbox|vbox|wsl|docker|'
+    r'zerotier|tailscale|hamachi|radmin|nordlynx|wireguard|openvpn|vpn|'
+    r'tun|tap|ppp|pseudo|loopback|wi-?fi direct|hosted network|'
+    r'local area connection\*|bluetooth|npcap|vmnet|teredo|isatap|'
+    r'softether',
+    caseSensitive: false);
+
+/// Subnets virtual switches and container runtimes hand out, plus the
+/// 100.64/10 range Tailscale uses.
+final RegExp _virtualSubnet = RegExp(r'^(192\.168\.56\.|192\.168\.137\.|'
+    r'172\.(1[6-9]|2\d|3[01])\.|'
+    r'100\.(6[4-9]|[7-9]\d|1[01]\d|12[0-7])\.)');
+
+final RegExp _wifiName = RegExp(r'wi-?fi|wlan|wireless', caseSensitive: false);
+final RegExp _wiredName = RegExp(r'ethernet|^eth|^en\d', caseSensitive: false);
+
+bool _isPrivateV4(String ip) {
+  final parts = ip.split('.');
+  if (parts.length != 4) return false;
+  final a = int.tryParse(parts[0]);
+  final b = int.tryParse(parts[1]);
+  if (a == null || b == null) return false;
+  return a == 10 || (a == 172 && b >= 16 && b <= 31) || (a == 192 && b == 168);
+}
+
+/// Lower is better. 100 or more means "this is not the real LAN adapter".
+@visibleForTesting
+int adapterScore(({String name, InternetAddress address}) c) {
+  final ip = c.address.address;
+  var score = 0;
+  if (_virtualAdapter.hasMatch(c.name)) score += 100;
+  if (_virtualSubnet.hasMatch(ip)) score += 20;
+  if (!_isPrivateV4(ip)) score += 10;
+  if (!_wifiName.hasMatch(c.name)) {
+    score += _wiredName.hasMatch(c.name) ? 1 : 5;
+  }
+  return score;
+}
+
+/// Picks the adapter other devices reach this PC on. Skips loopback,
+/// link-local and virtual adapters, prefers Wi-Fi/Ethernet on a private
+/// subnet, and breaks ties by name so the same PC always gets the same
+/// answer no matter what order the OS lists adapters in.
 String pickLanAddress(List<({String name, InternetAddress address})> all) {
-  final virtualName = RegExp(
-      r'virtualbox|vmware|vethernet|hyper-v|wsl|docker|vbox|tun|tap|'
-      r'zerotier|tailscale|loopback',
-      caseSensitive: false);
-  final virtualNet = RegExp(r'^(192\.168\.56\.|172\.(1[6-9]|2\d|3[01])\.)');
-  int rank(({String name, InternetAddress address}) c) =>
-      (virtualNet.hasMatch(c.address.address) ? 2 : 0) +
-      (RegExp(r'wi-?fi|wlan|wireless', caseSensitive: false).hasMatch(c.name)
-          ? 0
-          : 1);
   final usable = all
-      .where((c) =>
-          !c.address.isLoopback &&
-          !c.address.isLinkLocal &&
-          !virtualName.hasMatch(c.name))
-      .toList()
-    ..sort((a, b) => rank(a).compareTo(rank(b)));
-  return usable.isEmpty
-      ? InternetAddress.loopbackIPv4.address
-      : usable.first.address.address;
+      .where((c) => !c.address.isLoopback && !c.address.isLinkLocal)
+      .toList();
+  if (usable.isEmpty) return InternetAddress.loopbackIPv4.address;
+  final real = usable.where((c) => adapterScore(c) < 100).toList();
+  final pool = real.isEmpty ? usable : real;
+  pool.sort((a, b) {
+    final byScore = adapterScore(a).compareTo(adapterScore(b));
+    if (byScore != 0) return byScore;
+    final byName = a.name.toLowerCase().compareTo(b.name.toLowerCase());
+    return byName != 0
+        ? byName
+        : a.address.address.compareTo(b.address.address);
+  });
+  return pool.first.address.address;
 }

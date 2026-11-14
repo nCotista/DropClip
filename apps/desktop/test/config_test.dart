@@ -25,6 +25,7 @@ void main() {
         'language': 'th',
         'first_run_done': false,
         'web_companion_enabled': false,
+        'network_adapter': '',
       });
     });
 
@@ -40,9 +41,22 @@ void main() {
         language: AppLanguage.en,
         firstRunDone: true,
         webCompanionEnabled: true,
+        networkAdapter: 'Ethernet',
       );
       final back = AppConfig.fromJson(c.toJson(), defaultDeviceName: 'x');
       expect(back.toJson(), c.toJson());
+    });
+
+    test('a chosen network adapter survives a reload and can be reset',
+        () async {
+      final store =
+          ConfigStore(File('${dir.path}/config.json'), defaultDeviceName: 'PC');
+      await store.load();
+      await store.save(store.config.value.copyWith(networkAdapter: 'Wi-Fi'));
+      expect((await store.load()).networkAdapter, 'Wi-Fi');
+      // Back to automatic.
+      await store.save(store.config.value.copyWith(networkAdapter: ''));
+      expect((await store.load()).networkAdapter, '');
     });
 
     test('invalid values fall back to defaults and warn', () {

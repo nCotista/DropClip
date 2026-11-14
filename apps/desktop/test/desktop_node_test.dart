@@ -48,6 +48,90 @@ void main() {
     expect(pickLanAddress([nic('Loopback', '127.0.0.1')]), '127.0.0.1');
   });
 
+  group('network adapter pick (T1.1)', () {
+    ({String name, InternetAddress address}) nic(String n, String ip) =>
+        (name: n, address: InternetAddress(ip));
+
+    test('does not depend on the order the OS lists adapters in', () {
+      // The same PC, enumerated two ways: a virtual LAN must never win just
+      // because it came first (the 1.0.6 bug: the QR address changed between
+      // launches).
+      final set = [
+        nic('Wi-Fi', '10.201.250.85'),
+        nic('Microsoft Wi-Fi Direct Virtual Adapter', '192.168.137.1'),
+        nic('vEthernet (Default Switch)', '172.28.0.1'),
+      ];
+      final reversed = set.reversed.toList();
+      expect(pickLanAddress(set), '10.201.250.85');
+      expect(pickLanAddress(reversed), '10.201.250.85');
+    });
+
+    test('a VPN or third-party virtual LAN loses to the real adapter', () {
+      for (final name in [
+        'Radmin VPN',
+        'Hamachi',
+        'NordLynx',
+        'ZeroTier One [8056c2e21c000001]',
+        'Tailscale',
+        'OpenVPN Data Channel Offload',
+        'Ethernet 2', // an unlisted virtual switch on 10.10.10.1
+      ]) {
+        expect(
+            pickLanAddress([
+              nic(name, '10.10.10.1'),
+              nic('Ethernet', '192.168.1.20'),
+            ]),
+            '192.168.1.20',
+            reason: '$name must not be picked over Ethernet');
+      }
+    });
+
+    test('a real LAN on a container subnet still beats a virtual adapter', () {
+      expect(
+          pickLanAddress([
+            nic('vEthernet (WSL)', '172.29.0.1'),
+            nic('Ethernet', '172.20.10.5'),
+          ]),
+          '172.20.10.5');
+    });
+
+    test('falls back to a virtual adapter when nothing else has an address',
+        () {
+      expect(
+          pickLanAddress([
+            nic('vEthernet (Default Switch)', '172.28.0.1'),
+          ]),
+          '172.28.0.1');
+    });
+
+    test('a virtual adapter never scores below the real-connection band', () {
+      for (final name in [
+        'vEthernet (Default Switch)',
+        'Microsoft Wi-Fi Direct Virtual Adapter',
+        'Hyper-V Virtual Ethernet Adapter',
+        'Tailscale',
+      ]) {
+        expect(
+            adapterScore(nic(name, '192.168.1.9')), greaterThanOrEqualTo(100),
+            reason: '$name is not a real LAN adapter');
+      }
+      expect(adapterScore(nic('Wi-Fi', '10.201.250.85')), lessThan(100));
+    });
+
+    test('the Settings choice wins over the automatic pick', () {
+      final set = [
+        nic('Wi-Fi', '10.201.250.85'),
+        nic('Ethernet', '192.168.1.20'),
+      ];
+      expect(chooseAdapter(set, 'Ethernet'),
+          (name: 'Ethernet', address: '192.168.1.20'));
+      // Unplugged or renamed: fall back instead of returning nothing.
+      expect(chooseAdapter(set, 'Ethernet 7')?.address, '10.201.250.85');
+      expect(chooseAdapter(set, ''), isNotNull);
+      expect(chooseAdapter(const [], 'Wi-Fi'), isNull);
+    });
+  });
+
   test('a renamed PC keeps its identity; a paired peer shows the new name',
       () async {
     final host = await _node('Host'), client = await _node('Client');
