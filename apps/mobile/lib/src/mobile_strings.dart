@@ -30,6 +30,7 @@ class MobileStrings {
   String get nothingYet => _t('Nothing received yet', 'ยังไม่ได้รับอะไร');
   String get clear => _t('Clear', 'ล้าง');
   String get copyAgain => _t('Copy again', 'คัดลอกอีกครั้ง');
+  String get openFile => _t('Open', 'เปิด');
   String get copied => _t('Copied', 'คัดลอกแล้ว');
   String fromDevice(String name) => _t('From $name', 'จาก $name');
   String get noComputerOnline =>

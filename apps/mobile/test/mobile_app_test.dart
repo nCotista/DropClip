@@ -85,6 +85,7 @@ Future<
           ValueNotifier<List<ReceivedClip>> received,
           ValueNotifier<MobileSettings> settings,
           List<String> clipboard,
+          List<String> opened,
         })>
     _app(WidgetTester tester, _FakePeer peer,
         {List<ReceivedClip> received = const [],
@@ -93,14 +94,16 @@ Future<
   final r = ValueNotifier(received);
   final s = ValueNotifier(const MobileSettings());
   final written = <String>[];
+  final opened = <String>[];
   await tester.pumpWidget(DropClipMobileApp(
       node: peer,
       received: r,
       settings: s,
       readClipboard: () async => clipboard,
       writeClipboard: (t) async => written.add(t),
-      pickFile: () async => picked));
-  return (received: r, settings: s, clipboard: written);
+      pickFile: () async => picked,
+      openFile: (p) async => opened.add(p)));
+  return (received: r, settings: s, clipboard: written, opened: opened);
 }
 
 Future<void> _start(WidgetTester tester, _FakePeer peer) async {
@@ -201,7 +204,7 @@ void main() {
   testWidgets('copy again puts a received clip back; clear empties the list',
       (tester) async {
     final app = await _app(tester, _FakePeer(),
-        received: const [(from: 'Office PC', text: 'hello')]);
+        received: const [(from: 'Office PC', text: 'hello', path: null)]);
     expect(find.text('From Office PC'), findsOneWidget);
     await tester.tap(find.byTooltip('Copy again'));
     await tester.pump();
@@ -210,6 +213,16 @@ void main() {
     await tester.pump();
     expect(app.received.value, isEmpty);
     expect(find.text('Nothing received yet'), findsOneWidget);
+  });
+
+  testWidgets('a received file opens from its row', (tester) async {
+    final app = await _app(tester, _FakePeer(), received: const [
+      (from: 'Office PC', text: 'report.pdf', path: '/dl/DropClip/report.pdf')
+    ]);
+    await tester.tap(find.byKey(const Key('file-report.pdf')));
+    await tester.tap(find.byTooltip('Open'));
+    expect(app.opened, ['/dl/DropClip/report.pdf', '/dl/DropClip/report.pdf']);
+    expect(app.clipboard, isEmpty);
   });
 
   testWidgets('a paired computer can be removed after confirming',
@@ -286,7 +299,7 @@ void main() {
       (tester) async {
     final peer = _FakePeer();
     await _app(tester, peer,
-        received: const [(from: 'Office PC', text: 'hello')],
+        received: const [(from: 'Office PC', text: 'hello', path: null)],
         clipboard: 'from phone');
     expect(find.text('No computer yet'), findsOneWidget);
     expect(find.text('hello'), findsOneWidget);

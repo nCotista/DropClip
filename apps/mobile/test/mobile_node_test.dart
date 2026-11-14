@@ -19,6 +19,7 @@ Future<
       String id,
       TrustedDeviceStore store,
       Map<String, BytesBuilder> files,
+      DeviceIdentityManager ids,
     })> _desktop(Directory dir) async {
   // A minimal desktop receiver: accepts every offer and keeps the bytes.
   final files = <String, BytesBuilder>{};
@@ -60,7 +61,9 @@ Future<
       store: store,
       pinnedHandler: (r) async => r.url.path.startsWith('api/v1/file/')
           ? await fileRoute(r)
-          : Response.notFound(null),
+          : r.url.path == 'api/v1/blob/img1'
+              ? Response.ok(_png)
+              : Response.notFound(null),
       pairingHandler: pairing.handler,
       webSocket: (r, fp) => unawaited(mesh.accept(r, fp)),
       address: InternetAddress.loopbackIPv4,
@@ -93,8 +96,13 @@ Future<
     id: ids.identity.deviceId,
     store: store,
     files: files,
+    ids: ids,
   );
 }
+
+/// A 1×1 PNG, as the desktop's blob store would serve a copied image.
+final _png = base64Decode(
+    'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==');
 
 void main() {
   test('phone pairs by IP + PIN, dials the desktop and syncs text both ways',
@@ -187,6 +195,108 @@ void main() {
       await Future<void>.delayed(const Duration(milliseconds: 50));
     }
     expect(phone.trusted.value, isEmpty);
+  });
+
+  test('the desktop sends a file to the phone, which saves it', () async {
+    final dir = await Directory.systemTemp.createTemp('dc_mobile_recv_');
+    addTearDown(() => dir.delete(recursive: true));
+    final desk = await _desktop(dir);
+    final got = StreamController<(File, String)>.broadcast();
+    addTearDown(got.close);
+    final phone = await MobileNode.start(
+        dir: Directory('${dir.path}/phone'),
+        keys: InMemorySecureKeyStore(),
+        name: 'Pixel',
+        os: 'android',
+        writeClipboard: (_) async {},
+        onReceived: (_, __) {},
+        received: Directory('${dir.path}/Download'),
+        onFile: (f, from) => got.add((f, from)));
+    addTearDown(phone.close);
+    final pin = desk.pairing.open(ip: '127.0.0.1', port: desk.port).pin;
+    desk.pairing.events.listen((e) {
+      if (e is PairingSasReady) desk.pairing.confirm(true);
+    });
+    final linked = desk.mesh.peerChanges.firstWhere((p) => p.isNotEmpty);
+    await phone.pair('127.0.0.1', desk.port, pin, (_, __) async => true);
+    await linked.timeout(const Duration(seconds: 5));
+    await Future<void>.delayed(const Duration(milliseconds: 200));
+
+    // What the desktop's FileTransfers.send does, against the phone.
+    final bytes = List<int>.generate(1500000, (i) => i % 253);
+    final sha = sha256.convert(bytes).toString();
+    const tid = '00000000-0000-4000-8000-0000000000f1';
+    final accepted = desk.mesh.messages.firstWhere((m) =>
+        m.envelope.type == MessageType.fileAccept &&
+        m.envelope.payload['transfer_id'] == tid);
+    await desk.mesh.broadcast(Envelope(
+        type: MessageType.fileOffer,
+        msgId: '00000000-0000-4000-8000-0000000000f2',
+        origin: desk.id,
+        hlc: Hlc.now(desk.id),
+        ts: DateTime.now().millisecondsSinceEpoch,
+        payload: {
+          'transfer_id': tid,
+          'items': [
+            FileOfferItem(
+                    itemId: 'i0',
+                    path: 'รายงาน 1.pdf',
+                    size: bytes.length,
+                    sha256: sha,
+                    mime: 'application/pdf',
+                    modifiedAt: 0)
+                .toJson()
+          ],
+          'manifest': false,
+          'total_size': bytes.length,
+          'total_count': 1,
+        }));
+    await accepted.timeout(const Duration(seconds: 5));
+    final client = await PinnedTransportClient.forIdentity(
+        identity: desk.ids, store: desk.store, expectedFp: phone.me.fp);
+    addTearDown(client.close);
+    Future<HttpClientResponse> call(String method, String path,
+        [List<int>? body]) async {
+      final req = await client.httpClient.openUrl(
+          method,
+          Uri(
+              scheme: 'https',
+              host: '127.0.0.1',
+              port: phone.server.port,
+              path: path));
+      if (body != null) req.add(body);
+      return req.close();
+    }
+
+    final saved = got.stream.first;
+    expect((await call('GET', '/api/v1/file/$tid/i0/status')).statusCode, 200);
+    expect((await call('POST', '/api/v1/file/$tid/i0', bytes)).statusCode, 200);
+    expect(
+        (await call('POST', '/api/v1/file/$tid/finish', [])).statusCode, 200);
+    final (file, from) = await saved.timeout(const Duration(seconds: 5));
+    expect(from, 'Office PC');
+    expect(file.uri.pathSegments.last, 'รายงาน 1.pdf');
+    expect(await file.readAsBytes(), bytes);
+
+    // An image copied on the desktop: the phone fetches the blob and saves it.
+    final image = got.stream.first;
+    await desk.mesh.broadcast(Envelope(
+        type: MessageType.clipboardUpdate,
+        msgId: '00000000-0000-4000-8000-0000000000f3',
+        origin: desk.id,
+        hlc: Hlc.now(desk.id),
+        ts: DateTime.now().millisecondsSinceEpoch,
+        payload: ClipboardUpdatePayload(
+                contentType: 'image/png',
+                hash: sha256.convert(_png).toString(),
+                size: _png.length,
+                isConcealed: false,
+                blobId: 'img1')
+            .toJson()));
+    final (png, imageFrom) = await image.timeout(const Duration(seconds: 5));
+    expect(imageFrom, 'Office PC');
+    expect(png.path, endsWith('.png'));
+    expect(await png.readAsBytes(), _png);
   });
 
   test('phone sends a file to the desktop, then removes it', () async {

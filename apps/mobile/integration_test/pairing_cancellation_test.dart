@@ -131,7 +131,8 @@ Future<_Fixture> _start(WidgetTester tester, String mode) async {
       settings: ValueNotifier(const MobileSettings()),
       readClipboard: () async => null,
       writeClipboard: (_) async {},
-      pickFile: () async => null));
+      pickFile: () async => null,
+      openFile: (_) async {}));
   await tester.tap(find.byKey(const Key('pair')));
   await tester.pumpAndSettle();
   await tester.enterText(find.byKey(const Key('host')), '127.0.0.1');

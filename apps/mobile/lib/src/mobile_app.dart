@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:dropclip_core/dropclip_core.dart';
 import 'package:dropclip_ui/dropclip_ui.dart';
@@ -13,7 +14,9 @@ export 'mobile_peer.dart';
 export 'mobile_settings.dart';
 
 /// A clip received from a computer, newest first in the list.
-typedef ReceivedClip = ({String from, String text});
+/// A clip or file received from a computer, newest first in the list.
+/// [path] is set for a received file or image: the row opens it.
+typedef ReceivedClip = ({String from, String text, String? path});
 
 /// Tier 2 phone screen (T2.5, UI-05): paired computers, pair by IP + PIN
 /// or QR with the SAS check, send the clipboard or a file, received clips
@@ -29,6 +32,9 @@ class DropClipMobileApp extends StatelessWidget {
   /// Lets the user choose a file; null when cancelled.
   final Future<String?> Function() pickFile;
 
+  /// Opens a received file in the phone's app for it.
+  final Future<void> Function(String path) openFile;
+
   final ValueNotifier<MobileSettings> settings;
 
   const DropClipMobileApp({
@@ -38,6 +44,7 @@ class DropClipMobileApp extends StatelessWidget {
     required this.readClipboard,
     required this.writeClipboard,
     required this.pickFile,
+    required this.openFile,
     required this.settings,
   });
 
@@ -277,29 +284,63 @@ class _Home extends StatelessWidget {
                             ]),
                           ),
                         for (final clip in clips)
-                          Card(
-                            margin: const EdgeInsets.only(
-                                bottom: DropClipSpacing.sm),
-                            child: ListTile(
-                              onTap: () => _copy(context, clip.text),
-                              leading: Icon(
-                                  _isLink(clip.text)
-                                      ? Icons.link_rounded
-                                      : Icons.notes_rounded,
-                                  color: _isLink(clip.text)
-                                      ? c.cyan
-                                      : c.textAccent),
-                              title: Text(clip.text,
-                                  maxLines: 3, overflow: TextOverflow.ellipsis),
-                              subtitle: Text(t.fromDevice(clip.from),
-                                  style: TextStyle(color: c.textSecondary)),
-                              trailing: IconButton(
-                                tooltip: t.copyAgain,
-                                icon: const Icon(Icons.copy_rounded),
-                                onPressed: () => _copy(context, clip.text),
+                          if (clip.path != null)
+                            Card(
+                              margin: const EdgeInsets.only(
+                                  bottom: DropClipSpacing.sm),
+                              child: ListTile(
+                                key: Key('file-${clip.text}'),
+                                onTap: () => app.openFile(clip.path!),
+                                leading: _isImage(clip.path!)
+                                    ? ClipRRect(
+                                        borderRadius: BorderRadius.circular(
+                                            DropClipRadius.tag),
+                                        child: Image.file(File(clip.path!),
+                                            width: 44,
+                                            height: 44,
+                                            fit: BoxFit.cover,
+                                            errorBuilder: (_, __, ___) => Icon(
+                                                Icons.image_outlined,
+                                                color: c.warning)))
+                                    : Icon(Icons.insert_drive_file_outlined,
+                                        color: c.warning),
+                                title: Text(clip.text,
+                                    maxLines: 2,
+                                    overflow: TextOverflow.ellipsis),
+                                subtitle: Text(t.fromDevice(clip.from),
+                                    style: TextStyle(color: c.textSecondary)),
+                                trailing: IconButton(
+                                  tooltip: t.openFile,
+                                  icon: const Icon(Icons.open_in_new_rounded),
+                                  onPressed: () => app.openFile(clip.path!),
+                                ),
+                              ),
+                            )
+                          else
+                            Card(
+                              margin: const EdgeInsets.only(
+                                  bottom: DropClipSpacing.sm),
+                              child: ListTile(
+                                onTap: () => _copy(context, clip.text),
+                                leading: Icon(
+                                    _isLink(clip.text)
+                                        ? Icons.link_rounded
+                                        : Icons.notes_rounded,
+                                    color: _isLink(clip.text)
+                                        ? c.cyan
+                                        : c.textAccent),
+                                title: Text(clip.text,
+                                    maxLines: 3,
+                                    overflow: TextOverflow.ellipsis),
+                                subtitle: Text(t.fromDevice(clip.from),
+                                    style: TextStyle(color: c.textSecondary)),
+                                trailing: IconButton(
+                                  tooltip: t.copyAgain,
+                                  icon: const Icon(Icons.copy_rounded),
+                                  onPressed: () => _copy(context, clip.text),
+                                ),
                               ),
                             ),
-                          ),
                       ]),
                 ),
               ],
@@ -314,6 +355,10 @@ class _Home extends StatelessWidget {
     await app.writeClipboard(text);
     if (context.mounted) _toast(context, MobileStrings.of(context).copied);
   }
+
+  static bool _isImage(String path) =>
+      RegExp(r'\.(png|jpe?g|gif|webp|heic)$', caseSensitive: false)
+          .hasMatch(path);
 
   static bool _isLink(String text) {
     final uri = Uri.tryParse(text.trim());

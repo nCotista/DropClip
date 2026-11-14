@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'dart:math';
+import 'dart:typed_data';
 
 import 'package:dropclip_clipboard/dropclip_clipboard.dart';
 import 'package:dropclip_core/dropclip_core.dart';
@@ -9,6 +10,7 @@ import 'package:dropclip_protocol/dropclip_protocol.dart';
 import 'package:dropclip_transfer/dropclip_transfer.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'package:shelf/shelf.dart';
 
 import 'mobile_peer.dart';
 
@@ -41,6 +43,21 @@ class MobileNode implements MobilePeer {
   final File _hosts;
   final Future<void> Function(String text) writeClipboard;
   final void Function(String text, String from) onReceived;
+
+  /// The mTLS server paired computers send files and images to (§9).
+  final TlsTransportServer server;
+
+  /// Where received files and images are saved.
+  final Directory received;
+
+  /// A file or image from [from] is saved at [file].
+  final void Function(File file, String from) onFile;
+
+  late final StreamingFileReceiver _receiver =
+      StreamingFileReceiver(destinationRoot: received);
+  final _incoming =
+      <String, ({String peer, Map<String, FileOfferItem> items})>{};
+  DiscoveryService? _discovery;
   @override
   final ValueNotifier<List<TrustedDevice>> trusted;
   late final ClipboardSyncEngine _engine;
@@ -49,35 +66,67 @@ class MobileNode implements MobilePeer {
   /// Settings switch: off stops sending and receiving clips.
   final bool Function() syncEnabled;
 
-  MobileNode._(this.ids, this.store, this.mesh, this._hosts,
-      this.writeClipboard, this.onReceived, this.syncEnabled)
+  MobileNode._(
+      this.ids,
+      this.store,
+      this.mesh,
+      this._hosts,
+      this.writeClipboard,
+      this.onReceived,
+      this.syncEnabled,
+      this.server,
+      this.received,
+      this.onFile)
       : trusted = ValueNotifier(store.activeDevices.toList()) {
+    String? sender;
     _engine = ClipboardSyncEngine(
       myId: me.deviceId,
       policy: () => SyncPolicy(
-          enabled: syncEnabled(), types: const {ClipType.text, ClipType.url}),
+          enabled: syncEnabled(),
+          types: const {ClipType.text, ClipType.url, ClipType.image}),
       ports: TransportSyncAdapter(
         sendBroadcastEnvelope: (e) => unawaited(mesh.broadcast(e)),
-        osWriteClipboard: (_, raw) => writeClipboard(utf8.decode(raw)),
+        remoteBlobFetcher: (peer, id) => _fetch(peer, '/api/v1/blob/$id'),
+        osWriteClipboard: (type, raw) async {
+          if (type != ClipType.image) return writeClipboard(utf8.decode(raw));
+          // shortcut: images are saved and listed, not put on the phone
+          // clipboard (Flutter's clipboard is text only); add a plugin for
+          // that when it is needed.
+          final f = await StreamingFileReceiver.freeNameFor(File(
+              '${received.path}/image-${DateTime.now().millisecondsSinceEpoch}.png'));
+          await f.parent.create(recursive: true);
+          await f.writeAsBytes(raw);
+          onFile(f, sender ?? '');
+        },
       ),
     );
     _sub = mesh.messages.listen((m) async {
-      if (m.envelope.type == MessageType.deviceRevoked) {
+      final type = m.envelope.type;
+      if (type == MessageType.deviceRevoked) {
         // The desktop removed this phone: forget it too (§13.1).
         await store.removeByDeviceId(m.peerId);
         await mesh.drop(m.peerId, VersionNegotiator.wsCloseNotPairedOrRevoked);
         trusted.value = store.activeDevices.toList();
         return;
       }
-      if (m.envelope.type != MessageType.clipboardUpdate) return;
-      final u = TransportSyncAdapter.envelopeToClipUpdate(m.envelope);
-      if (u.inline != null && await _engine.onRemoteUpdate(u, m.peerId)) {
-        final from = trusted.value.where((d) => d.deviceId == m.peerId);
-        onReceived(
-            utf8.decode(u.inline!), from.isEmpty ? m.peerId : from.first.name);
+      if (type == MessageType.fileOffer) return _offered(m);
+      if (type != MessageType.clipboardUpdate) return;
+      try {
+        final u = TransportSyncAdapter.envelopeToClipUpdate(m.envelope);
+        sender = _nameOf(m.peerId);
+        if (await _engine.onRemoteUpdate(u, m.peerId) &&
+            u.inline != null &&
+            u.type != ClipType.image) {
+          onReceived(utf8.decode(u.inline!), _nameOf(m.peerId));
+        }
+      } on Object {
+        // An image the computer no longer has, or a malformed frame.
       }
     });
   }
+
+  String _nameOf(String deviceId) =>
+      store.getByDeviceId(deviceId)?.name ?? deviceId;
 
   DeviceIdentity get me => ids.identity;
 
@@ -96,6 +145,8 @@ class MobileNode implements MobilePeer {
     required Future<void> Function(String text) writeClipboard,
     required void Function(String text, String from) onReceived,
     bool Function()? syncEnabled,
+    Directory? received,
+    void Function(File file, String from)? onFile,
   }) async {
     final ids = DeviceIdentityManager(
         storageDir: Directory('${dir.path}/identity'), keyStore: keys);
@@ -105,9 +156,173 @@ class MobileNode implements MobilePeer {
     await store.load();
     late MobileNode node;
     final mesh = PeerMesh(identity: ids, store: store, hello: () => node.hello);
-    return node = MobileNode._(ids, store, mesh, File('${dir.path}/hosts.json'),
-        writeClipboard, onReceived, syncEnabled ?? () => true);
+    final server = await TlsTransportServer.bindForIdentity(
+      identity: ids,
+      store: store,
+      pinnedHandler: (r) => node._route(r),
+      webSocket: (r, fp) => unawaited(mesh.accept(r, fp)),
+    );
+    return node = MobileNode._(
+        ids,
+        store,
+        mesh,
+        File('${dir.path}/hosts.json'),
+        writeClipboard,
+        onReceived,
+        syncEnabled ?? () => true,
+        server,
+        received ?? Directory('${dir.path}/received'),
+        onFile ?? (_, __) {});
   }
+
+  /// Finds paired computers on the Wi-Fi and announces this phone, so it
+  /// reconnects after the computer's address changes and shows up in the
+  /// computer's Dropzone (§3).
+  Future<void> startDiscovery(MdnsBackend backend) async {
+    final cache = PeerCache(
+        localDeviceId: me.deviceId, trustedFingerprint: store.fingerprintOf);
+    cache.changes.listen((peers) async {
+      for (final p in peers) {
+        if (!p.canAutoConnect || p.state == PeerState.stale) continue;
+        final hosts = await _savedHosts();
+        final at = '${p.address}:${p.record.port}';
+        if (hosts[p.deviceId] != at) {
+          hosts[p.deviceId] = at;
+          await _hosts.writeAsString(jsonEncode(hosts));
+        }
+        unawaited(mesh.reach(p.deviceId, p.address, p.record.port));
+      }
+    });
+    _discovery = DiscoveryService(
+      backend: backend,
+      cache: cache,
+      record: DiscoveryRecord(
+        deviceId: me.deviceId,
+        name: me.name,
+        os: DeviceOs.values.byName(me.os),
+        port: server.port,
+        fingerprint: me.fp,
+        capabilities: const ['clip.text', 'clip.image', 'file'],
+      ),
+    );
+    await _discovery!.start();
+  }
+
+  /// `GET` [path] from paired [peerId] over pinned mTLS (e.g. a blob, §9.3).
+  Future<Uint8List> _fetch(String peerId, String path) async {
+    final at = mesh.linkAddress(peerId);
+    final peer = store.getByDeviceId(peerId);
+    if (at == null || at.port == null || peer == null) {
+      throw StateError('computer is not connected');
+    }
+    final client = await PinnedTransportClient.forIdentity(
+        identity: ids, store: store, expectedFp: peer.fp);
+    client.httpClient.connectionTimeout = const Duration(seconds: 5);
+    try {
+      final req = await client.httpClient.getUrl(
+          Uri(scheme: 'https', host: at.host, port: at.port, path: path));
+      final res = await req.close();
+      final bytes = await res.fold<BytesBuilder>(
+          BytesBuilder(copy: false), (b, d) => b..add(d));
+      if (res.statusCode != 200) throw HttpException('HTTP ${res.statusCode}');
+      return bytes.takeBytes();
+    } finally {
+      client.close();
+    }
+  }
+
+  /// A computer offers files: paired computers are trusted, so they are
+  /// taken (the computer's user chose to send them).
+  Future<void> _offered(PeerMessage m) async {
+    final p = m.envelope.payload;
+    final tid = p['transfer_id'] as String;
+    var ok = false;
+    try {
+      final items = [
+        for (final j in p['items'] as List)
+          FileOfferItem.fromJson(j as Map<String, dynamic>)
+      ];
+      await _receiver.validateOffer(items: items);
+      _incoming[tid] =
+          (peer: m.peerId, items: {for (final i in items) i.itemId: i});
+      ok = true;
+    } on Object {
+      ok = false;
+    }
+    await mesh.broadcast(
+        _envelope(
+            ok ? MessageType.fileAccept : MessageType.fileReject,
+            ok
+                ? {
+                    'transfer_id': tid,
+                    'accepted_items': [..._incoming[tid]!.items.keys],
+                    'auto': true
+                  }
+                : {'transfer_id': tid, 'reason': 'invalid_offer'}),
+        to: m.peerId);
+  }
+
+  /// `GET .../status`, `POST .../{item}`, `POST .../finish` from a computer
+  /// sending files (§9); the same steps the desktop receiver serves.
+  Future<Response> _route(Request r) async {
+    final seg = r.url.pathSegments; // api v1 file <tid> <item|finish>[/status]
+    if (seg.length < 5 || seg[2] != 'file') return Response.notFound(null);
+    final t = _incoming[seg[3]];
+    final fp = r.context[kPeerFingerprintContextKey] as String?;
+    if (t == null || store.getByFingerprint(fp ?? '')?.deviceId != t.peer) {
+      return _json(404, {'error': 'unknown transfer'});
+    }
+    if (seg[4] == 'finish') {
+      _incoming.remove(seg[3]);
+      unawaited(mesh.broadcast(
+          _envelope(MessageType.fileComplete, {
+            'transfer_id': seg[3],
+            'state': 'complete',
+            'items': const <Object>[]
+          }),
+          to: t.peer));
+      return _json(200, {'state': 'complete'});
+    }
+    final item = t.items[seg[4]];
+    if (item == null) return _json(404, {'error': 'unknown item'});
+    final part = _receiver.partFileFor(item);
+    if (r.method == 'GET') {
+      // Start over: a broken upload resends from 0 (no resume on phones).
+      if (await part.exists()) await part.delete();
+      return _json(200, {'offset': 0, 'state': 'in_progress'});
+    }
+    var at = 0;
+    try {
+      final buf = BytesBuilder(copy: false);
+      Future<void> write(Uint8List chunk) async {
+        final file =
+            await _receiver.appendChunk(item: item, offset: at, chunk: chunk);
+        at += chunk.length;
+        if (file != null) onFile(file, _nameOf(t.peer));
+      }
+
+      await for (final data in r.read()) {
+        var rest = data;
+        while (rest.isNotEmpty) {
+          final take = min(kStreamingChunkSize - buf.length, rest.length);
+          buf.add(rest.sublist(0, take));
+          rest = rest.sublist(take);
+          if (buf.length == kStreamingChunkSize) await write(buf.takeBytes());
+        }
+      }
+      if (buf.isNotEmpty || (item.size == 0 && at == 0)) {
+        await write(buf.takeBytes());
+      }
+      return _json(200, {'received_bytes': at, 'state': 'complete'});
+    } on ProtocolException catch (e) {
+      return _json(e.httpStatus, e.toHttpJson());
+    }
+  }
+
+  static Response _json(int status, Map<String, Object?> body) =>
+      Response(status,
+          body: jsonEncode(body),
+          headers: const {'content-type': 'application/json'});
 
   HelloPayload get hello => HelloPayload(
       deviceId: me.deviceId,
@@ -115,8 +330,9 @@ class MobileNode implements MobilePeer {
       os: me.os,
       tier: _tier,
       appVersion: '1.0.0',
-      capabilities:
-          _tier == 3 ? const ['clip.text'] : const ['clip.text', 'clip.push'],
+      capabilities: _tier == 3
+          ? const ['clip.text', 'clip.image', 'file']
+          : const ['clip.text', 'clip.push', 'clip.image', 'file'],
       tombstonesHash: '',
       tombstoneCount: 0);
 
@@ -153,6 +369,7 @@ class MobileNode implements MobilePeer {
 
   /// Remembers where the desktop is and dials it.
   Future<TrustedDevice> _connect(TrustedDevice d, String host, int port) async {
+    if (d.certPem != null) server.addTrustedPeerCert(d.certPem!);
     final hosts = await _savedHosts();
     hosts[d.deviceId] = '$host:$port';
     await _hosts.writeAsString(jsonEncode(hosts));
@@ -303,8 +520,10 @@ class MobileNode implements MobilePeer {
       : <String, dynamic>{};
 
   Future<void> close() async {
+    await _discovery?.stop();
     await _sub.cancel();
     _engine.dispose();
     await mesh.close();
+    await server.close(force: true);
   }
 }
