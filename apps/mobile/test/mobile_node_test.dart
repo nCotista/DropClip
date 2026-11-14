@@ -678,12 +678,16 @@ void main() {
 
   group('phone-to-phone peer pairing and transfer', () {
     Future<MobileNode> startPhone(
-            Directory dir,
-            SecureKeyStore keys,
-            String name,
-            String os,
-            StreamController<String> texts,
-            StreamController<File> files) =>
+      Directory dir,
+      SecureKeyStore keys,
+      String name,
+      String os,
+      StreamController<String> texts,
+      StreamController<File> files, {
+      // Ephemeral ports by default so concurrent suite runs never collide.
+      int firstPort = 0,
+      int lastPort = 0,
+    }) =>
         MobileNode.start(
           dir: dir,
           keys: keys,
@@ -693,6 +697,8 @@ void main() {
           onReceived: (_, __) {},
           onFile: (f, _) => files.add(f),
           localIp: () async => '127.0.0.1',
+          firstPort: firstPort,
+          lastPort: lastPort,
         );
 
     Future<
@@ -797,15 +803,20 @@ void main() {
       final initiator = aBig ? p.ios : p.android;
       final responder = aBig ? p.android : p.ios;
       final initiatorFiles = (aBig ? p.iFiles : p.aFiles).stream;
+      final responderPort = responder.server.port;
       await responder.close();
       await Future<void>.delayed(const Duration(milliseconds: 200));
       final restarted = await startPhone(
-          Directory('${dir.path}/${aBig ? 'android' : 'ios'}'),
-          aBig ? p.aKeys : p.iKeys,
-          responder.myName,
-          aBig ? 'android' : 'ios',
-          aBig ? p.aText : p.iText,
-          aBig ? p.aFiles : p.iFiles);
+        Directory('${dir.path}/${aBig ? 'android' : 'ios'}'),
+        aBig ? p.aKeys : p.iKeys,
+        responder.myName,
+        aBig ? 'android' : 'ios',
+        aBig ? p.aText : p.iText,
+        aBig ? p.aFiles : p.iFiles,
+        // Rebind the same port without conflicting with concurrent tests.
+        firstPort: responderPort,
+        lastPort: responderPort,
+      );
       addTearDown(restarted.close);
       await initiator.reconnect();
       for (var i = 0; i < 600; i++) {
