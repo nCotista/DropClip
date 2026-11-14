@@ -678,12 +678,16 @@ void main() {
 
   group('phone-to-phone peer pairing and transfer', () {
     Future<MobileNode> startPhone(
-            Directory dir,
-            SecureKeyStore keys,
-            String name,
-            String os,
-            StreamController<String> texts,
-            StreamController<File> files) =>
+      Directory dir,
+      SecureKeyStore keys,
+      String name,
+      String os,
+      StreamController<String> texts,
+      StreamController<File> files, {
+      // Ephemeral ports by default so concurrent suite runs never collide.
+      int firstPort = 0,
+      int lastPort = 0,
+    }) =>
         MobileNode.start(
           dir: dir,
           keys: keys,
@@ -693,6 +697,8 @@ void main() {
           onReceived: (_, __) {},
           onFile: (f, _) => files.add(f),
           localIp: () async => '127.0.0.1',
+          firstPort: firstPort,
+          lastPort: lastPort,
         );
 
     Future<
@@ -797,20 +803,27 @@ void main() {
       final initiator = aBig ? p.ios : p.android;
       final responder = aBig ? p.android : p.ios;
       final initiatorFiles = (aBig ? p.iFiles : p.aFiles).stream;
+      final responderPort = responder.server.port;
       await responder.close();
       await Future<void>.delayed(const Duration(milliseconds: 200));
       final restarted = await startPhone(
-          Directory('${dir.path}/${aBig ? 'android' : 'ios'}'),
-          aBig ? p.aKeys : p.iKeys,
-          responder.myName,
-          aBig ? 'android' : 'ios',
-          aBig ? p.aText : p.iText,
-          aBig ? p.aFiles : p.iFiles);
+        Directory('${dir.path}/${aBig ? 'android' : 'ios'}'),
+        aBig ? p.aKeys : p.iKeys,
+        responder.myName,
+        aBig ? 'android' : 'ios',
+        aBig ? p.aText : p.iText,
+        aBig ? p.aFiles : p.iFiles,
+        // Rebind the same port without conflicting with concurrent tests.
+        firstPort: responderPort,
+        lastPort: responderPort,
+      );
       addTearDown(restarted.close);
-      final linked = restarted.connectedChanges
-          .firstWhere((ids) => ids.contains(initiator.me.deviceId));
       await initiator.reconnect();
-      await linked.timeout(const Duration(seconds: 12));
+      for (var i = 0; i < 600; i++) {
+        if (restarted.connected.contains(initiator.me.deviceId)) break;
+        await Future<void>.delayed(const Duration(milliseconds: 20));
+      }
+      expect(restarted.connected, contains(initiator.me.deviceId));
       final f = File('${dir.path}/r.txt')..writeAsStringSync('after-restart');
       final got = initiatorFiles.first;
       await restarted.sendFile(initiator.me.deviceId, f.path);

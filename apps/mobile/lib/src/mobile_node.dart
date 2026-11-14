@@ -191,6 +191,8 @@ class MobileNode implements MobilePeer {
     Directory? received,
     void Function(File file, String from)? onFile,
     Future<String> Function()? localIp,
+    int firstPort = kTransportPortFirst,
+    int lastPort = kTransportPortLast,
   }) async {
     final ids = DeviceIdentityManager(
         storageDir: Directory('${dir.path}/identity'), keyStore: keys);
@@ -219,6 +221,8 @@ class MobileNode implements MobilePeer {
       pairingHandler: pairing.handler,
       pinnedHandler: (r) => node._route(r),
       webSocket: (r, fp) => unawaited(mesh.accept(r, fp)),
+      firstPort: firstPort,
+      lastPort: lastPort,
     );
     return node = MobileNode._(
         ids,
@@ -470,7 +474,7 @@ class MobileNode implements MobilePeer {
       name: me.name,
       os: me.os,
       tier: _tier,
-      appVersion: '1.0.8',
+      appVersion: '1.0.9',
       capabilities: _tier == 3
           ? const ['clip.text', 'clip.image', 'file']
           : const ['clip.text', 'clip.push', 'clip.image', 'file'],
