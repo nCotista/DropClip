@@ -48,6 +48,45 @@ class AppConfig {
 
   static const _logLevels = {'debug', 'info', 'warn', 'error'};
 
+  /// [destinationDir] as an absolute directory, expanding a leading `~`.
+  Directory get destinationDirectory =>
+      resolveDestinationDirectory(Platform.environment);
+
+  static bool _isValidDest(String s) {
+    final t = s.trim();
+    if (t.isEmpty) return false;
+    if (!t.startsWith('~')) return true;
+    return t == '~' || t.startsWith('~/') || t.startsWith(r'~\');
+  }
+
+  static String _stripSep(String p) {
+    final slash = p.endsWith('/') || p.endsWith(r'\');
+    return slash ? p.substring(0, p.length - 1) : p;
+  }
+
+  /// Resolves [destinationDir] against [env] without leaving relative `~` paths.
+  @visibleForTesting
+  Directory resolveDestinationDirectory(Map<String, String> env,
+      {bool? isWindows}) {
+    final win = isWindows ?? Platform.isWindows;
+    final sep = win ? r'\' : '/';
+    var path = destinationDir.trim();
+    if (!_isValidDest(path)) path = '~/Downloads/DropClip';
+    if (path == '~' || path.startsWith('~/') || path.startsWith(r'~\')) {
+      final home = (win ? env['USERPROFILE'] : env['HOME'])?.trim();
+      if (home != null && home.isNotEmpty) {
+        final base = _stripSep(home);
+        final rest = path.substring(1);
+        path = '$base${win ? rest.replaceAll('/', r'\') : rest}';
+      } else {
+        final tempBase = _stripSep(Directory.systemTemp.path);
+        final rest = path.length > 2 ? path.substring(2) : 'DropClip';
+        path = '$tempBase$sep${win ? rest.replaceAll('/', r'\') : rest}';
+      }
+    }
+    return Directory(path);
+  }
+
   Map<String, Object?> toJson() => {
         'version': version,
         'device_name': deviceName,
@@ -104,8 +143,8 @@ class AppConfig {
       deviceName:
           pick<String>('device_name', d.deviceName, (s) => s.trim().isNotEmpty),
       autoAccept: pick<bool>('auto_accept', d.autoAccept, (_) => true),
-      destinationDir: pick<String>(
-          'destination_dir', d.destinationDir, (s) => s.trim().isNotEmpty),
+      destinationDir:
+          pick<String>('destination_dir', d.destinationDir, _isValidDest),
       clipboardSyncEnabled: pick<bool>(
           'clipboard_sync_enabled', d.clipboardSyncEnabled, (_) => true),
       syncTypes: parsedTypes ?? d.syncTypes,

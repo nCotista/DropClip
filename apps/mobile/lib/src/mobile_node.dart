@@ -188,7 +188,7 @@ class MobileNode implements MobilePeer {
         final at = '${p.address}:${p.record.port}';
         if (hosts[p.deviceId] != at) {
           hosts[p.deviceId] = at;
-          await _hosts.writeAsString(jsonEncode(hosts));
+          await _saveHosts(hosts);
         }
         unawaited(mesh.reach(p.deviceId, p.address, p.record.port));
       }
@@ -372,7 +372,10 @@ class MobileNode implements MobilePeer {
     if (d.certPem != null) server.addTrustedPeerCert(d.certPem!);
     final hosts = await _savedHosts();
     hosts[d.deviceId] = '$host:$port';
-    await _hosts.writeAsString(jsonEncode(hosts));
+    // Temp + rename: a kill mid-write must not leave a truncated hosts.json.
+    final tmp = File('${_hosts.path}.tmp');
+    await tmp.writeAsString(jsonEncode(hosts), flush: true);
+    await tmp.rename(_hosts.path);
     trusted.value = store.activeDevices.toList();
     unawaited(mesh.reach(d.deviceId, host, port));
     return d;
@@ -381,10 +384,15 @@ class MobileNode implements MobilePeer {
   /// Dials every paired desktop at its last known address.
   Future<void> reconnect() async {
     for (final e in (await _savedHosts()).entries) {
-      final addr = e.value as String;
+      final addr = e.value;
+      if (addr is! String) continue;
       final at = addr.lastIndexOf(':');
-      unawaited(mesh.reach(
-          e.key, addr.substring(0, at), int.parse(addr.substring(at + 1))));
+      if (at <= 0) continue;
+      final port = int.tryParse(addr.substring(at + 1));
+      if (port == null) continue;
+      // A phone back from doze still holds a half-open socket that Dart has
+      // not marked closed; force redials instead of trusting `isClosed`.
+      unawaited(mesh.reach(e.key, addr.substring(0, at), port, force: true));
     }
   }
 
@@ -411,7 +419,7 @@ class MobileNode implements MobilePeer {
     await store.removeByDeviceId(deviceId);
     final hosts = await _savedHosts()
       ..remove(deviceId);
-    await _hosts.writeAsString(jsonEncode(hosts));
+    await _saveHosts(hosts);
     trusted.value = store.activeDevices.toList();
   }
 
@@ -515,9 +523,30 @@ class MobileNode implements MobilePeer {
         '${h.substring(16, 20)}-${h.substring(20)}';
   }
 
-  Future<Map<String, dynamic>> _savedHosts() async => await _hosts.exists()
-      ? jsonDecode(await _hosts.readAsString()) as Map<String, dynamic>
-      : <String, dynamic>{};
+  Future<Map<String, dynamic>> _savedHosts() async {
+    if (!await _hosts.exists()) return <String, dynamic>{};
+    try {
+      final raw = jsonDecode(await _hosts.readAsString());
+      return raw is Map<String, dynamic> ? raw : <String, dynamic>{};
+    } on FormatException {
+      // A torn write must not stop the app from starting: keep the bad file
+      // for diagnosis and let discovery/pairing rebuild the list.
+      try {
+        await _hosts.rename('${_hosts.path}.corrupt');
+      } on Object {
+        // Best effort; starting beats reporting the rename failure.
+      }
+      return <String, dynamic>{};
+    }
+  }
+
+  /// Temp + rename, like `_connect`: a kill mid-write must not leave a
+  /// truncated hosts.json.
+  Future<void> _saveHosts(Map<String, dynamic> hosts) async {
+    final tmp = File('${_hosts.path}.tmp');
+    await tmp.writeAsString(jsonEncode(hosts), flush: true);
+    await tmp.rename(_hosts.path);
+  }
 
   Future<void> close() async {
     await _discovery?.stop();

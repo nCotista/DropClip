@@ -120,9 +120,23 @@ class PeerMesh {
   /// Discovery saw trusted [peerId] at [host]:[port]. The §6.2 initiator
   /// dials it now (or when its backoff ends); the other side waits
   /// [initiatorGrace] for the peer to dial and then dials itself (rule 3).
-  Future<void> reach(String peerId, String host, int port) async {
+  ///
+  /// [force] closes a session we still believe is open before dialing. A
+  /// phone returning from doze has a half-open socket that Dart has not
+  /// marked closed yet, so a plain [reach] would do nothing.
+  Future<void> reach(String peerId, String host, int port,
+      {bool force = false}) async {
     final peer = _trusted(peerId);
     if (_closed || peer == null) return;
+    if (force) {
+      _retry.remove(peerId)?.cancel();
+      _grace.remove(peerId)?.cancel();
+      _failures.remove(peerId);
+      _links.remove(peerId);
+      await _sessions.remove(peerId)?.shutdown(1000, 'redial');
+      if (_closed || _trusted(peerId) == null) return;
+      _emit();
+    }
     final known = _candidates.putIfAbsent(peerId, () => []);
     final isNew = !known.contains((host, port));
     if (isNew) {
@@ -348,6 +362,7 @@ class PeerMesh {
     _failures.remove(peerId);
     _links.remove(peerId);
     await _sessions.remove(peerId)?.shutdown(code, 'dropped');
+    _emit();
   }
 
   Future<void> close() async {

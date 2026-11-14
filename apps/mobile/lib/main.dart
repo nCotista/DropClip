@@ -36,7 +36,12 @@ Future<void> main() async {
     onFile: (file, from) =>
         add((from: from, text: file.uri.pathSegments.last, path: file.path)),
   );
-  await node.reconnect();
+  try {
+    await node.reconnect();
+  } on Object {
+    // Start offline rather than never showing the UI; discovery and the
+    // resume hook will try again.
+  }
   try {
     await node.startDiscovery(BonsoirMdnsBackend());
   } on Object {
