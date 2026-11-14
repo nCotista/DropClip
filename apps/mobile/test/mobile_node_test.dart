@@ -796,7 +796,7 @@ void main() {
       final aBig = p.android.me.deviceId.compareTo(p.ios.me.deviceId) > 0;
       final initiator = aBig ? p.ios : p.android;
       final responder = aBig ? p.android : p.ios;
-      final iFiles = aBig ? p.iFiles : p.aFiles;
+      final initiatorFiles = (aBig ? p.iFiles : p.aFiles).stream;
       await responder.close();
       await Future<void>.delayed(const Duration(milliseconds: 200));
       final restarted = await startPhone(
@@ -812,7 +812,7 @@ void main() {
       await initiator.reconnect();
       await linked.timeout(const Duration(seconds: 12));
       final f = File('${dir.path}/r.txt')..writeAsStringSync('after-restart');
-      final got = iFiles.stream.first;
+      final got = initiatorFiles.first;
       await restarted.sendFile(initiator.me.deviceId, f.path);
       expect((await got.timeout(const Duration(seconds: 5))).readAsStringSync(),
           'after-restart');
