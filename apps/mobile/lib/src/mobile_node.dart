@@ -331,7 +331,7 @@ class MobileNode implements MobilePeer {
       name: me.name,
       os: me.os,
       tier: _tier,
-      appVersion: '1.0.3',
+      appVersion: '1.0.4',
       capabilities: _tier == 3
           ? const ['clip.text', 'clip.image', 'file']
           : const ['clip.text', 'clip.push', 'clip.image', 'file'],
