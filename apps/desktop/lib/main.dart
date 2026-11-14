@@ -252,15 +252,27 @@ Future<void> main(List<String> args) async {
       ), path: file.path),
     ));
   };
-  // Dropzone targets: nearby devices plus linked browsers.
+  // Dropzone targets: nearby devices, paired devices that are connected but
+  // were not found on Wi-Fi (multicast blocked, or a phone that dialed us),
+  // and linked browsers.
   final targets = ValueNotifier<List<NearbyDevice>>(const []);
-  void updateTargets() => targets.value = [
-        ...discovery.nearby.value,
-        for (final s in web.sessions.value)
-          NearbyDevice(s.name, 'Browser', PeerReach.online, id: 'web:${s.id}'),
-      ];
+  void updateTargets() {
+    final found = discovery.nearby.value;
+    final live = node.mesh.connected;
+    targets.value = [
+      ...found,
+      for (final d in node.trusted.value)
+        if (live.contains(d.deviceId) && !found.any((n) => n.id == d.deviceId))
+          NearbyDevice(d.name, 'Connected', PeerReach.online, id: d.deviceId),
+      for (final s in web.sessions.value)
+        NearbyDevice(s.name, 'Browser', PeerReach.online, id: 'web:${s.id}'),
+    ];
+  }
+
   discovery.nearby.addListener(updateTargets);
   web.sessions.addListener(updateTargets);
+  node.trusted.addListener(updateTargets);
+  node.mesh.peerChanges.listen((_) => updateTargets());
 
   // UI-03: this device hosts a session; the other types its PIN.
   Future<void> pairNew() async {
