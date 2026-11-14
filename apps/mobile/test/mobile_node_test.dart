@@ -416,6 +416,46 @@ void main() {
     });
   }
 
+  for (final os in ['ios', 'android']) {
+    test('$os phone reconnects by itself after the app is closed and reopened',
+        () async {
+      final dir = await Directory.systemTemp.createTemp('dc_restart_');
+      addTearDown(() => dir.delete(recursive: true));
+      final desk = await _desktop(dir);
+      final keys = InMemorySecureKeyStore();
+      Future<MobileNode> open() => MobileNode.start(
+          dir: Directory('${dir.path}/phone'),
+          keys: keys,
+          name: 'Phone',
+          os: os,
+          writeClipboard: (_) async {},
+          onReceived: (_, __) {});
+
+      final first = await open();
+      final pin = desk.pairing.open(ip: '127.0.0.1', port: desk.port).pin;
+      desk.pairing.events.listen((e) {
+        if (e is PairingSasReady) desk.pairing.confirm(true);
+      });
+      final linked = desk.mesh.peerChanges.firstWhere((p) => p.isNotEmpty);
+      await first.pair('127.0.0.1', desk.port, pin, (_, __) async => true);
+      await linked.timeout(const Duration(seconds: 5));
+      final id = first.me.deviceId;
+      await first.close();
+      await Future<void>.delayed(const Duration(milliseconds: 300));
+
+      // Reopened: same data folder and keychain, as after an app restart.
+      final again = await open();
+      addTearDown(again.close);
+      expect(again.me.deviceId, id);
+      expect(again.trusted.value.single.deviceId, desk.id);
+      await again.reconnect();
+      for (var i = 0; i < 150 && !again.connected.contains(desk.id); i++) {
+        await Future<void>.delayed(const Duration(milliseconds: 20));
+      }
+      expect(again.connected, {desk.id});
+    });
+  }
+
   test('a corrupt hosts.json is ignored instead of crashing startup', () async {
     final dir = await Directory.systemTemp.createTemp('dc_hosts_');
     addTearDown(() => dir.delete(recursive: true));

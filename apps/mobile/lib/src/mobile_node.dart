@@ -62,6 +62,7 @@ class MobileNode implements MobilePeer {
   final ValueNotifier<List<TrustedDevice>> trusted;
   late final ClipboardSyncEngine _engine;
   late final StreamSubscription<PeerMessage> _sub;
+  Timer? _watchdog;
 
   /// Settings switch: off stops sending and receiving clips.
   final bool Function() syncEnabled;
@@ -384,8 +385,22 @@ class MobileNode implements MobilePeer {
   }
 
   /// Dials every paired desktop at its last known address.
+  ///
+  /// Also starts a watchdog that redials any saved computer that is still
+  /// offline: right after launch iOS may refuse local connections (network
+  /// not up, Local Network permission pending) and a computer that was
+  /// asleep comes back later; neither may be announced again over mDNS.
   Future<void> reconnect() async {
+    _watchdog ??= Timer.periodic(watchdogEvery, (_) => unawaited(_redial()));
+    await _redial(force: true);
+  }
+
+  /// How often [reconnect]'s watchdog checks for offline computers.
+  static Duration watchdogEvery = const Duration(seconds: 10);
+
+  Future<void> _redial({bool force = false}) async {
     for (final e in (await _savedHosts()).entries) {
+      if (!force && mesh.connected.contains(e.key)) continue;
       final addr = e.value;
       if (addr is! String) continue;
       final at = addr.lastIndexOf(':');
@@ -394,7 +409,7 @@ class MobileNode implements MobilePeer {
       if (port == null) continue;
       // A phone back from doze still holds a half-open socket that Dart has
       // not marked closed; force redials instead of trusting `isClosed`.
-      unawaited(mesh.reach(e.key, addr.substring(0, at), port, force: true));
+      unawaited(mesh.reach(e.key, addr.substring(0, at), port, force: force));
     }
   }
 
@@ -557,6 +572,7 @@ class MobileNode implements MobilePeer {
   }
 
   Future<void> close() async {
+    _watchdog?.cancel();
     await _discovery?.stop();
     await _sub.cancel();
     _engine.dispose();

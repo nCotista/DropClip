@@ -185,10 +185,14 @@ class PeerMesh {
     try {
       Object? lastError;
       for (final at in List.of(known)) {
-        final client = await PinnedTransportClient.forIdentity(
-            identity: identity, store: store, expectedFp: peer.fp);
-        client.httpClient.connectionTimeout = dialTimeout;
+        PinnedTransportClient? client;
         try {
+          // Inside the try: if reading the key fails (e.g. the iOS keychain
+          // right after launch) the peer must still be retried, or it stays
+          // offline until the app restarts.
+          client = await PinnedTransportClient.forIdentity(
+              identity: identity, store: store, expectedFp: peer.fp);
+          client.httpClient.connectionTimeout = dialTimeout;
           final ws = await client
               .connectWebSocket(Uri(
                   scheme: 'wss',
@@ -210,7 +214,7 @@ class PeerMesh {
           return;
         } on Object catch (e) {
           lastError = e;
-          client.close(force: true);
+          client?.close(force: true);
         }
         if (_closed) return;
       }
