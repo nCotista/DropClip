@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:dropclip_protocol/dropclip_protocol.dart';
 
+import 'address_selector.dart';
 import 'txt_record.dart';
 
 /// Peer lifecycle state (PROTO-DC-V2.0 §3.5, E-03). `removed` peers are
@@ -91,11 +92,17 @@ class PeerCache {
     final trust = _classify(record);
     final existing = _peers[record.deviceId];
     final state = _nextState(existing?.state, trust);
+    final keepExisting = existing != null &&
+        existing.trust == trust &&
+        existing.record.port == record.port &&
+        peerAddressRank(existing.address) < peerAddressRank(address) &&
+        now().difference(existing.lastSeen) < staleTimeout;
 
-    // Same device_id with a new IP updates the entry in place (§3.3).
+    // Same device_id with a new IP updates in place (§3.3), without letting a
+    // stale-free IPv6 announcement clobber a preferred IPv4 address.
     _peers[record.deviceId] = DiscoveredPeer(
       record: record,
-      address: address,
+      address: keepExisting ? existing.address : address,
       lastSeen: now(),
       state: state,
       trust: trust,

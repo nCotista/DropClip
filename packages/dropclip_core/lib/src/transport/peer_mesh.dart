@@ -2,7 +2,9 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:dropclip_protocol/dropclip_protocol.dart';
+import 'package:meta/meta.dart';
 
+import '../discovery/address_selector.dart';
 import '../security/device_identity.dart';
 import '../security/trusted_device_store.dart';
 import 'control_plane.dart';
@@ -88,6 +90,11 @@ class PeerMesh {
   LinkAddress? linkAddress(String peerId) =>
       _sessions[peerId]?.isClosed == false ? _links[peerId] : null;
 
+  /// Current dial candidates for [peerId] in dial priority order.
+  @visibleForTesting
+  List<(String, int)> candidatesFor(String peerId) =>
+      List.unmodifiable(_candidates[peerId] ?? const []);
+
   String get _myId => identity.identity.deviceId;
 
   /// §6.2: mobile (tier 2/3) dials desktop; otherwise the smaller id dials.
@@ -140,10 +147,13 @@ class PeerMesh {
     final known = _candidates.putIfAbsent(peerId, () => []);
     final isNew = !known.contains((host, port));
     if (isNew) {
-      // Newest first; a PC with several adapters is announced once per
-      // adapter, so the last few are kept and tried in turn.
-      known.insert(0, (host, port));
-      if (known.length > 3) known.removeLast();
+      // Keep higher-priority address families first (LAN IPv4 ahead of IPv6),
+      // newest first within a rank, and cap at 6 so multiple IPv6 entries do
+      // not evict a working IPv4 candidate.
+      final rank = peerAddressRank(host);
+      final at = known.indexWhere((c) => peerAddressRank(c.$1) >= rank);
+      known.insert(at == -1 ? known.length : at, (host, port));
+      if (known.length > 6) known.removeLast();
     }
     if (_sessions[peerId]?.isClosed == false) return;
     final myTier = hello().tier;

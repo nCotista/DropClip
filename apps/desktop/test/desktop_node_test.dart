@@ -110,12 +110,27 @@ void main() {
         'Microsoft Wi-Fi Direct Virtual Adapter',
         'Hyper-V Virtual Ethernet Adapter',
         'Tailscale',
+        'awdl0',
+        'llw0',
+        'vmenet0',
+        'feth0',
+        'anpi0',
+        'bridge100',
+        'utun4',
       ]) {
         expect(
             adapterScore(nic(name, '192.168.1.9')), greaterThanOrEqualTo(100),
             reason: '$name is not a real LAN adapter');
       }
       expect(adapterScore(nic('Wi-Fi', '10.201.250.85')), lessThan(100));
+      expect(adapterScore(nic('en0', '192.168.1.139')), lessThan(100));
+      expect(
+          pickLanAddress([
+            nic('awdl0', '192.168.1.50'),
+            nic('bridge100', '192.168.64.2'),
+            nic('en0', '192.168.1.139'),
+          ]),
+          '192.168.1.139');
     });
 
     test('the Settings choice wins over the automatic pick', () {
