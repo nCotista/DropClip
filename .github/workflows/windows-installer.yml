@@ -68,20 +68,40 @@ jobs:
           name: DropClip-Setup-${{ steps.pack.outputs.version }}
           path: apps/desktop/build/installer/DropClip-Setup.exe
 
+      # Publishing is tag-only on purpose. Running this workflow by hand from a
+      # branch used to derive the tag from that branch's pubspec, so a dispatch
+      # from a stale main republished an old release (v1.0.0) and marked it
+      # latest. "Run workflow" on a tag ref still works: github.ref is then
+      # refs/tags/<tag>.
+      - name: Guard release tag
+        id: guard
+        if: startsWith(github.ref, 'refs/tags/')
+        shell: bash
+        run: |
+          v=$(grep -m1 '^version:' apps/desktop/pubspec.yaml | sed 's/^version: *//; s/+.*//')
+          if [ "v$v" != "$GITHUB_REF_NAME" ]; then
+            echo "::error::tag $GITHUB_REF_NAME does not match pubspec version v$v"
+            exit 1
+          fi
+          newest=$(git ls-remote --tags --refs origin 'v*' | sed 's#.*refs/tags/v##' | sort -t. -k1,1n -k2,2n -k3,3n | tail -1)
+          if [ "$newest" = "${GITHUB_REF_NAME#v}" ]; then
+            echo "latest=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "latest=false" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Publish GitHub Release
-        if: github.event_name != 'pull_request'
+        if: startsWith(github.ref, 'refs/tags/')
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ github.ref_type == 'tag' && github.ref_name || format('v{0}', steps.pack.outputs.version) }}
+          tag_name: ${{ github.ref_name }}
           name: DropClip ${{ steps.pack.outputs.version }}
           target_commitish: ${{ github.sha }}
-          make_latest: true
-          body: |
-            **Windows:** download `DropClip-Setup.exe`, double-click, done. No admin rights needed.
-
-            - If SmartScreen says "Windows protected your PC", choose **More info → Run anyway** (the setup isn't code-signed yet).
-            - On first launch allow DropClip on **Private** networks when Windows Firewall asks.
-            - Uninstall from **Settings → Apps**. Paired devices are kept for a reinstall.
+          # Only the newest tag may claim "latest"; an older tag re-published
+          # for a missing asset must not take the badge from a newer release.
+          make_latest: ${{ steps.guard.outputs.latest }}
+          # No body here: release-apps.yml owns the notes. Setting one replaced
+          # the whole release description with the Windows blurb.
           files: |
             apps/desktop/build/installer/DropClip-Setup.exe
             apps/desktop/build/installer/DropClip-Setup-${{ steps.pack.outputs.version }}.exe
