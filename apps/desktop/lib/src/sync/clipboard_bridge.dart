@@ -272,7 +272,7 @@ class ClipboardBridge {
     try {
       if (!await file.exists()) return;
       final size = await file.length();
-      final max = ProtocolConstants.clipboardMaxSize;
+      const max = ProtocolConstants.clipboardMaxSize;
       if (size >= _pngMagic.length && size <= max) {
         final head = await file.openRead(0, _pngMagic.length).first;
         if (_hasPngMagic(head)) {
