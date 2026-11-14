@@ -103,7 +103,7 @@ void main() {
   testWidgets('macPickFiles returns empty on cancel or plugin error',
       (tester) async {
     List<String>? reply;
-    PlatformException? failure;
+    Exception? failure;
     final bm = tester.binding.defaultBinaryMessenger;
     bm.setMockMethodCallHandler(macPickerChannel, (_) async {
       final err = failure;
@@ -119,10 +119,8 @@ void main() {
 
     failure = PlatformException(code: 'ERR');
     expect(await macPickFiles(), isEmpty);
-  });
 
-  testWidgets('macPickFiles returns empty when plugin is missing',
-      (tester) async {
+    failure = MissingPluginException();
     expect(await macPickFiles(), isEmpty);
   });
 }
