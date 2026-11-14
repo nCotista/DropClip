@@ -9,11 +9,14 @@ import 'package:dropclip_core/dropclip_core.dart';
 /// package if they start to differ. Not unit-tested: it needs a real OS mDNS
 /// responder.
 class BonsoirMdnsBackend implements MdnsBackend {
+  final HostIpv4Lookup? _lookupIpv4;
   BonsoirBroadcast? _broadcast;
   BonsoirDiscovery? _discovery;
 
   /// Services seen so far, re-resolved on every [query].
   final Map<String, BonsoirService> _known = {};
+
+  BonsoirMdnsBackend({HostIpv4Lookup? lookupIpv4}) : _lookupIpv4 = lookupIpv4;
 
   /// Phones change Wi-Fi rarely while the app is open; the OS restarts NSD.
   @override
@@ -68,12 +71,20 @@ class BonsoirMdnsBackend implements MdnsBackend {
             discovery.serviceResolver.resolveService(service);
           case BonsoirDiscoveryServiceResolvedEvent(:final service) ||
                 BonsoirDiscoveryServiceUpdatedEvent(:final service):
-            final address = service.hostAddress ?? service.hostname;
-            if (address == null) return;
-            out.add(MdnsResolved(service.name,
-                address: address,
-                srvPort: service.port,
-                txt: service.attributes));
+            _known[service.name] = service;
+            final immediate = selectBestPeerAddress(
+              hostAddresses: service.hostAddresses,
+              hostAddress: service.hostAddress,
+              hostname: service.hostname,
+            );
+            if (immediate != null && peerAddressRank(immediate) <= 1) {
+              out.add(MdnsResolved(service.name,
+                  address: immediate,
+                  srvPort: service.port,
+                  txt: service.attributes));
+            } else {
+              unawaited(_emitResolved(service, out));
+            }
           case BonsoirDiscoveryServiceLostEvent(:final service):
             _known.remove(service.name);
             out.add(MdnsLost(service.name));
@@ -94,6 +105,23 @@ class BonsoirMdnsBackend implements MdnsBackend {
       },
     );
     return out.stream;
+  }
+
+  Future<void> _emitResolved(
+    BonsoirService service,
+    StreamController<MdnsEvent> out,
+  ) async {
+    final address = await resolveMdnsPeerAddress(
+      hostAddresses: service.hostAddresses,
+      hostAddress: service.hostAddress,
+      hostname: service.hostname,
+      lookupIpv4: _lookupIpv4,
+    );
+    if (address == null || out.isClosed || !_known.containsKey(service.name)) {
+      return;
+    }
+    out.add(MdnsResolved(service.name,
+        address: address, srvPort: service.port, txt: service.attributes));
   }
 
   /// bonsoir reports a service once; re-resolving every known service each

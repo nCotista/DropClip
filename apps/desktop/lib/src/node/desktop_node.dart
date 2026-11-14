@@ -376,7 +376,8 @@ final RegExp _virtualAdapter = RegExp(
     r'zerotier|tailscale|hamachi|radmin|nordlynx|wireguard|openvpn|vpn|'
     r'tun|tap|ppp|pseudo|loopback|wi-?fi direct|hosted network|'
     r'local area connection\*|bluetooth|npcap|vmnet|teredo|isatap|'
-    r'softether',
+    r'softether|^awdl|^llw|^vmenet|^feth|^anpi|^ipsec|^bridge\d*|'
+    r'^gif\d*|^stf\d*|^ap\d+',
     caseSensitive: false);
 
 /// Subnets virtual switches and container runtimes hand out, plus the

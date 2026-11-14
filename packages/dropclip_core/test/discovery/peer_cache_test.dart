@@ -147,5 +147,26 @@ void main() {
 
       expect(snapshots, [1, 0]);
     });
+
+    test('Keeps fresh IPv4 when a dual-stack IPv6 announcement arrives later',
+        () {
+      cache.onAnnouncement(_record(), '192.168.1.117');
+      clock = clock.add(const Duration(seconds: 10));
+      cache.onAnnouncement(_record(), '2405:9800::1');
+      expect(cache[_peerId]!.address, '192.168.1.117');
+
+      // Stale IPv4 fails over to the fresh announcement after staleTimeout.
+      clock = clock.add(const Duration(seconds: 31));
+      cache.onAnnouncement(_record(), '2405:9800::2');
+      expect(cache[_peerId]!.address, '2405:9800::2');
+    });
+
+    test('Upgrades an initial IPv6 address immediately when IPv4 arrives', () {
+      cache.onAnnouncement(_record(), 'fe80::1%en0');
+      expect(cache[_peerId]!.address, 'fe80::1%en0');
+
+      cache.onAnnouncement(_record(), '192.168.1.117');
+      expect(cache[_peerId]!.address, '192.168.1.117');
+    });
   });
 }

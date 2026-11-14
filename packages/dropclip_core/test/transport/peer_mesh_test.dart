@@ -359,4 +359,34 @@ void main() {
     await until(() => dialer.mesh.connected.contains(other.id));
     expect(backoff.attempts, isNotEmpty);
   });
+
+  test('IPv4 candidates outrank and are never evicted by IPv6 addresses',
+      () async {
+    final (dialer, other) = await pair();
+
+    // Non-initiator records candidate ranking without dialing.
+    await other.mesh.reach(dialer.id, 'fe80::1%en0', 53317);
+    await other.mesh.reach(dialer.id, '2405:9800::1', 53317);
+    await other.mesh.reach(dialer.id, '192.168.1.117', 53317);
+    for (var i = 2; i <= 6; i++) {
+      await other.mesh.reach(dialer.id, '2405:9800::$i', 53317);
+    }
+    final ranked = other.mesh.candidatesFor(dialer.id);
+    expect(ranked.first, ('192.168.1.117', 53317));
+    expect(ranked, hasLength(6));
+
+    // Initiator connects on IPv4 and stays pinned to IPv4 despite extra IPv6s.
+    await dialer.mesh.reach(other.id, '127.0.0.1', other.server.port);
+    for (var i = 1; i <= 4; i++) {
+      await dialer.mesh.reach(other.id, '2405:9800::$i', other.server.port);
+    }
+    await dialer.mesh.reach(other.id, 'fe80::2%en0', other.server.port);
+    await until(() => dialer.mesh.connected.contains(other.id));
+    await other.mesh.drop(dialer.id, 4000);
+    await until(() => dialer.mesh.connected.contains(other.id));
+    expect(dialer.mesh.candidatesFor(other.id).first,
+        ('127.0.0.1', other.server.port));
+    expect(dialer.mesh.linkAddress(other.id),
+        (host: '127.0.0.1', port: other.server.port));
+  });
 }
