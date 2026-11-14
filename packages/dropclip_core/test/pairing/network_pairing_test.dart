@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:dropclip_core/dropclip_core.dart';
+import 'package:dropclip_protocol/dropclip_protocol.dart';
 import 'package:shelf/shelf.dart';
 import 'package:test/test.dart';
 
@@ -213,4 +214,51 @@ void main() {
         throwsA(anything));
     expect(client.store.activeDevices, isEmpty);
   });
+
+  test('optional clientPort is reported in PairingCompleted', () async {
+    final sub = pairing.events.listen((e) {
+      if (e is PairingSasReady) pairing.confirm(true);
+    });
+    addTearDown(sub.cancel);
+    final done = pairing.events
+        .firstWhere((e) => e is PairingCompleted)
+        .then((e) => e as PairingCompleted);
+    await PairingClient.pairWithQr(
+      qr: qr,
+      me: client.ids.identity,
+      store: client.store,
+      confirmSas: (_, __) async => true,
+      tier: 3,
+      clientPort: 53321,
+    );
+    final completed = await done;
+    expect(completed.clientIp, '127.0.0.1');
+    expect(completed.clientPort, 53321);
+    expect(completed.device.tier, 3);
+  });
+
+  for (final badPort in [0, -1, 65536, 'abc']) {
+    test('out-of-range client port ($badPort) is safely ignored', () async {
+      final res = await pairing.handler(Request(
+        'POST',
+        Uri.parse('https://127.0.0.1/api/v1/pair'),
+        body: jsonEncode({
+          ...PairingClientProof.forPin(
+            pin: pin,
+            clientFingerprint: client.ids.identity.fp,
+          ).begin(),
+          'v': 2,
+          'min_supported_v': 1,
+          'device_id': client.ids.identity.deviceId,
+          'name': client.ids.identity.name,
+          'os': 'android',
+          'tier': 2,
+          'port': badPort,
+          'cert': base64Encode(client.ids.identity.certDer),
+        }),
+      ));
+      expect(res.statusCode, 200);
+      expect(pairing.engine.clientPort, isNull);
+    });
+  }
 }

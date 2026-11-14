@@ -6,6 +6,7 @@ import 'package:crypto/crypto.dart';
 import 'package:dropclip_protocol/dropclip_protocol.dart';
 import 'package:shelf/shelf.dart';
 
+import '../discovery/address_selector.dart';
 import '../security/p256.dart';
 import '../security/trusted_device_store.dart';
 import 'pairing_engine.dart';
@@ -23,7 +24,9 @@ class PairingSasReady extends PairingHostEvent {
 
 class PairingCompleted extends PairingHostEvent {
   final TrustedDevice device;
-  const PairingCompleted(this.device);
+  final String? clientIp;
+  final int? clientPort;
+  const PairingCompleted(this.device, {this.clientIp, this.clientPort});
 }
 
 class PairingFailed extends PairingHostEvent {
@@ -47,7 +50,7 @@ class PairingHost {
   final _events = StreamController<PairingHostEvent>.broadcast();
   Completer<bool>? _decision;
   String _peerName = '', _peerOs = '';
-  String? _peerFp;
+  String? _peerFp, _clientIp;
 
   PairingHost({required this.engine, required this.store, this.onPaired});
 
@@ -58,6 +61,7 @@ class PairingHost {
     required String ip,
     required int port,
   }) {
+    _clientIp = null;
     _decision = Completer<bool>();
     final s = engine.startSession(hostIp: ip, hostPort: port);
     return (pin: s.pin, qr: s.qr);
@@ -95,6 +99,7 @@ class PairingHost {
         final der = _certDer(body);
         _peerName = body['name'] as String? ?? '';
         _peerOs = body['os'] as String? ?? '';
+        _clientIp = _normalizeIp(ip);
         return engine.handlePairRequest(body,
             clientIp: ip,
             tlsClientCertFp: sha256.convert(der).toString(),
@@ -115,7 +120,9 @@ class PairingHost {
             clientIp: ip, hostUserConfirmedMatch: hostMatched);
         final device = store.getByFingerprint(_peerFp!)!;
         onPaired?.call(device);
-        _events.add(PairingCompleted(device));
+        _events.add(PairingCompleted(device,
+            clientIp: _normalizeIp(ip) ?? _clientIp,
+            clientPort: engine.clientPort));
         return reply;
       default:
         throw const ProtocolException(
@@ -136,6 +143,12 @@ class PairingHost {
     }
     throw const ProtocolException(
         ProtocolErrorCode.pairingInvalid, 'cert missing or not matching fp');
+  }
+
+  static String? _normalizeIp(String ip) {
+    if (ip == 'unknown' || ip.isEmpty) return null;
+    final clean = stripIpZone(ip);
+    return clean.startsWith('::ffff:') ? clean.substring(7) : clean;
   }
 
   static Response _json(int status, Map<String, dynamic> body) => Response(

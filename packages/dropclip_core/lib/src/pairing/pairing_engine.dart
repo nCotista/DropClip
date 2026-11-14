@@ -74,6 +74,7 @@ class PairingEngine {
   String? _clientDeviceId, _clientName, _clientOs, _clientFp;
   Uint8List? _nonceA, _clientCertPem;
   int _expMs = 0, _committedAtMs = 0, _clientTier = 1;
+  int? _clientPort;
   final Map<String, List<int>> _reqStampsByIp = <String, List<int>>{};
   final Map<String, int> _failuresByIp = <String, int>{};
   final Map<String, int> _lockoutUntilByIp = <String, int>{};
@@ -87,6 +88,7 @@ class PairingEngine {
   PairingState get state => _state;
   String? get currentSasCode => _currentSasCode;
   String? get currentPin => _pin;
+  int? get clientPort => _clientPort;
 
   ({QrPairingPayload qr, String pin, Uint8List nonceA}) startSession(
       {required String hostIp,
@@ -104,6 +106,7 @@ class PairingEngine {
     _pin = pin;
     _expMs = now + pairNonceTtlMs;
     _currentSasCode = null;
+    _clientPort = null;
     final qr = QrPairingPayload(
         id: hostIdentity.deviceId,
         ip: hostIp,
@@ -164,6 +167,9 @@ class PairingEngine {
     _clientName = body['name'] as String;
     _clientOs = body['os'] as String;
     _clientTier = (body['tier'] as int?) ?? 1;
+    final rawPort = body['port'];
+    _clientPort =
+        rawPort is int && rawPort > 0 && rawPort <= 65535 ? rawPort : null;
     _clientFp = claimedFp;
     _clientCertPem = tlsClientCertPem;
     _committedAtMs = now;
