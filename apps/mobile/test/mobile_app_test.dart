@@ -261,7 +261,7 @@ void main() {
     await tester.tap(find.byKey(const Key('confirm-remove')));
     await tester.pumpAndSettle();
     expect(peer.forgotten, ['pc']);
-    expect(find.text('No computer yet'), findsOneWidget);
+    expect(find.text('No paired device yet'), findsOneWidget);
   });
 
   testWidgets('send file goes to the connected computer', (tester) async {
@@ -281,7 +281,7 @@ void main() {
     await tester.tap(find.byKey(const Key('send-file')));
     await tester.pump();
     expect(peer.files, isEmpty);
-    expect(find.text('No computer is connected'), findsOneWidget);
+    expect(find.text('No device is connected'), findsOneWidget);
   });
 
   testWidgets('settings: Thai switches the screen, sync off stops sending',
@@ -351,7 +351,7 @@ void main() {
     await _app(tester, peer,
         received: const [(from: 'Office PC', text: 'hello', path: null)],
         clipboard: 'from phone');
-    expect(find.text('No computer yet'), findsOneWidget);
+    expect(find.text('No paired device yet'), findsOneWidget);
     expect(find.text('hello'), findsOneWidget);
 
     await tester.tap(find.byKey(const Key('pair')));
@@ -372,5 +372,85 @@ void main() {
     await tester.tap(find.byKey(const Key('send-clipboard')));
     await tester.pump();
     expect(peer.sent, ['from phone']);
+  });
+
+  testWidgets('host mode shows QR and PIN and completes on SAS match',
+      (tester) async {
+    final events = StreamController<PairingHostEvent>.broadcast();
+    addTearDown(events.close);
+    final peer = _FakePeer(hostEvents: events.stream);
+    await _app(tester, peer);
+    await tester.tap(find.byKey(const Key('pair')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('host-mode-tab')));
+    await tester.pumpAndSettle();
+    expect(peer.openCalls, 1);
+    expect(find.byKey(const Key('pair-qr')), findsOneWidget);
+    expect(find.text('482910'), findsOneWidget);
+    expect(find.text('192.168.1.20:53317'), findsOneWidget);
+
+    events.add(const PairingSasReady('337017', 'iPhone 16', 'ios'));
+    await tester.pump();
+    expect(find.byKey(const Key('sas')), findsOneWidget);
+    expect(find.text('337017'), findsOneWidget);
+    await tester.tap(find.byKey(const Key('match')));
+    await tester.pump();
+    expect(peer.hostDecisions, [true]);
+
+    const phone = TrustedDevice(
+        deviceId: 'ios-1',
+        name: 'iPhone 16',
+        os: 'ios',
+        tier: 3,
+        fp: '',
+        pairedAt: 0,
+        lastSeenAt: 0);
+    peer.trusted.value = const [phone];
+    events.add(const PairingCompleted(phone));
+    await tester.pumpAndSettle();
+    expect(find.text('Paired with iPhone 16'), findsOneWidget);
+    await tester.tap(find.text('Close'));
+    await tester.pumpAndSettle();
+    expect(find.byIcon(Icons.phone_iphone_rounded), findsOneWidget);
+  });
+
+  testWidgets('host mode handles SAS mismatch, mode switch, and OS icons',
+      (tester) async {
+    final events = StreamController<PairingHostEvent>.broadcast();
+    addTearDown(events.close);
+    final peer = _FakePeer(hostEvents: events.stream)
+      ..trusted.value = const [
+        _pc,
+        TrustedDevice(
+            deviceId: 'a1',
+            name: 'Pixel 9',
+            os: 'android',
+            tier: 2,
+            fp: '',
+            pairedAt: 0,
+            lastSeenAt: 0),
+      ];
+    await _app(tester, peer);
+    expect(find.byIcon(Icons.laptop_windows_rounded), findsOneWidget);
+    expect(find.byIcon(Icons.phone_android_rounded), findsOneWidget);
+
+    await tester.tap(find.byKey(const Key('pair')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('host-mode-tab')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('join-mode-tab')));
+    await tester.pumpAndSettle();
+    expect(peer.hostDecisions, [false]);
+
+    await tester.tap(find.byKey(const Key('host-mode-tab')));
+    await tester.pumpAndSettle();
+    expect(peer.openCalls, 2);
+    events.add(const PairingSasReady('111222', 'Pixel', 'android'));
+    await tester.pump();
+    await tester.tap(find.text("Doesn't match"));
+    events.add(const PairingFailed('E_PAIRING_MISMATCH'));
+    await tester.pumpAndSettle();
+    expect(peer.hostDecisions, [false, false]);
+    expect(find.text('Pairing failed: E_PAIRING_MISMATCH'), findsOneWidget);
   });
 }
