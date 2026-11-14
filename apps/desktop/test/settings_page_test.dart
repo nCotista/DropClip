@@ -83,6 +83,20 @@ void main() {
       expect(find.text('1 minute'), findsOneWidget);
     });
 
+    testWidgets('the device name is saved on Enter; empty keeps the old one',
+        (tester) async {
+      await pump(tester);
+      final field = find.byKey(const Key('device-name'));
+      await tester.enterText(field, '   ');
+      await tester.testTextInput.receiveAction(TextInputAction.done);
+      await tester.pump();
+      expect(saved, isEmpty);
+      await tester.enterText(field, 'Office PC');
+      await tester.testTextInput.receiveAction(TextInputAction.done);
+      await tester.pump();
+      expect(saved.single.deviceName, 'Office PC');
+    });
+
     testWidgets('auto-start refused by the OS shows a message, keeps state',
         (tester) async {
       failWith = const AutoStartException('denied');

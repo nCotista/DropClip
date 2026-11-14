@@ -26,6 +26,7 @@ class DesktopNode {
   final quarantined = ValueNotifier<List<TrustedDevice>>(const []);
   StreamSubscription<PeerMessage>? _revocations;
   StreamSubscription<String>? _mismatches;
+  StreamSubscription<Set<String>>? _links;
 
   /// Paired-only HTTP routes by path prefix, e.g. `api/v1/blob/` (§9.1).
   final routes = <String, Handler>{};
@@ -64,6 +65,8 @@ class DesktopNode {
       }
       _refresh();
     });
+    // A peer's hello may carry a new name (it was renamed): show it.
+    _links = mesh.peerChanges.listen((_) => _refresh());
     // §13.2.6: a peer whose tombstones differ gets ours right after hello.
     _mismatches = mesh.tombstoneMismatches.listen((peerId) {
       final sync = revocation.buildSyncEnvelope();
@@ -140,7 +143,7 @@ class DesktopNode {
         name: me.name,
         os: me.os,
         tier: 1,
-        appVersion: '1.0.0',
+        appVersion: '1.0.6',
         capabilities: record.capabilities,
         tombstonesHash: revocation.tombstonesHash,
         tombstoneCount: revocation.tombstoneCount,
@@ -179,6 +182,12 @@ class DesktopNode {
     return device;
   }
 
+  /// Shows [name] to other devices from now on; paired peers see it when
+  /// they next connect (their hello handling stores it).
+  Future<void> rename(String name) async {
+    await ids.rename(name);
+  }
+
   /// Revokes a peer (§13): tells it, signs a `cluster.revocation` for the
   /// other peers and drops the link; the server refuses it from now on.
   Future<void> forget(String deviceId) async {
@@ -210,6 +219,7 @@ class DesktopNode {
   Future<void> close() async {
     await _revocations?.cancel();
     await _mismatches?.cancel();
+    await _links?.cancel();
     await mesh.close();
     await pairing.close();
     await server.close(force: true);

@@ -48,6 +48,8 @@ abstract class Strings {
   String get autoAccept;
   String get autoAcceptSub;
   String get destination;
+  String get deviceName;
+  String get deviceNameSub;
   String get destinationSub;
   String get autoStartFailed;
   String ttl(int? seconds);
@@ -77,6 +79,7 @@ abstract class Strings {
   String get nearbyDevices;
   String onlineCount(int n);
   String get noDevicesNearby;
+  String get phoneOnScreenHint;
   String get pairNewDevice;
 
   // Pairing (T1.3, UI-03)
@@ -205,6 +208,11 @@ class EnStrings extends Strings {
   @override
   String get destination => 'Destination folder';
   @override
+  String get deviceName => 'Device name';
+  @override
+  String get deviceNameSub =>
+      'What other devices see; paired ones update when they next connect';
+  @override
   String get destinationSub => 'Files are SHA-256 checked before moving here '
       'and are never opened automatically';
   @override
@@ -266,6 +274,9 @@ class EnStrings extends Strings {
   String onlineCount(int n) => '$n online';
   @override
   String get noDevicesNearby => 'No devices nearby';
+  @override
+  String get phoneOnScreenHint =>
+      'Phones show up while DropClip is open on their screen.';
   @override
   String get pairNewDevice => 'Pair new device';
   @override
@@ -440,6 +451,11 @@ class ThStrings extends Strings {
   @override
   String get destination => 'โฟลเดอร์ปลายทาง';
   @override
+  String get deviceName => 'ชื่อเครื่อง';
+  @override
+  String get deviceNameSub =>
+      'ชื่อที่เครื่องอื่นเห็น เครื่องที่จับคู่แล้วจะเห็นชื่อใหม่เมื่อเชื่อมต่อครั้งถัดไป';
+  @override
   String get destinationSub => 'ไฟล์จะถูกตรวจ SHA-256 ก่อนย้ายเข้าโฟลเดอร์นี้ '
       'และจะไม่ถูกเปิดอัตโนมัติ';
   @override
@@ -502,6 +518,9 @@ class ThStrings extends Strings {
   String onlineCount(int n) => 'ออนไลน์ $n เครื่อง';
   @override
   String get noDevicesNearby => 'ไม่พบอุปกรณ์ใกล้เคียง';
+  @override
+  String get phoneOnScreenHint =>
+      'มือถือจะขึ้นในรายการเมื่อเปิดแอป DropClip ค้างไว้บนหน้าจอ';
   @override
   String get pairNewDevice => 'จับคู่อุปกรณ์ใหม่';
   @override

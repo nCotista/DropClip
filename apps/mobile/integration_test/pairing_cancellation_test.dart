@@ -40,6 +40,8 @@ class _ObservedPeer implements MobilePeer {
   @override
   String get myName => node.myName;
   @override
+  Future<void> rename(String name) => node.rename(name);
+  @override
   Future<void> forget(String deviceId) => node.forget(deviceId);
   @override
   Future<void> sendFile(String deviceId, String path,

@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:open_filex/open_filex.dart';
 import 'package:path_provider/path_provider.dart';
+import 'package:wakelock_plus/wakelock_plus.dart';
 
 import 'src/bonsoir_backend.dart';
 import 'src/mobile_app.dart';
@@ -55,6 +56,14 @@ Future<void> main() async {
     await node.startDiscovery(BonsoirMdnsBackend());
   } on Object {
     // No multicast on this network: saved addresses still work.
+  }
+  // iOS pauses the app (its link and its file server) seconds after the
+  // screen locks, so the computer could not send to it. Keep the screen on
+  // while DropClip is open; the OS drops this once the app is left.
+  try {
+    await WakelockPlus.enable();
+  } on Object {
+    // Not supported here: the screen just locks as usual.
   }
   // Back from the background: the socket is usually dead by then.
   AppLifecycleListener(onResume: node.reconnect);

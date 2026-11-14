@@ -17,6 +17,10 @@ abstract interface class MobilePeer {
   /// This phone's name, as paired computers see it.
   String get myName;
 
+  /// Changes this phone's name; paired computers see it when they next
+  /// connect.
+  Future<void> rename(String name);
+
   /// Forgets a paired computer and tells it to forget this phone (§13.1).
   Future<void> forget(String deviceId);
 
