@@ -7,6 +7,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 class _FakePeer implements MobilePeer {
+  final Stream<PairingHostEvent> _hostEvents;
+
+  _FakePeer({Stream<PairingHostEvent> hostEvents = const Stream.empty()})
+      : _hostEvents = hostEvents;
+
   @override
   final ValueNotifier<List<TrustedDevice>> trusted = ValueNotifier(const []);
   @override
@@ -41,12 +46,11 @@ class _FakePeer implements MobilePeer {
           Future<bool> Function(String sas, String hostName) confirm) =>
       pair('qr', 0, scanned, confirm);
 
-  final hostEvents = StreamController<PairingHostEvent>.broadcast();
   final hostDecisions = <bool>[];
   int openCalls = 0;
 
   @override
-  Stream<PairingHostEvent> get pairingEvents => hostEvents.stream;
+  Stream<PairingHostEvent> get pairingEvents => _hostEvents;
 
   @override
   Future<({String pin, String address, String qr})> openPairing() async {
