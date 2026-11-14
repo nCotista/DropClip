@@ -200,6 +200,9 @@ class AppConfig {
 /// Loads and saves `config.json`; [config] notifies listeners so a change
 /// applies without restarting (§15.6).
 class ConfigStore {
+  /// macOS bundle identifier (`PRODUCT_BUNDLE_IDENTIFIER`) for sandbox migration.
+  static const String macBundleId = 'dev.dropclip.dropclipDesktop';
+
   final File file;
   final String defaultDeviceName;
   final void Function(String)? onWarn;
@@ -215,6 +218,50 @@ class ConfigStore {
         ? '${env['HOME']}/Library/Application Support/DropClip'
         : '${env['APPDATA']}\\DropClip';
     return File(isMacOS ? '$dir/config.json' : '$dir\\config.json');
+  }
+
+  /// One-time migration from an earlier App-Sandboxed macOS container into
+  /// the unsandboxed `~/Library/Application Support/DropClip` directory so
+  /// paired devices and keys survive the entitlement change.
+  static Future<bool> migrateMacSandboxData(
+    Map<String, String> env, {
+    String bundleId = macBundleId,
+    void Function(String)? onWarn,
+  }) async {
+    final home = env['HOME'];
+    if (home == null || home.isEmpty) return false;
+    final source = Directory(
+      '$home/Library/Containers/$bundleId/Data/Library/Application Support/DropClip',
+    );
+    final target = defaultFile(env, isMacOS: true).parent;
+    try {
+      if (!await source.exists()) return false;
+      if (await source.list(followLinks: false).isEmpty) return false;
+      if (await target.exists() &&
+          !(await target.list(followLinks: false).isEmpty)) {
+        return false;
+      }
+      await _copyDirectory(source, target);
+      return true;
+    } on FileSystemException catch (e) {
+      onWarn?.call('sandbox data migration failed: $e');
+      return false;
+    }
+  }
+
+  static Future<void> _copyDirectory(Directory src, Directory dst) async {
+    await dst.create(recursive: true);
+    await for (final entity in src.list(followLinks: false)) {
+      final parts =
+          entity.path.split(RegExp(r'[/\\]')).where((s) => s.isNotEmpty);
+      if (parts.isEmpty) continue;
+      final name = parts.last;
+      if (entity is Directory) {
+        await _copyDirectory(entity, Directory('${dst.path}/$name'));
+      } else if (entity is File) {
+        await entity.copy('${dst.path}/$name');
+      }
+    }
   }
 
   /// Reads the file; a missing or corrupt file yields defaults.

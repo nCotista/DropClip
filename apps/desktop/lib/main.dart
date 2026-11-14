@@ -57,6 +57,12 @@ Future<void> main(List<String> args) async {
   // device id, which needs the config).
   final early = <String>[];
   void Function(String) warn = early.add;
+  if (isMacOS) {
+    await ConfigStore.migrateMacSandboxData(
+      Platform.environment,
+      onWarn: (m) => warn(m),
+    );
+  }
   final store = ConfigStore(
     ConfigStore.defaultFile(Platform.environment, isMacOS: isMacOS),
     defaultDeviceName: Platform.localHostname,
@@ -154,8 +160,9 @@ Future<void> main(List<String> args) async {
     downloads: store.config.value.destinationDirectory,
     decide: (peer, items) async {
       if (store.config.value.autoAccept) return true;
+      await tray.show();
       final context = navigator.currentContext;
-      if (context == null) return false;
+      if (context == null || !context.mounted) return false;
       return askToReceive(context, peer, items);
     },
     onUpdate: (u) {
