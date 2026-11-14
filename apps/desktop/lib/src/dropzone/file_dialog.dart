@@ -3,29 +3,36 @@ import 'dart:io';
 import 'dart:isolate';
 
 import 'package:ffi/ffi.dart';
+import 'package:flutter/services.dart';
+
+/// Method channel served by `dropclip_macos` using `NSOpenPanel`.
+const MethodChannel macPickerChannel = MethodChannel('dropclip/file_picker');
 
 /// Opens the OS "open files" dialog (multi-select) and returns the chosen
 /// paths, or none if cancelled. Windows: `GetOpenFileNameW` via FFI, in an
-/// isolate so the UI keeps painting. macOS: the system `choose file` dialog
-/// through `osascript` (no extra plugin; `file_selector` conflicts with
-/// desktop_drop's `cross_file`).
-///
-/// Not unit-tested: it needs a user to pick files.
+/// isolate so the UI keeps painting. macOS: native `NSOpenPanel` over
+/// [macPickerChannel] (avoids `file_selector`'s `cross_file` conflict and
+/// avoids `/usr/bin/osascript` Automation prompts).
 Future<List<String>> pickFiles() async {
   if (Platform.isWindows) return Isolate.run(_windowsPick);
-  if (Platform.isMacOS) {
-    final r = await Process.run('/usr/bin/osascript', [
-      '-e', 'set fs to choose file with multiple selections allowed', //
-      '-e', 'set out to ""',
-      '-e', 'repeat with f in fs',
-      '-e', 'set out to out & POSIX path of f & linefeed',
-      '-e', 'end repeat',
-      '-e', 'return out',
-    ]);
-    if (r.exitCode != 0) return const [];
-    return (r.stdout as String).split('\n').where((p) => p.isNotEmpty).toList();
-  }
+  if (Platform.isMacOS) return macPickFiles();
   return const [];
+}
+
+/// Calls the native macOS `NSOpenPanel` channel, returning `[]` on cancel or
+/// when the plugin is unavailable (e.g. headless unit tests).
+Future<List<String>> macPickFiles([
+  MethodChannel channel = macPickerChannel,
+]) async {
+  try {
+    final paths = await channel.invokeListMethod<String>('pickFiles');
+    if (paths == null) return const [];
+    return paths.where((p) => p.isNotEmpty).toList();
+  } on MissingPluginException {
+    return const [];
+  } on PlatformException {
+    return const [];
+  }
 }
 
 /// Splits the `lpstrFile` result: one full path, or a folder followed by

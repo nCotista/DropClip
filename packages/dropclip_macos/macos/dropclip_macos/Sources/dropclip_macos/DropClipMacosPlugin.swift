@@ -17,6 +17,7 @@ public class DropClipMacosPlugin: NSObject, FlutterPlugin, FlutterStreamHandler 
         FlutterEventChannel(
             name: "dropclip/clipboard/events", binaryMessenger: registrar.messenger
         ).setStreamHandler(instance)
+        FilePickerHandler.register(with: registrar)
     }
 
     public func handle(_ call: FlutterMethodCall, result: @escaping FlutterResult) {
