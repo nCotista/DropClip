@@ -16,6 +16,7 @@ import 'src/discovery/discovery_controller.dart';
 import 'src/discovery/network_watcher.dart';
 import 'src/dropzone/dropzone_controller.dart';
 import 'src/dropzone/dropzone_host.dart';
+import 'src/dropzone/dropzone_targets.dart';
 import 'src/l10n/strings.dart';
 import 'src/native_host.dart';
 import 'src/node/desktop_node.dart';
@@ -252,15 +253,18 @@ Future<void> main(List<String> args) async {
       ), path: file.path),
     ));
   };
-  // Dropzone targets: nearby devices plus linked browsers.
+  // Dropzone targets: nearby devices, paired devices that are connected but
+  // were not found on Wi-Fi (multicast blocked, or a phone that dialed us),
+  // and linked browsers.
   final targets = ValueNotifier<List<NearbyDevice>>(const []);
-  void updateTargets() => targets.value = [
-        ...discovery.nearby.value,
-        for (final s in web.sessions.value)
-          NearbyDevice(s.name, 'Browser', PeerReach.online, id: 'web:${s.id}'),
-      ];
-  discovery.nearby.addListener(updateTargets);
-  web.sessions.addListener(updateTargets);
+  bindDropzoneTargets(
+    targets: targets,
+    nearby: discovery.nearby,
+    trusted: node.trusted,
+    connected: () => node.mesh.connected,
+    peerChanges: node.mesh.peerChanges,
+    sessions: web.sessions,
+  );
 
   // UI-03: this device hosts a session; the other types its PIN.
   Future<void> pairNew() async {
