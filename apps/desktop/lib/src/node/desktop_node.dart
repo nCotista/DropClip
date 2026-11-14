@@ -152,7 +152,7 @@ class DesktopNode {
         name: me.name,
         os: me.os,
         tier: 1,
-        appVersion: '1.0.7',
+        appVersion: '1.0.8',
         capabilities: record.capabilities,
         tombstonesHash: revocation.tombstonesHash,
         tombstoneCount: revocation.tombstoneCount,
