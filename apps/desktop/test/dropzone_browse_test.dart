@@ -7,6 +7,7 @@ import 'package:dropclip_desktop/src/dropzone/dropzone_host.dart';
 import 'package:dropclip_desktop/src/dropzone/file_dialog.dart';
 import 'package:dropclip_ui/dropclip_ui.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
@@ -83,6 +84,46 @@ void main() {
     dz.browse();
     await tester.pump();
     expect(asked, 2);
+  });
+
+  testWidgets('macPickFiles invokes dropclip/file_picker and drops blanks',
+      (tester) async {
+    String? invoked;
+    final bm = tester.binding.defaultBinaryMessenger;
+    bm.setMockMethodCallHandler(macPickerChannel, (call) async {
+      invoked = call.method;
+      return ['', '/Users/a/one.pdf', '/Users/a/two.png', ''];
+    });
+    addTearDown(() => bm.setMockMethodCallHandler(macPickerChannel, null));
+
+    expect(await macPickFiles(), ['/Users/a/one.pdf', '/Users/a/two.png']);
+    expect(invoked, 'pickFiles');
+  });
+
+  testWidgets('macPickFiles returns empty on cancel or plugin error',
+      (tester) async {
+    List<String>? reply;
+    PlatformException? failure;
+    final bm = tester.binding.defaultBinaryMessenger;
+    bm.setMockMethodCallHandler(macPickerChannel, (_) async {
+      final err = failure;
+      if (err != null) throw err;
+      return reply;
+    });
+    addTearDown(() => bm.setMockMethodCallHandler(macPickerChannel, null));
+
+    expect(await macPickFiles(), isEmpty);
+
+    reply = const [];
+    expect(await macPickFiles(), isEmpty);
+
+    failure = PlatformException(code: 'ERR');
+    expect(await macPickFiles(), isEmpty);
+  });
+
+  testWidgets('macPickFiles returns empty when plugin is missing',
+      (tester) async {
+    expect(await macPickFiles(), isEmpty);
   });
 }
 
