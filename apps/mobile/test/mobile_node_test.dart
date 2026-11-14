@@ -11,25 +11,34 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:shelf/shelf.dart';
 
 const _badPng = <int>[0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 1, 2];
+const _statusOk = '{"offset":0}';
 
-typedef _Desktop = ({
-  PairingHost pairing,
-  PeerMesh mesh,
-  int port,
-  String id,
-  TrustedDeviceStore store,
-  Map<String, BytesBuilder> files,
-  DeviceIdentityManager ids,
-});
+class _Desktop {
+  final PairingHost pairing;
+  final PeerMesh mesh;
+  final int port;
+  final String id;
+  final TrustedDeviceStore store;
+  final Map<String, BytesBuilder> files;
+  final DeviceIdentityManager ids;
+  _Desktop({
+    required this.pairing,
+    required this.mesh,
+    required this.port,
+    required this.id,
+    required this.store,
+    required this.files,
+    required this.ids,
+  });
+}
 
 /// A desktop as the phone sees it: pairing host, mTLS server and mesh.
-Future<_Desktop> _desktop(Directory dir,
-    {String statusJson = '{"offset":0}'}) async {
+Future<_Desktop> _desktop(Directory dir, {String status = _statusOk}) async {
   // A minimal desktop receiver: accepts every offer and keeps the bytes.
   final files = <String, BytesBuilder>{};
   Future<Response> fileRoute(Request r) async {
     final seg = r.url.pathSegments; // api v1 file <tid> <item|finish>[/status]
-    if (seg.length == 6) return Response.ok(statusJson);
+    if (seg.length == 6) return Response.ok(status);
     if (seg[4] == 'finish') return Response.ok('{}');
     await for (final b in r.read()) {
       files.putIfAbsent(seg[3], BytesBuilder.new).add(b);
@@ -95,7 +104,7 @@ Future<_Desktop> _desktop(Directory dir,
     await mesh.close();
     await server.close(force: true);
   });
-  return (
+  return _Desktop(
     pairing: pairing,
     mesh: mesh,
     port: server.port,
@@ -436,11 +445,11 @@ void main() {
 
   Future<({MobileNode phone, _Desktop desk, Directory phoneDir})> pairedPair(
     Directory dir, {
-    String statusJson = '{"offset":0}',
+    String status = _statusOk,
     void Function(String text, String from)? onReceived,
     void Function(File file, String from)? onFile,
   }) async {
-    final desk = await _desktop(dir, statusJson: statusJson);
+    final desk = await _desktop(dir, status: status);
     final phoneDir = Directory('${dir.path}/phone');
     final phone = await MobileNode.start(
         dir: phoneDir,
@@ -468,7 +477,7 @@ void main() {
   test('sendFile skips upload POST when server reports complete', () async {
     final dir = await Directory.systemTemp.createTemp('dc_send_done_');
     addTearDown(() => dir.delete(recursive: true));
-    final pair = await pairedPair(dir, statusJson: '{"state":"complete"}');
+    final pair = await pairedPair(dir, status: '{"state":"complete"}');
     final f = File('${dir.path}/doc.bin');
     await f.writeAsBytes(const [1, 2, 3, 4, 5]);
     final progress = <int>[];
@@ -482,13 +491,13 @@ void main() {
     test('sendFile rejects invalid server offset $badOffset', () async {
       final dir = await Directory.systemTemp.createTemp('dc_bad_off_');
       addTearDown(() => dir.delete(recursive: true));
-      final pair = await pairedPair(dir, statusJson: '{"offset":$badOffset}');
+      final pair = await pairedPair(dir, status: '{"offset":$badOffset}');
       final f = File('${dir.path}/doc.bin');
       await f.writeAsBytes(const [1, 2, 3, 4, 5]);
       final err = isA<ProtocolException>()
           .having((e) => e.errorCode, 'code', ProtocolErrorCode.internal);
-      await expectLater(
-          pair.phone.sendFile(pair.desk.id, f.path), throwsA(err));
+      final send = pair.phone.sendFile(pair.desk.id, f.path);
+      await expectLater(send, throwsA(err));
       expect(pair.desk.files, isEmpty);
     });
   }
@@ -542,12 +551,10 @@ void main() {
         store: pair.desk.store,
         expectedFp: pair.phone.me.fp);
     addTearDown(client.close);
-    Future<HttpClientResponse> sendReq(String path, [String? offset]) async {
-      final req = await client.httpClient.postUrl(Uri(
-          scheme: 'https',
-          host: '127.0.0.1',
-          port: pair.phone.server.port,
-          path: path));
+    final port = pair.phone.server.port;
+    Future<HttpClientResponse> sendReq(String p, [String? offset]) async {
+      final u = Uri(scheme: 'https', host: '127.0.0.1', port: port, path: p);
+      final req = await client.httpClient.postUrl(u);
       if (offset != null) req.headers.set('x-offset', offset);
       return req.close();
     }
@@ -573,9 +580,9 @@ void main() {
     final saved = <File>[];
     final gotText = StreamController<String>.broadcast();
     addTearDown(gotText.close);
-    final pair = await pairedPair(dir,
-        onReceived: (t, _) => gotText.add(t),
-        onFile: (f, _) => saved.add(f));
+    void onTxt(String t, String _) => gotText.add(t);
+    void onPng(File f, String _) => saved.add(f);
+    final pair = await pairedPair(dir, onReceived: onTxt, onFile: onPng);
     final now = DateTime.now().millisecondsSinceEpoch;
     await pair.desk.mesh.broadcast(Envelope(
         type: MessageType.clipboardUpdate,

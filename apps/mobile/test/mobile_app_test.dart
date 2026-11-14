@@ -299,7 +299,7 @@ void main() {
     final dir = await Directory.systemTemp.createTemp('dc_settings_race_');
     addTearDown(() => dir.delete(recursive: true));
     final f = File('${dir.path}/settings.json');
-    await Future.wait([
+    await Future.wait<void>([
       for (var i = 0; i < 12; i++)
         MobileSettings(language: i.isEven ? 'en' : 'th', syncEnabled: i.isEven)
             .save(f),

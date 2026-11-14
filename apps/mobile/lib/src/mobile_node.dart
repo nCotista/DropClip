@@ -33,11 +33,12 @@ class SecureStorageKeyStore implements SecureKeyStore {
   Future<void> delete(String key) => _s.delete(key: key);
 }
 
-typedef _Incoming = ({
-  String peer,
-  Map<String, FileOfferItem> items,
-  Set<String> completed,
-});
+class _Incoming {
+  final String peer;
+  final Map<String, FileOfferItem> items;
+  final completed = <String>{};
+  _Incoming(this.peer, this.items);
+}
 
 /// This phone on the network (Tier 2, T2.5): identity, Trusted Store, the
 /// Control Plane to paired desktops (the phone always dials, §6.2) and text
@@ -130,9 +131,8 @@ class MobileNode implements MobilePeer {
     _activeSender = _nameOf(m.peerId);
     try {
       final u = TransportSyncAdapter.envelopeToClipUpdate(m.envelope);
-      if (await _engine.onRemoteUpdate(u, m.peerId) &&
-          u.inline != null &&
-          u.type != ClipType.image) {
+      final sent = await _engine.onRemoteUpdate(u, m.peerId);
+      if (sent && u.inline != null && u.type != ClipType.image) {
         onReceived(utf8.decode(u.inline!), _nameOf(m.peerId));
       }
     } on Object {
@@ -291,11 +291,8 @@ class MobileNode implements MobilePeer {
           FileOfferItem.fromJson(j as Map<String, dynamic>)
       ];
       await _receiver.validateOffer(items: items);
-      _incoming[tid] = (
-        peer: m.peerId,
-        items: {for (final i in items) i.itemId: i},
-        completed: <String>{},
-      );
+      final byId = {for (final i in items) i.itemId: i};
+      _incoming[tid] = _Incoming(m.peerId, byId);
       ok = true;
     } on Object {
       ok = false;
@@ -317,10 +314,7 @@ class MobileNode implements MobilePeer {
   /// sending files (§9); the same steps the desktop receiver serves.
   Future<Response> _route(Request r) async {
     final seg = r.url.pathSegments; // api v1 file <tid> <item|finish>[/status]
-    if (seg.length < 5 ||
-        seg[0] != 'api' ||
-        seg[1] != 'v1' ||
-        seg[2] != 'file') {
+    if (seg.length < 5 || !r.url.path.startsWith('api/v1/file/')) {
       return Response.notFound(null);
     }
     final tid = seg[3];
@@ -376,8 +370,8 @@ class MobileNode implements MobilePeer {
     final rawOff = r.headers['x-offset'];
     var at = rawOff == null ? 0 : (int.tryParse(rawOff) ?? -1);
     if (at < 0) {
-      const e = ProtocolException(
-          ProtocolErrorCode.offsetMismatch, 'invalid x-offset');
+      const e =
+          ProtocolException(ProtocolErrorCode.offsetMismatch, 'bad offset');
       return _json(e.httpStatus, e.toHttpJson());
     }
     if (at == 0 && await part.exists()) await part.delete();
@@ -405,8 +399,8 @@ class MobileNode implements MobilePeer {
       if (buf.isNotEmpty || (item.size == 0 && at == 0)) {
         await write(buf.takeBytes());
       }
-      final state =
-          t.completed.contains(item.itemId) ? 'complete' : 'in_progress';
+      final done = t.completed.contains(item.itemId);
+      final state = done ? 'complete' : 'in_progress';
       return _json(200, {'received_bytes': at, 'state': state});
     } on ProtocolException catch (e) {
       return _json(e.httpStatus, e.toHttpJson());
@@ -462,8 +456,7 @@ class MobileNode implements MobilePeer {
   }
 
   /// Remembers where the desktop is and dials it.
-  Future<TrustedDevice> _connect(
-      TrustedDevice d, String host, int port) async {
+  Future<TrustedDevice> _connect(TrustedDevice d, String host, int port) async {
     if (d.certPem != null) server.addTrustedPeerCert(d.certPem!);
     await _updateHosts((hosts) => hosts[d.deviceId] = '$host:$port');
     trusted.value = store.activeDevices.toList();
@@ -646,7 +639,7 @@ class MobileNode implements MobilePeer {
     }
   }
 
-  Future<void> _updateHosts(void Function(Map<String, dynamic> hosts) edit) =>
+  Future<void> _updateHosts(void Function(Map<String, dynamic>) edit) =>
       _withHostLock(() async {
         final hosts = await _savedHosts();
         edit(hosts);
