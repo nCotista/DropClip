@@ -47,6 +47,14 @@ class SettingsPage extends StatelessWidget {
                       ?.copyWith(fontWeight: FontWeight.w700)),
               _Header(s.application),
               _Row(
+                title: s.deviceName,
+                subtitle: s.deviceNameSub,
+                trailing: _NameField(
+                  name: c.deviceName,
+                  onSave: (n) => set(c.copyWith(deviceName: n)),
+                ),
+              ),
+              _Row(
                 title: 'ภาษา / Language',
                 subtitle: s.languageSub,
                 trailing: SegmentedButton<AppLanguage>(
@@ -126,6 +134,71 @@ class SettingsPage extends StatelessWidget {
             ],
           );
         },
+      );
+}
+
+/// Edits the device name; saved on Enter or when the field loses focus.
+class _NameField extends StatefulWidget {
+  final String name;
+  final ValueChanged<String> onSave;
+
+  const _NameField({required this.name, required this.onSave});
+
+  @override
+  State<_NameField> createState() => _NameFieldState();
+}
+
+class _NameFieldState extends State<_NameField> {
+  late final _text = TextEditingController(text: widget.name);
+  final _focus = FocusNode();
+
+  @override
+  void initState() {
+    super.initState();
+    _focus.addListener(() {
+      if (!_focus.hasFocus) _save();
+    });
+  }
+
+  @override
+  void didUpdateWidget(_NameField old) {
+    super.didUpdateWidget(old);
+    if (!_focus.hasFocus && widget.name != _text.text) {
+      _text.text = widget.name;
+    }
+  }
+
+  /// Enter, then the focus loss it causes, would otherwise save twice.
+  String? _sent;
+
+  void _save() {
+    final next = _text.text.trim();
+    if (next.isEmpty) {
+      _text.text = widget.name;
+    } else if (next != widget.name && next != _sent) {
+      _sent = next;
+      widget.onSave(next);
+    }
+  }
+
+  @override
+  void dispose() {
+    _text.dispose();
+    _focus.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => SizedBox(
+        width: 260,
+        child: TextField(
+          key: const Key('device-name'),
+          controller: _text,
+          focusNode: _focus,
+          maxLength: 64,
+          decoration: const InputDecoration(isDense: true, counterText: ''),
+          onSubmitted: (_) => _save(),
+        ),
       );
 }
 

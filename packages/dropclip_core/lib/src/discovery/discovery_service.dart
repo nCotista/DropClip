@@ -62,7 +62,7 @@ abstract interface class MdnsBackend {
 class DiscoveryService {
   final MdnsBackend backend;
   final PeerCache cache;
-  final DiscoveryRecord record;
+  DiscoveryRecord record;
   final Duration queryInterval;
 
   /// Receives debug messages for dropped packets (never secret material —
@@ -95,6 +95,12 @@ class DiscoveryService {
     _browse = backend.browse(DiscoveryRecord.serviceType).listen(_onEvent);
     _network = backend.networkChanges.listen((_) => _reannounce());
     _ticker = Timer.periodic(queryInterval, (_) => _tick());
+  }
+
+  /// Announces [next] instead of the current record (e.g. a new name).
+  void updateRecord(DiscoveryRecord next) {
+    record = next;
+    if (_running) _reannounce();
   }
 
   /// Stops browsing and sends a goodbye for the local service (§3.3).

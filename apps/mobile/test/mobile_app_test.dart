@@ -45,7 +45,10 @@ class _FakePeer implements MobilePeer {
   void sendText(String text) => sent.add(text);
 
   @override
-  String get myName => 'Pixel 8';
+  String get myName => name;
+  String name = 'Pixel 8';
+  @override
+  Future<void> rename(String n) async => name = n;
 
   final forgotten = <String>[];
   @override
@@ -264,6 +267,15 @@ void main() {
     await tester.tap(find.byKey(const Key('settings')));
     await tester.pumpAndSettle();
     expect(find.text('Pixel 8'), findsOneWidget);
+    // Rename the phone.
+    await tester.tap(find.byKey(const Key('phone-name')));
+    await tester.pumpAndSettle();
+    await tester.enterText(
+        find.byKey(const Key('rename-field')), "Tee's phone");
+    await tester.tap(find.byKey(const Key('rename-save')));
+    await tester.pumpAndSettle();
+    expect(peer.name, "Tee's phone");
+    expect(find.text("Tee's phone"), findsOneWidget);
     await tester.tap(find.byKey(const Key('sync-switch')));
     await tester.tap(find.text('ไทย'));
     await tester.pumpAndSettle();

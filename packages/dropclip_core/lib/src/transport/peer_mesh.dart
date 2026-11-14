@@ -338,6 +338,12 @@ class PeerMesh {
       await s.shutdown(4004, 'device id does not match pinned cert');
     } else if (s.isReady) {
       markReady();
+      // The peer renamed itself: show the name it now uses (§7.4 hello).
+      final known = store.getByDeviceId(peerId);
+      final name = s.remoteHello!.name.trim();
+      if (known != null && name.isNotEmpty && known.name != name) {
+        await store.upsert(known.copyWith(name: name));
+      }
       if (s.clockSkewMeasured) _skew[peerId] = s.clockSkewMs;
       onEvent?.call('ready', {
         'peer': peerId,

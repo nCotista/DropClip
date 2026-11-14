@@ -100,6 +100,9 @@ class MobileNode implements MobilePeer {
         },
       ),
     );
+    // A computer's hello may carry a new name (it was renamed): show it.
+    mesh.peerChanges
+        .listen((_) => trusted.value = store.activeDevices.toList());
     _sub = mesh.messages.listen((m) async {
       final type = m.envelope.type;
       if (type == MessageType.deviceRevoked) {
@@ -193,20 +196,19 @@ class MobileNode implements MobilePeer {
         unawaited(mesh.reach(p.deviceId, p.address, p.record.port));
       }
     });
-    _discovery = DiscoveryService(
-      backend: backend,
-      cache: cache,
-      record: DiscoveryRecord(
+    _discovery =
+        DiscoveryService(backend: backend, cache: cache, record: _record);
+    await _discovery!.start();
+  }
+
+  DiscoveryRecord get _record => DiscoveryRecord(
         deviceId: me.deviceId,
         name: me.name,
         os: DeviceOs.values.byName(me.os),
         port: server.port,
         fingerprint: me.fp,
         capabilities: const ['clip.text', 'clip.image', 'file'],
-      ),
-    );
-    await _discovery!.start();
-  }
+      );
 
   /// `GET` [path] from paired [peerId] over pinned mTLS (e.g. a blob, §9.3).
   Future<Uint8List> _fetch(String peerId, String path) async {
@@ -408,6 +410,12 @@ class MobileNode implements MobilePeer {
 
   @override
   String get myName => me.name;
+
+  @override
+  Future<void> rename(String name) async {
+    await ids.rename(name);
+    _discovery?.updateRecord(_record);
+  }
 
   @override
   Future<void> forget(String deviceId) async {

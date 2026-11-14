@@ -57,6 +57,11 @@ class MobileStrings {
       'Copied text arrives here; tap a clip to copy it again.',
       'ข้อความที่คัดลอกบนคอมจะมาที่นี่ แตะเพื่อคัดลอกอีกครั้ง');
   String get thisPhone => _t('This phone', 'มือถือเครื่องนี้');
+  String get phoneName => _t('Phone name', 'ชื่อมือถือ');
+  String get phoneNameHint => _t(
+      'What your computers see; they update when they next connect',
+      'ชื่อที่คอมเห็น คอมที่จับคู่แล้วจะเห็นชื่อใหม่เมื่อเชื่อมต่อครั้งถัดไป');
+  String get save => _t('Save', 'บันทึก');
   String get language => _t('Language', 'ภาษา');
   String get syncClipboard => _t('Sync clipboard', 'ซิงก์คลิปบอร์ด');
   String get syncHint =>
