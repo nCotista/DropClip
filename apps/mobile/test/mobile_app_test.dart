@@ -390,7 +390,7 @@ void main() {
     expect(find.text('192.168.1.20:53317'), findsOneWidget);
 
     events.add(const PairingSasReady('337017', 'iPhone 16', 'ios'));
-    await tester.pump();
+    await tester.pumpAndSettle();
     expect(find.byKey(const Key('sas')), findsOneWidget);
     expect(find.text('337017'), findsOneWidget);
     await tester.tap(find.byKey(const Key('match')));
@@ -446,7 +446,7 @@ void main() {
     await tester.pumpAndSettle();
     expect(peer.openCalls, 2);
     events.add(const PairingSasReady('111222', 'Pixel', 'android'));
-    await tester.pump();
+    await tester.pumpAndSettle();
     await tester.tap(find.text("Doesn't match"));
     events.add(const PairingFailed('E_PAIRING_MISMATCH'));
     await tester.pumpAndSettle();
