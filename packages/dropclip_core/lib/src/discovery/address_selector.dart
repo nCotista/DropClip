@@ -112,3 +112,57 @@ Future<String?> resolveMdnsPeerAddress({
     return initial;
   }
 }
+
+final RegExp _nonLanAdapter = RegExp(
+  r'^(rmnet|ccmni|pdp_ip|clat|wwan)|'
+  r'virtual|vethernet|hyper-?v|vmware|vbox|wsl|docker|'
+  r'zerotier|tailscale|hamachi|radmin|nordlynx|wireguard|openvpn|vpn|'
+  r'tun|utun|ppp|pseudo|loopback|npcap|vmnet|teredo|isatap|'
+  r'softether|^awdl|^llw|^vmenet|^feth|^anpi|^ipsec|^gif\d*|^stf\d*',
+  caseSensitive: false,
+);
+
+final RegExp _lanPreferredAdapter = RegExp(
+  r'wlan|swlan|wi-?fi|wireless|ethernet|^eth|^en\d',
+  caseSensitive: false,
+);
+
+int _localAdapterScore(({String name, InternetAddress address}) candidate) {
+  var score = peerAddressRank(candidate.address.address) * 10;
+  if (_nonLanAdapter.hasMatch(candidate.name)) score += 100;
+  if (!_lanPreferredAdapter.hasMatch(candidate.name)) score += 5;
+  return score;
+}
+
+/// Picks the best local LAN IPv4 address from [candidates], ignoring loopback
+/// and link-local addresses and ranking Wi-Fi/Ethernet ahead of cellular or
+/// VPN tunnels. Falls back to `127.0.0.1` when no usable interface is up.
+String pickLocalLanIpv4(List<({String name, InternetAddress address})> all) {
+  final usable = [
+    for (final c in all)
+      if (c.address.type == InternetAddressType.IPv4 &&
+          !c.address.isLoopback &&
+          !c.address.isLinkLocal)
+        c,
+  ];
+  if (usable.isEmpty) return InternetAddress.loopbackIPv4.address;
+  usable.sort((a, b) {
+    final byScore = _localAdapterScore(a).compareTo(_localAdapterScore(b));
+    if (byScore != 0) return byScore;
+    final byName = a.name.toLowerCase().compareTo(b.name.toLowerCase());
+    return byName != 0
+        ? byName
+        : a.address.address.compareTo(b.address.address);
+  });
+  return usable.first.address.address;
+}
+
+/// Returns the device's best current LAN IPv4 address for pairing QR/PIN display.
+Future<String> localLanIpv4() async {
+  final interfaces =
+      await NetworkInterface.list(type: InternetAddressType.IPv4);
+  return pickLocalLanIpv4([
+    for (final i in interfaces)
+      for (final a in i.addresses) (name: i.name, address: a),
+  ]);
+}

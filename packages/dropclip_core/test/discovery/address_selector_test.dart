@@ -91,4 +91,42 @@ void main() {
       );
     });
   });
+
+  group('pickLocalLanIpv4 (mobile/desktop LAN selection)', () {
+    ({String name, InternetAddress address}) nic(String name, String ip) =>
+        (name: name, address: InternetAddress(ip));
+
+    test('prefers Wi-Fi over cellular, VPN, and link-local/loopback', () {
+      expect(
+        pickLocalLanIpv4([
+          nic('lo0', '127.0.0.1'),
+          nic('en0', '169.254.1.5'),
+          nic('pdp_ip0', '10.120.0.4'),
+          nic('rmnet_data0', '10.1.2.3'),
+          nic('utun4', '10.8.0.2'),
+          nic('wlan0', '192.168.1.44'),
+        ]),
+        '192.168.1.44',
+      );
+      expect(
+        pickLocalLanIpv4([
+          nic('pdp_ip0', '172.16.0.9'),
+          nic('en0', '192.168.0.15'),
+        ]),
+        '192.168.0.15',
+      );
+    });
+
+    test('falls back to hotspot before cellular and 127.0.0.1 when empty', () {
+      expect(
+        pickLocalLanIpv4([
+          nic('pdp_ip0', '10.120.0.4'),
+          nic('bridge100', '172.20.10.1'),
+        ]),
+        '172.20.10.1',
+      );
+      expect(pickLocalLanIpv4([nic('lo0', '127.0.0.1')]), '127.0.0.1');
+      expect(pickLocalLanIpv4(const []), '127.0.0.1');
+    });
+  });
 }

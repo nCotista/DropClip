@@ -117,7 +117,10 @@ class PeerMesh {
       await request.response.close();
       return;
     }
-    final from = request.connectionInfo?.remoteAddress.address;
+    final rawFrom = request.connectionInfo?.remoteAddress.address;
+    final from = rawFrom != null && rawFrom.startsWith('::ffff:')
+        ? rawFrom.substring(7)
+        : rawFrom;
     final ws = await WebSocketTransformer.upgrade(request);
     await _start(peer, ws,
         initiator: false,
@@ -159,8 +162,9 @@ class PeerMesh {
     final myTier = hello().tier;
     if (!shouldInitiate(
         myId: _myId, myTier: myTier, peerId: peerId, peerTier: peer.tier)) {
-      // A phone has no server to dial; only desktops fall back.
-      if (myTier == 1 && peer.tier == 1) _armGrace(peerId);
+      // §6.2 rule 3: same-class peers (desktop↔desktop, phone↔phone) both
+      // run a server, so fall back to dialing after [initiatorGrace].
+      if ((myTier == 1) == (peer.tier == 1)) _armGrace(peerId);
       return;
     }
     if (isNew) _retry.remove(peerId)?.cancel();
@@ -322,7 +326,7 @@ class PeerMesh {
           if (!_closed && _trusted(peerId) != null) {
             if (initiator) {
               _retryLater(peerId, failed: !stable);
-            } else if (hello().tier == 1 && peer.tier == 1) {
+            } else if ((hello().tier == 1) == (peer.tier == 1)) {
               // The peer redials; if it cannot, we do after the grace.
               _armGrace(peerId);
             }

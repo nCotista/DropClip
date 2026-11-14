@@ -119,6 +119,70 @@ void main() {
     expect(dials('a', 1, 'b', 2), isFalse);
     expect(dials('a', 1, 'b', 1), isTrue);
     expect(dials('b', 1, 'a', 1), isFalse);
+    expect(dials('a', 2, 'b', 3), isTrue);
+    expect(dials('b', 3, 'a', 2), isFalse);
+  });
+
+  test('§6.2 rule 3: mobile peers also fall back after grace', () async {
+    Future<_Node> mobileNode(String name, int tier, String os) async {
+      final n = _Node();
+      final dir = await Directory.systemTemp.createTemp('dc_mesh_mob_');
+      final keys = InMemorySecureKeyStore();
+      n.ids = DeviceIdentityManager(storageDir: dir, keyStore: keys);
+      await n.ids.loadOrCreate(deviceName: name, os: os);
+      n.store = TrustedDeviceStore(
+          storageDir: Directory('${dir.path}/t'), keyStore: keys);
+      n.mesh = PeerMesh(
+        identity: n.ids,
+        store: n.store,
+        initiatorGrace: const Duration(milliseconds: 250),
+        hello: () => HelloPayload(
+            deviceId: n.id,
+            name: name,
+            os: os,
+            tier: tier,
+            appVersion: 'test',
+            capabilities: const ['clip.text'],
+            tombstonesHash: '',
+            tombstoneCount: 0),
+      );
+      addTearDown(() async {
+        await n.mesh.close();
+        await n._server?.close(force: true);
+        await dir.delete(recursive: true);
+      });
+      return n;
+    }
+
+    final a = await mobileNode('Android', 2, 'android');
+    final b = await mobileNode('iPhone', 3, 'ios');
+    await a.store.upsert(TrustedDevice(
+        deviceId: b.id,
+        name: 'iPhone',
+        os: 'ios',
+        tier: 3,
+        fp: b.ids.identity.fp,
+        certPem: b.ids.identity.certPem,
+        pairedAt: 0,
+        lastSeenAt: 0));
+    await b.store.upsert(TrustedDevice(
+        deviceId: a.id,
+        name: 'Android',
+        os: 'android',
+        tier: 2,
+        fp: a.ids.identity.fp,
+        certPem: a.ids.identity.certPem,
+        pairedAt: 0,
+        lastSeenAt: 0));
+    await a.listen();
+    await b.listen();
+    final (dialer, other) = a.id.compareTo(b.id) < 0 ? (a, b) : (b, a);
+    await other.mesh.reach(dialer.id, '127.0.0.1', dialer.server.port);
+    for (var i = 0; i < 100 && other.mesh.connected.isEmpty; i++) {
+      await Future<void>.delayed(const Duration(milliseconds: 20));
+    }
+    expect(other.mesh.connected, {dialer.id});
+    expect(dialer.mesh.connected, {other.id});
   });
 
   test('paired peers link up and exchange envelopes both ways', () async {
