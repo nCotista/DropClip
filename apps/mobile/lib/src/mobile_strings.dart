@@ -14,8 +14,7 @@ class MobileStrings {
 
   String _t(String en, String thai) => th ? thai : en;
 
-  String get pairWithComputer =>
-      _t('Pair with computer', 'จับคู่กับคอมพิวเตอร์');
+  String get pairWithComputer => _t('Pair device', 'จับคู่อุปกรณ์');
   String get sendClipboard => _t('Send clipboard', 'ส่งคลิปบอร์ด');
   String get sendFile => _t('Send file', 'ส่งไฟล์');
   String get sent => _t('Sent', 'ส่งแล้ว');
@@ -34,7 +33,7 @@ class MobileStrings {
   String get copied => _t('Copied', 'คัดลอกแล้ว');
   String fromDevice(String name) => _t('From $name', 'จาก $name');
   String get noComputerOnline =>
-      _t('No computer is connected', 'ไม่มีคอมพิวเตอร์ที่เชื่อมต่ออยู่');
+      _t('No device is connected', 'ไม่มีอุปกรณ์ที่เชื่อมต่ออยู่');
   String get sendTo => _t('Send to', 'ส่งไปที่');
   String sending(String name, int percent) =>
       _t('Sending $name… $percent%', 'กำลังส่ง $name… $percent%');
@@ -42,38 +41,45 @@ class MobileStrings {
   String sendFailed(String why) =>
       _t('Could not send: $why', 'ส่งไม่สำเร็จ: $why');
   String get settings => _t('Settings', 'ตั้งค่า');
-  String get computers => _t('Computers', 'คอมพิวเตอร์');
-  String get statusNoPair => _t('No computer yet', 'ยังไม่มีคอมพิวเตอร์');
+  String get computers => _t('Devices', 'อุปกรณ์');
+  String get statusNoPair =>
+      _t('No paired device yet', 'ยังไม่มีอุปกรณ์ที่จับคู่');
   String get statusNoPairHint => _t(
-      'On the computer: Devices → Pair new device, then pair here.',
-      'บนคอม: หน้าอุปกรณ์ → จับคู่อุปกรณ์ใหม่ แล้วจับคู่ที่นี่');
+      'Pair with a computer or another phone: scan, enter IP + PIN, or show a QR code.',
+      'จับคู่กับคอมพิวเตอร์หรือมือถืออีกเครื่อง: สแกน กรอก IP + PIN หรือแสดงคิวอาร์โค้ด');
   String get statusOffline => _t('Not connected', 'ยังไม่ได้เชื่อมต่อ');
   String get statusOfflineHint => _t(
-      'Open DropClip on the computer, on the same Wi-Fi.',
-      'เปิด DropClip บนคอม และต่อ Wi-Fi วงเดียวกัน');
+      'Open DropClip on the other device, on the same Wi-Fi.',
+      'เปิด DropClip บนอีกเครื่อง และต่อ Wi-Fi วงเดียวกัน');
   String statusConnected(String name) =>
       _t('Connected to $name', 'เชื่อมต่อกับ $name');
   String get statusConnectedHint => _t(
       'Copied text arrives here; tap a clip to copy it again.',
-      'ข้อความที่คัดลอกบนคอมจะมาที่นี่ แตะเพื่อคัดลอกอีกครั้ง');
+      'ข้อความที่คัดลอกจะส่งมาที่นี่ แตะเพื่อคัดลอกอีกครั้ง');
   String get thisPhone => _t('This phone', 'มือถือเครื่องนี้');
   String get phoneName => _t('Phone name', 'ชื่อมือถือ');
   String get phoneNameHint => _t(
-      'What your computers see; they update when they next connect',
-      'ชื่อที่คอมเห็น คอมที่จับคู่แล้วจะเห็นชื่อใหม่เมื่อเชื่อมต่อครั้งถัดไป');
+      'What other devices see; paired ones update when they next connect',
+      'ชื่อที่เครื่องอื่นเห็น เครื่องที่จับคู่แล้วจะเห็นชื่อใหม่เมื่อเชื่อมต่อครั้งถัดไป');
   String get save => _t('Save', 'บันทึก');
   String get language => _t('Language', 'ภาษา');
   String get syncClipboard => _t('Sync clipboard', 'ซิงก์คลิปบอร์ด');
   String get syncHint =>
       _t('Off: nothing is sent or received', 'ปิด: จะไม่ส่งและไม่รับคลิปบอร์ด');
   String get syncOff => _t('Clipboard sync is off', 'ซิงก์คลิปบอร์ดปิดอยู่');
-  String get computerIp => _t('Computer IP', 'IP ของคอมพิวเตอร์');
+  String get computerIp => _t('Device IP', 'IP ของอุปกรณ์');
   String get port => _t('Port', 'พอร์ต');
   String get scanQr => _t('Scan QR', 'สแกน QR');
+  String get joinMode => _t('Scan / PIN', 'สแกน / PIN');
+  String get hostMode => _t('Show QR', 'แสดง QR');
+  String get pinOnOtherDevice => _t(
+      'Or enter this PIN on the other device', 'หรือกรอกรหัสนี้บนอีกเครื่อง');
+  String get waitingForPeer => _t(
+      'Waiting for confirmation on the other device…', 'รออีกเครื่องยืนยัน…');
   String get pair => _t('Pair', 'จับคู่');
   String get close => _t('Close', 'ปิด');
-  String get sasQuestion =>
-      _t('Does the computer show this number?', 'คอมพิวเตอร์แสดงตัวเลขนี้ไหม?');
+  String get sasQuestion => _t(
+      'Does the other device show this number?', 'อีกเครื่องแสดงตัวเลขนี้ไหม?');
   String get match => _t('Match', 'ตรงกัน');
   String get noMatch => _t("Doesn't match", 'ไม่ตรงกัน');
   String pairedWith(String name) =>
@@ -81,7 +87,7 @@ class MobileStrings {
   String pairFailed(String why) =>
       _t('Pairing failed: $why', 'จับคู่ไม่สำเร็จ: $why');
   String get scanTitle =>
-      _t('Scan the QR on your computer', 'สแกน QR บนหน้าจอคอมพิวเตอร์');
+      _t('Scan the pairing QR code', 'สแกนคิวอาร์โค้ดจับคู่');
 }
 
 class MobileStringsScope extends InheritedWidget {

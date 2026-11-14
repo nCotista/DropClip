@@ -5,6 +5,7 @@ import 'package:dropclip_core/dropclip_core.dart';
 import 'package:dropclip_ui/dropclip_ui.dart';
 import 'package:flutter/material.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
+import 'package:qr_flutter/qr_flutter.dart';
 
 import 'mobile_peer.dart';
 import 'mobile_settings.dart';
@@ -223,8 +224,7 @@ class _Home extends StatelessWidget {
                       margin: const EdgeInsets.only(bottom: DropClipSpacing.sm),
                       child: ListTile(
                         leading: Stack(clipBehavior: Clip.none, children: [
-                          Icon(Icons.laptop_windows_rounded,
-                              color: c.textSecondary),
+                          Icon(_deviceIcon(d.os), color: c.textSecondary),
                           Positioned(
                             right: -2,
                             bottom: -2,
@@ -593,6 +593,13 @@ class _RenameDialogState extends State<_RenameDialog> {
   }
 }
 
+IconData _deviceIcon(String os) => switch (os) {
+      'android' => Icons.phone_android_rounded,
+      'ios' => Icons.phone_iphone_rounded,
+      'macos' => Icons.laptop_mac_rounded,
+      _ => Icons.laptop_windows_rounded,
+    };
+
 class _PairDialog extends StatefulWidget {
   final MobilePeer node;
 
@@ -608,9 +615,17 @@ class _PairDialogState extends State<_PairDialog> {
   final _pin = TextEditingController();
   String? _sas, _result;
   Completer<bool>? _answer;
+  bool _hosting = false;
+  bool _hostBusy = false;
+  bool _hostAnswered = false;
+  bool _hostActive = false;
+  ({String pin, String address, String qr})? _session;
+  StreamSubscription<PairingHostEvent>? _pairSub;
 
   @override
   void dispose() {
+    if (_pairSub != null) unawaited(_pairSub!.cancel());
+    if (_hostActive) widget.node.confirmPairing(false);
     final answer = _answer;
     _answer = null;
     if (answer != null && !answer.isCompleted) answer.complete(false);
@@ -620,10 +635,75 @@ class _PairDialogState extends State<_PairDialog> {
     super.dispose();
   }
 
+  void _selectMode(bool hosting) {
+    if (hosting == _hosting) return;
+    if (!hosting && _hostActive) {
+      widget.node.confirmPairing(false);
+      _hostActive = false;
+    }
+    setState(() {
+      _hosting = hosting;
+      _sas = null;
+      _result = null;
+      _hostAnswered = false;
+      if (!hosting) _session = null;
+      _hostBusy = hosting;
+    });
+    if (hosting) unawaited(_startHost());
+  }
+
+  Future<void> _startHost() async {
+    final t = MobileStrings.of(context);
+    _pairSub ??= widget.node.pairingEvents.listen(_onHostEvent);
+    try {
+      final session = await widget.node.openPairing();
+      if (!mounted) return;
+      if (!_hosting) {
+        widget.node.confirmPairing(false);
+        return;
+      }
+      setState(() {
+        _session = session;
+        _hostBusy = false;
+        _hostActive = true;
+      });
+    } on Object catch (e) {
+      if (!mounted || !_hosting) return;
+      setState(() {
+        _hostBusy = false;
+        _result = t.pairFailed('$e');
+      });
+    }
+  }
+
+  void _onHostEvent(PairingHostEvent event) {
+    if (!mounted || !_hosting) return;
+    final t = MobileStrings.of(context);
+    setState(() {
+      switch (event) {
+        case PairingSasReady(:final sas):
+          _sas = sas;
+          _hostAnswered = false;
+        case PairingCompleted(:final device):
+          _sas = null;
+          _hostAnswered = false;
+          _hostActive = false;
+          _session = null;
+          _result = t.pairedWith(device.name);
+        case PairingFailed(:final code):
+          _sas = null;
+          _hostAnswered = false;
+          _hostActive = false;
+          _session = null;
+          _result = t.pairFailed(code);
+      }
+    });
+  }
+
   Future<void> _start() => _run((confirm) => widget.node.pair(_host.text.trim(),
       int.tryParse(_port.text) ?? 53317, _pin.text.trim(), confirm));
 
-  /// Scans the desktop's pairing QR (§5.3) and pairs from it.
+  /// Scans another device's pairing QR (§5.3) and pairs from it.
   Future<void> _scan() async {
     final scanned = await Navigator.of(context)
         .push<String>(MaterialPageRoute(builder: (_) => const ScanPage()));
@@ -654,6 +734,13 @@ class _PairDialogState extends State<_PairDialog> {
   }
 
   void _reply(bool match) {
+    if (_hosting) {
+      if (_hostAnswered) return;
+      setState(() => _hostAnswered = true);
+      widget.node.confirmPairing(match);
+      if (!match) _hostActive = false;
+      return;
+    }
     final answer = _answer;
     if (!mounted || answer == null || answer.isCompleted) return;
     _answer = null;
@@ -661,42 +748,109 @@ class _PairDialogState extends State<_PairDialog> {
     setState(() => _sas = null);
   }
 
+  Widget _buildModeSwitcher(MobileStrings t) => SegmentedButton<bool>(
+        key: const Key('pair-mode'),
+        showSelectedIcon: false,
+        segments: [
+          ButtonSegment<bool>(
+            value: false,
+            label: Text(t.joinMode, key: const Key('join-mode-tab')),
+          ),
+          ButtonSegment<bool>(
+            value: true,
+            label: Text(t.hostMode, key: const Key('host-mode-tab')),
+          ),
+        ],
+        selected: {_hosting},
+        onSelectionChanged: (s) => _selectMode(s.first),
+      );
+
+  Widget _buildHostBody(BuildContext context, MobileStrings t) {
+    final s = _session;
+    if (_hostBusy || s == null) {
+      return const Padding(
+        padding: EdgeInsets.symmetric(vertical: 24),
+        child: LinearProgressIndicator(),
+      );
+    }
+    return Column(mainAxisSize: MainAxisSize.min, children: [
+      SizedBox.square(
+        dimension: 180,
+        child: QrImageView(
+            key: const Key('pair-qr'),
+            data: s.qr,
+            errorCorrectionLevel: QrErrorCorrectLevel.M,
+            backgroundColor: Colors.white),
+      ),
+      const SizedBox(height: DropClipSpacing.md),
+      Text(t.pinOnOtherDevice, textAlign: TextAlign.center),
+      const SizedBox(height: DropClipSpacing.xs),
+      SelectableText(
+        s.pin,
+        key: const Key('pair-pin'),
+        style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+              fontWeight: FontWeight.bold,
+              letterSpacing: 4,
+            ),
+      ),
+      const SizedBox(height: DropClipSpacing.xs),
+      SelectableText(
+        s.address,
+        key: const Key('pair-address'),
+        style: Theme.of(context).textTheme.bodySmall,
+      ),
+    ]);
+  }
+
   @override
   Widget build(BuildContext context) {
     final t = MobileStrings.of(context);
     return AlertDialog(
       title: Text(t.pairWithComputer),
-      content: _sas != null
-          ? Column(mainAxisSize: MainAxisSize.min, children: [
-              Text(t.sasQuestion),
-              Text(_sas!,
-                  key: const Key('sas'),
-                  style: Theme.of(context).textTheme.displaySmall),
-            ])
-          : _result != null
-              ? Text(_result!, key: const Key('result'))
-              : Column(mainAxisSize: MainAxisSize.min, children: [
-                  TextField(
-                      key: const Key('host'),
-                      controller: _host,
-                      decoration: InputDecoration(labelText: t.computerIp)),
-                  TextField(
-                      controller: _port,
-                      decoration: InputDecoration(labelText: t.port)),
-                  TextField(
-                      key: const Key('pin'),
-                      controller: _pin,
-                      maxLength: 6,
-                      decoration: const InputDecoration(labelText: 'PIN')),
-                ]),
+      content: SingleChildScrollView(
+        child: _sas != null
+            ? Column(mainAxisSize: MainAxisSize.min, children: [
+                Text(t.sasQuestion),
+                const SizedBox(height: DropClipSpacing.sm),
+                Text(_sas!,
+                    key: const Key('sas'),
+                    style: Theme.of(context).textTheme.displaySmall),
+                if (_hosting && _hostAnswered) ...[
+                  const SizedBox(height: DropClipSpacing.sm),
+                  Text(t.waitingForPeer, textAlign: TextAlign.center),
+                ],
+              ])
+            : _result != null
+                ? Text(_result!, key: const Key('result'))
+                : Column(mainAxisSize: MainAxisSize.min, children: [
+                    _buildModeSwitcher(t),
+                    const SizedBox(height: DropClipSpacing.md),
+                    if (_hosting)
+                      _buildHostBody(context, t)
+                    else ...[
+                      TextField(
+                          key: const Key('host'),
+                          controller: _host,
+                          decoration: InputDecoration(labelText: t.computerIp)),
+                      TextField(
+                          controller: _port,
+                          decoration: InputDecoration(labelText: t.port)),
+                      TextField(
+                          key: const Key('pin'),
+                          controller: _pin,
+                          maxLength: 6,
+                          decoration: const InputDecoration(labelText: 'PIN')),
+                    ],
+                  ]),
+      ),
       actions: [
-        if (_sas != null) ...[
+        if (_sas != null && !_hostAnswered) ...[
           TextButton(onPressed: () => _reply(false), child: Text(t.noMatch)),
           FilledButton(
               key: const Key('match'),
               onPressed: () => _reply(true),
               child: Text(t.match)),
-        ] else if (_result == null) ...[
+        ] else if (_result == null && !_hosting) ...[
           TextButton.icon(
               key: const Key('scan'),
               onPressed: _scan,

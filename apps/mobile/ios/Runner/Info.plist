@@ -7,9 +7,9 @@
 	<key>LSSupportsOpeningDocumentsInPlace</key>
 	<true/>
 	<key>NSCameraUsageDescription</key>
-	<string>DropClip scans the pairing QR code shown on your computer.</string>
+	<string>DropClip scans the pairing QR code shown on your other device.</string>
 	<key>NSLocalNetworkUsageDescription</key>
-	<string>DropClip finds and connects to your paired computers on this network.</string>
+	<string>DropClip finds and connects to your paired devices on this network.</string>
 	<key>NSBonjourServices</key>
 	<array>
 		<string>_dropclip._tcp</string>

@@ -23,6 +23,7 @@ dependencies:
   flutter_secure_storage: ^11.2.0
   path_provider: ^2.1.6
   mobile_scanner: ^7.5.0
+  qr_flutter: ^4.1.0
   shelf: ^1.4.3
   bonsoir: ^7.1.6
   file_picker: ^13.3.3
