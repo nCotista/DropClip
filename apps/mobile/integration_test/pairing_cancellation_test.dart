@@ -36,6 +36,13 @@ class _ObservedPeer implements MobilePeer {
   Future<TrustedDevice> pairWithQr(
           String qr, Future<bool> Function(String, String) confirm) =>
       node.pairWithQr(qr, confirm);
+  @override
+  Stream<PairingHostEvent> get pairingEvents => node.pairingEvents;
+  @override
+  Future<({String pin, String address, String qr})> openPairing() =>
+      node.openPairing();
+  @override
+  void confirmPairing(bool match) => node.confirmPairing(match);
 
   @override
   String get myName => node.myName;
