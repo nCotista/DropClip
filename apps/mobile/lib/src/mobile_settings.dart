@@ -37,5 +37,24 @@ class MobileSettings {
     return const MobileSettings();
   }
 
-  Future<void> save(File file) => file.writeAsString(jsonEncode(toJson()));
+  static final _writeQueues = <String, Future<void>>{};
+
+  /// Persists settings atomically (`tmp` + rename) through a per-path queue
+  /// so rapid toggles never interleave or leave truncated JSON.
+  Future<void> save(File file) {
+    final prev = _writeQueues[file.path] ?? Future<void>.value();
+    final next = prev.catchError((Object _) {}).then((_) async {
+      await file.parent.create(recursive: true);
+      final tmp = File('${file.path}.tmp');
+      try {
+        await tmp.writeAsString(jsonEncode(toJson()), flush: true);
+        await tmp.rename(file.path);
+      } on Object {
+        if (await tmp.exists()) await tmp.delete();
+        rethrow;
+      }
+    });
+    _writeQueues[file.path] = next;
+    return next;
+  }
 }

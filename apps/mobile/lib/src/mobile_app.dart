@@ -153,9 +153,10 @@ class _Home extends StatelessWidget {
       builder: (_, live) => ValueListenableBuilder<List<TrustedDevice>>(
         valueListenable: app.node.trusted,
         builder: (_, devices, __) {
+          final onlineIds = live.data ?? const <String>{};
           final online = [
             for (final d in devices)
-              if (live.data?.contains(d.deviceId) ?? false) d
+              if (onlineIds.contains(d.deviceId)) d
           ];
           return Scaffold(
             appBar: AppBar(title: const Text('DropClip'), actions: [
@@ -232,7 +233,7 @@ class _Home extends StatelessWidget {
                               height: 10,
                               decoration: BoxDecoration(
                                 shape: BoxShape.circle,
-                                color: online.contains(d)
+                                color: onlineIds.contains(d.deviceId)
                                     ? c.success
                                     : c.textTertiary,
                                 border: Border.all(color: c.surface, width: 2),
@@ -242,9 +243,11 @@ class _Home extends StatelessWidget {
                         ]),
                         title: Text(d.name),
                         subtitle: Text(
-                            online.contains(d) ? t.connected : t.offline,
+                            onlineIds.contains(d.deviceId)
+                                ? t.connected
+                                : t.offline,
                             style: TextStyle(
-                                color: online.contains(d)
+                                color: onlineIds.contains(d.deviceId)
                                     ? c.success
                                     : c.textSecondary)),
                         trailing: IconButton(

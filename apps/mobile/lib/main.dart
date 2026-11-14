@@ -15,14 +15,22 @@ Future<void> main() async {
   final dir = await getApplicationSupportDirectory();
   final settingsFile = File('${dir.path}/settings.json');
   final settings = ValueNotifier(await MobileSettings.load(settingsFile));
-  settings.addListener(() => settings.value.save(settingsFile));
+  settings.addListener(() => settings.value.save(settingsFile).ignore());
   final received = ValueNotifier<List<ReceivedClip>>(const []);
   void add(ReceivedClip c) =>
       received.value = [c, ...received.value].take(30).toList();
   // Android: the app's own Download folder; iOS: Documents, which the Files
   // app shows under "On My iPhone › DropClip" (UIFileSharingEnabled).
-  final saveTo = Directory(
-      '${(Platform.isIOS ? null : await getDownloadsDirectory()) ?? (await getApplicationDocumentsDirectory()).path}/DropClip');
+  Directory? dl;
+  if (!Platform.isIOS) {
+    try {
+      dl = await getDownloadsDirectory();
+    } on Object {
+      dl = null;
+    }
+  }
+  final baseDir = dl ?? await getApplicationDocumentsDirectory();
+  final saveTo = Directory('${baseDir.path}/DropClip');
   Future<void> writeClipboard(String text) =>
       Clipboard.setData(ClipboardData(text: text));
   final node = await MobileNode.start(
@@ -58,6 +66,12 @@ Future<void> main() async {
         (await Clipboard.getData(Clipboard.kTextPlain))?.text,
     writeClipboard: writeClipboard,
     pickFile: () async => (await FilePicker.pickFiles()).firstOrNull?.path,
-    openFile: (path) => OpenFilex.open(path),
+    openFile: (path) async {
+      try {
+        if (await File(path).exists()) await OpenFilex.open(path);
+      } on Object {
+        // Missing viewer or file removed after arrival.
+      }
+    },
   ));
 }

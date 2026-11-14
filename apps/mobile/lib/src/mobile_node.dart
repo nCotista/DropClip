@@ -33,6 +33,12 @@ class SecureStorageKeyStore implements SecureKeyStore {
   Future<void> delete(String key) => _s.delete(key: key);
 }
 
+typedef _Incoming = ({
+  String peer,
+  Map<String, FileOfferItem> items,
+  Set<String> completed,
+});
+
 /// This phone on the network (Tier 2, T2.5): identity, Trusted Store, the
 /// Control Plane to paired desktops (the phone always dials, §6.2) and text
 /// clipboard sync through [ClipboardSyncEngine] (FR-03B).
@@ -55,8 +61,10 @@ class MobileNode implements MobilePeer {
 
   late final StreamingFileReceiver _receiver =
       StreamingFileReceiver(destinationRoot: received);
-  final _incoming =
-      <String, ({String peer, Map<String, FileOfferItem> items})>{};
+  final _incoming = <String, _Incoming>{};
+  Future<void> _hostOp = Future<void>.value();
+  Future<void> _msgQueue = Future<void>.value();
+  String _activeSender = '';
   DiscoveryService? _discovery;
   @override
   final ValueNotifier<List<TrustedDevice>> trusted;
@@ -78,7 +86,6 @@ class MobileNode implements MobilePeer {
       this.received,
       this.onFile)
       : trusted = ValueNotifier(store.activeDevices.toList()) {
-    String? sender;
     _engine = ClipboardSyncEngine(
       myId: me.deviceId,
       policy: () => SyncPolicy(
@@ -89,40 +96,50 @@ class MobileNode implements MobilePeer {
         remoteBlobFetcher: (peer, id) => _fetch(peer, '/api/v1/blob/$id'),
         osWriteClipboard: (type, raw) async {
           if (type != ClipType.image) return writeClipboard(utf8.decode(raw));
+          decodePng(raw);
           // shortcut: images are saved and listed, not put on the phone
           // clipboard (Flutter's clipboard is text only); add a plugin for
           // that when it is needed.
-          final f = await StreamingFileReceiver.freeNameFor(File(
-              '${received.path}/image-${DateTime.now().millisecondsSinceEpoch}.png'));
+          final ms = DateTime.now().millisecondsSinceEpoch;
+          final f = await StreamingFileReceiver.freeNameFor(
+              File('${received.path}/image-$ms.png'));
           await f.parent.create(recursive: true);
           await f.writeAsBytes(raw);
-          onFile(f, sender ?? '');
+          onFile(f, _activeSender);
         },
       ),
     );
-    _sub = mesh.messages.listen((m) async {
-      final type = m.envelope.type;
-      if (type == MessageType.deviceRevoked) {
-        // The desktop removed this phone: forget it too (§13.1).
-        await store.removeByDeviceId(m.peerId);
-        await mesh.drop(m.peerId, VersionNegotiator.wsCloseNotPairedOrRevoked);
-        trusted.value = store.activeDevices.toList();
-        return;
-      }
-      if (type == MessageType.fileOffer) return _offered(m);
-      if (type != MessageType.clipboardUpdate) return;
-      try {
-        final u = TransportSyncAdapter.envelopeToClipUpdate(m.envelope);
-        sender = _nameOf(m.peerId);
-        if (await _engine.onRemoteUpdate(u, m.peerId) &&
-            u.inline != null &&
-            u.type != ClipType.image) {
-          onReceived(utf8.decode(u.inline!), _nameOf(m.peerId));
-        }
-      } on Object {
-        // An image the computer no longer has, or a malformed frame.
-      }
+    _sub = mesh.messages.listen((m) {
+      _msgQueue = _swallow(_msgQueue.then<void>((_) => _onMessage(m)));
     });
+  }
+
+  Future<void> _onMessage(PeerMessage m) async {
+    final type = m.envelope.type;
+    if (type == MessageType.deviceRevoked) {
+      // The desktop removed this phone: forget it too (§13.1).
+      _incoming.removeWhere((_, v) => v.peer == m.peerId);
+      await store.removeByDeviceId(m.peerId);
+      await mesh.drop(m.peerId, VersionNegotiator.wsCloseNotPairedOrRevoked);
+      await _updateHosts((hosts) => hosts.remove(m.peerId));
+      trusted.value = store.activeDevices.toList();
+      return;
+    }
+    if (type == MessageType.fileOffer) return _offered(m);
+    if (type != MessageType.clipboardUpdate) return;
+    _activeSender = _nameOf(m.peerId);
+    try {
+      final u = TransportSyncAdapter.envelopeToClipUpdate(m.envelope);
+      if (await _engine.onRemoteUpdate(u, m.peerId) &&
+          u.inline != null &&
+          u.type != ClipType.image) {
+        onReceived(utf8.decode(u.inline!), _nameOf(m.peerId));
+      }
+    } on Object {
+      // An image the computer no longer has, bad PNG, or a malformed frame.
+    } finally {
+      _activeSender = '';
+    }
   }
 
   String _nameOf(String deviceId) =>
@@ -182,14 +199,25 @@ class MobileNode implements MobilePeer {
     final cache = PeerCache(
         localDeviceId: me.deviceId, trustedFingerprint: store.fingerprintOf);
     cache.changes.listen((peers) async {
+      final updates = <String, String>{
+        for (final p in peers)
+          if (p.canAutoConnect && p.state != PeerState.stale)
+            p.deviceId: '${p.address}:${p.record.port}',
+      };
+      if (updates.isEmpty) return;
+      await _withHostLock(() async {
+        final hosts = await _savedHosts();
+        var dirty = false;
+        for (final e in updates.entries) {
+          if (hosts[e.key] != e.value) {
+            hosts[e.key] = e.value;
+            dirty = true;
+          }
+        }
+        if (dirty) await _writeHostsAtomic(hosts);
+      });
       for (final p in peers) {
         if (!p.canAutoConnect || p.state == PeerState.stale) continue;
-        final hosts = await _savedHosts();
-        final at = '${p.address}:${p.record.port}';
-        if (hosts[p.deviceId] != at) {
-          hosts[p.deviceId] = at;
-          await _saveHosts(hosts);
-        }
         unawaited(mesh.reach(p.deviceId, p.address, p.record.port));
       }
     });
@@ -222,12 +250,22 @@ class MobileNode implements MobilePeer {
       final req = await client.httpClient.getUrl(
           Uri(scheme: 'https', host: at.host, port: at.port, path: path));
       final res = await req.close();
-      final bytes = await res.fold<BytesBuilder>(
-          BytesBuilder(copy: false), (b, d) => b..add(d));
       if (res.statusCode != 200) throw HttpException('HTTP ${res.statusCode}');
+      if (res.contentLength > ProtocolConstants.clipboardMaxSize) {
+        throw const ProtocolException(
+            ProtocolErrorCode.payloadTooLarge, 'blob > 32 MiB');
+      }
+      final bytes = BytesBuilder(copy: false);
+      await for (final chunk in res) {
+        if (bytes.length + chunk.length > ProtocolConstants.clipboardMaxSize) {
+          throw const ProtocolException(
+              ProtocolErrorCode.payloadTooLarge, 'blob > 32 MiB');
+        }
+        bytes.add(chunk);
+      }
       return bytes.takeBytes();
     } finally {
-      client.close();
+      client.close(force: true);
     }
   }
 
@@ -235,16 +273,29 @@ class MobileNode implements MobilePeer {
   /// taken (the computer's user chose to send them).
   Future<void> _offered(PeerMessage m) async {
     final p = m.envelope.payload;
-    final tid = p['transfer_id'] as String;
+    final rawTid = p['transfer_id'];
+    final tid = rawTid is String && rawTid.isNotEmpty ? rawTid : '';
     var ok = false;
     try {
+      if (tid.isEmpty) {
+        throw const ProtocolException(
+            ProtocolErrorCode.malformed, 'missing transfer_id');
+      }
+      final rawItems = p['items'] as List;
+      if (rawItems.length > ProtocolConstants.maxItemsPerTransfer) {
+        throw const ProtocolException(
+            ProtocolErrorCode.payloadTooLarge, 'too many items in offer');
+      }
       final items = [
-        for (final j in p['items'] as List)
+        for (final j in rawItems)
           FileOfferItem.fromJson(j as Map<String, dynamic>)
       ];
       await _receiver.validateOffer(items: items);
-      _incoming[tid] =
-          (peer: m.peerId, items: {for (final i in items) i.itemId: i});
+      _incoming[tid] = (
+        peer: m.peerId,
+        items: {for (final i in items) i.itemId: i},
+        completed: <String>{},
+      );
       ok = true;
     } on Object {
       ok = false;
@@ -266,17 +317,42 @@ class MobileNode implements MobilePeer {
   /// sending files (§9); the same steps the desktop receiver serves.
   Future<Response> _route(Request r) async {
     final seg = r.url.pathSegments; // api v1 file <tid> <item|finish>[/status]
-    if (seg.length < 5 || seg[2] != 'file') return Response.notFound(null);
-    final t = _incoming[seg[3]];
+    if (seg.length < 5 ||
+        seg[0] != 'api' ||
+        seg[1] != 'v1' ||
+        seg[2] != 'file') {
+      return Response.notFound(null);
+    }
+    final tid = seg[3];
+    final t = _incoming[tid];
     final fp = r.context[kPeerFingerprintContextKey] as String?;
     if (t == null || store.getByFingerprint(fp ?? '')?.deviceId != t.peer) {
       return _json(404, {'error': 'unknown transfer'});
     }
-    if (seg[4] == 'finish') {
-      _incoming.remove(seg[3]);
+    if (seg.length == 5 && seg[4] == 'finish') {
+      if (r.method != 'POST') return Response(405);
+      final missing = [
+        for (final i in t.items.values)
+          if (!t.completed.contains(i.itemId)) i.itemId
+      ];
+      if (missing.isNotEmpty) {
+        _incoming.remove(tid);
+        unawaited(mesh.broadcast(
+            _envelope(MessageType.fileComplete, {
+              'transfer_id': tid,
+              'state': 'failed',
+              'code': 'E_INCOMPLETE',
+              'items': [
+                for (final id in missing) {'item_id': id}
+              ],
+            }),
+            to: t.peer));
+        return _json(409, {'error': 'incomplete', 'missing': missing});
+      }
+      _incoming.remove(tid);
       unawaited(mesh.broadcast(
           _envelope(MessageType.fileComplete, {
-            'transfer_id': seg[3],
+            'transfer_id': tid,
             'state': 'complete',
             'items': const <Object>[]
           }),
@@ -287,18 +363,34 @@ class MobileNode implements MobilePeer {
     if (item == null) return _json(404, {'error': 'unknown item'});
     final part = _receiver.partFileFor(item);
     if (r.method == 'GET') {
+      if (seg.length != 6 || seg[5] != 'status') return Response.notFound(null);
+      if (t.completed.contains(item.itemId)) {
+        return _json(200, {'offset': item.size, 'state': 'complete'});
+      }
       // Start over: a broken upload resends from 0 (no resume on phones).
       if (await part.exists()) await part.delete();
       return _json(200, {'offset': 0, 'state': 'in_progress'});
     }
-    var at = 0;
+    if (seg.length != 5) return Response.notFound(null);
+    if (r.method != 'POST') return Response(405);
+    final rawOff = r.headers['x-offset'];
+    var at = rawOff == null ? 0 : (int.tryParse(rawOff) ?? -1);
+    if (at < 0) {
+      const e = ProtocolException(
+          ProtocolErrorCode.offsetMismatch, 'invalid x-offset');
+      return _json(e.httpStatus, e.toHttpJson());
+    }
+    if (at == 0 && await part.exists()) await part.delete();
     try {
       final buf = BytesBuilder(copy: false);
       Future<void> write(Uint8List chunk) async {
         final file =
             await _receiver.appendChunk(item: item, offset: at, chunk: chunk);
         at += chunk.length;
-        if (file != null) onFile(file, _nameOf(t.peer));
+        if (file != null) {
+          t.completed.add(item.itemId);
+          onFile(file, _nameOf(t.peer));
+        }
       }
 
       await for (final data in r.read()) {
@@ -313,7 +405,9 @@ class MobileNode implements MobilePeer {
       if (buf.isNotEmpty || (item.size == 0 && at == 0)) {
         await write(buf.takeBytes());
       }
-      return _json(200, {'received_bytes': at, 'state': 'complete'});
+      final state =
+          t.completed.contains(item.itemId) ? 'complete' : 'in_progress';
+      return _json(200, {'received_bytes': at, 'state': state});
     } on ProtocolException catch (e) {
       return _json(e.httpStatus, e.toHttpJson());
     }
@@ -368,14 +462,10 @@ class MobileNode implements MobilePeer {
   }
 
   /// Remembers where the desktop is and dials it.
-  Future<TrustedDevice> _connect(TrustedDevice d, String host, int port) async {
+  Future<TrustedDevice> _connect(
+      TrustedDevice d, String host, int port) async {
     if (d.certPem != null) server.addTrustedPeerCert(d.certPem!);
-    final hosts = await _savedHosts();
-    hosts[d.deviceId] = '$host:$port';
-    // Temp + rename: a kill mid-write must not leave a truncated hosts.json.
-    final tmp = File('${_hosts.path}.tmp');
-    await tmp.writeAsString(jsonEncode(hosts), flush: true);
-    await tmp.rename(_hosts.path);
+    await _updateHosts((hosts) => hosts[d.deviceId] = '$host:$port');
     trusted.value = store.activeDevices.toList();
     unawaited(mesh.reach(d.deviceId, host, port));
     return d;
@@ -383,7 +473,8 @@ class MobileNode implements MobilePeer {
 
   /// Dials every paired desktop at its last known address.
   Future<void> reconnect() async {
-    for (final e in (await _savedHosts()).entries) {
+    final hosts = await _withHostLock(_savedHosts);
+    for (final e in hosts.entries) {
       final addr = e.value;
       if (addr is! String) continue;
       final at = addr.lastIndexOf(':');
@@ -411,15 +502,18 @@ class MobileNode implements MobilePeer {
 
   @override
   Future<void> forget(String deviceId) async {
-    await mesh.broadcast(
-        _envelope(MessageType.deviceRevoked,
-            {'reason': 'user_initiated', 'by': me.deviceId}),
-        to: deviceId);
+    try {
+      await mesh.broadcast(
+          _envelope(MessageType.deviceRevoked,
+              {'reason': 'user_initiated', 'by': me.deviceId}),
+          to: deviceId);
+    } on Object {
+      // Peer may already be offline; local revocation still finishes.
+    }
     await mesh.drop(deviceId, VersionNegotiator.wsCloseNotPairedOrRevoked);
+    _incoming.removeWhere((_, v) => v.peer == deviceId);
     await store.removeByDeviceId(deviceId);
-    final hosts = await _savedHosts()
-      ..remove(deviceId);
-    await _saveHosts(hosts);
+    await _updateHosts((hosts) => hosts.remove(deviceId));
     trusted.value = store.activeDevices.toList();
   }
 
@@ -486,21 +580,33 @@ class MobileNode implements MobilePeer {
 
     try {
       final base = '/api/v1/file/$tid/${item.itemId}';
-      final offset = (jsonDecode(await call('GET', '$base/status'))
-          as Map<String, dynamic>)['offset'] as int;
-      var sent = offset;
-      onProgress?.call(sent, item.size);
-      await call('POST', base,
-          headers: {'x-offset': '$offset'},
-          body: file.openRead(offset).map((b) {
-            sent += b.length;
-            onProgress?.call(sent, item.size);
-            return b;
-          }));
+      final status = jsonDecode(await call('GET', '$base/status'));
+      if (status is! Map<String, dynamic>) {
+        throw const ProtocolException(
+            ProtocolErrorCode.malformed, 'invalid transfer status');
+      }
+      if (status['state'] == 'complete') {
+        onProgress?.call(item.size, item.size);
+      } else {
+        final rawOffset = status['offset'];
+        if (rawOffset is! int || rawOffset < 0 || rawOffset > item.size) {
+          throw const ProtocolException(
+              ProtocolErrorCode.internal, 'invalid resume offset');
+        }
+        var sent = rawOffset;
+        onProgress?.call(sent, item.size);
+        await call('POST', base,
+            headers: {'x-offset': '$rawOffset'},
+            body: file.openRead(rawOffset).map((b) {
+              sent += b.length;
+              onProgress?.call(sent, item.size);
+              return b;
+            }));
+      }
       await call('POST', '/api/v1/file/$tid/finish',
           body: Stream.value(utf8.encode('{}')));
     } finally {
-      client.close();
+      client.close(force: true);
     }
   }
 
@@ -540,17 +646,48 @@ class MobileNode implements MobilePeer {
     }
   }
 
-  /// Temp + rename, like `_connect`: a kill mid-write must not leave a
-  /// truncated hosts.json.
-  Future<void> _saveHosts(Map<String, dynamic> hosts) async {
+  Future<void> _updateHosts(void Function(Map<String, dynamic> hosts) edit) =>
+      _withHostLock(() async {
+        final hosts = await _savedHosts();
+        edit(hosts);
+        await _writeHostsAtomic(hosts);
+      });
+
+  Future<T> _withHostLock<T>(Future<T> Function() action) {
+    final run = _hostOp.then<T>((_) => action());
+    _hostOp = _swallow(run);
+    return run;
+  }
+
+  static Future<void> _swallow(Future<Object?> future) async {
+    try {
+      await future;
+    } on Object {
+      // Errors stay on the caller's future without wedging the queue.
+    }
+  }
+
+  /// Temp + rename: a kill mid-write must not leave a truncated hosts.json.
+  Future<void> _writeHostsAtomic(Map<String, dynamic> hosts) async {
     final tmp = File('${_hosts.path}.tmp');
-    await tmp.writeAsString(jsonEncode(hosts), flush: true);
-    await tmp.rename(_hosts.path);
+    try {
+      await tmp.writeAsString(jsonEncode(hosts), flush: true);
+      await tmp.rename(_hosts.path);
+    } on Object {
+      try {
+        if (await tmp.exists()) await tmp.delete();
+      } on Object {
+        // Best-effort cleanup before rethrowing.
+      }
+      rethrow;
+    }
   }
 
   Future<void> close() async {
     await _discovery?.stop();
     await _sub.cancel();
+    await _msgQueue;
+    await _hostOp;
     _engine.dispose();
     await mesh.close();
     await server.close(force: true);

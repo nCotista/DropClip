@@ -55,7 +55,13 @@ class BonsoirMdnsBackend implements MdnsBackend {
       final discovery =
           _discovery = BonsoirDiscovery(type: serviceType, printLogs: false);
       await discovery.initialize();
+      if (out.isClosed) {
+        await discovery.stop();
+        if (identical(_discovery, discovery)) _discovery = null;
+        return;
+      }
       events = discovery.eventStream!.listen((event) {
+        if (out.isClosed) return;
         switch (event) {
           case BonsoirDiscoveryServiceFoundEvent(:final service):
             _known[service.name] = service;

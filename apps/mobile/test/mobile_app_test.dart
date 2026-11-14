@@ -295,6 +295,20 @@ void main() {
     expect((await MobileSettings.load(f)).language, 'en');
   });
 
+  test('concurrent settings saves serialize without tmp leftovers', () async {
+    final dir = await Directory.systemTemp.createTemp('dc_settings_race_');
+    addTearDown(() => dir.delete(recursive: true));
+    final f = File('${dir.path}/settings.json');
+    await Future.wait([
+      for (var i = 0; i < 12; i++)
+        MobileSettings(language: i.isEven ? 'en' : 'th', syncEnabled: i.isEven)
+            .save(f),
+    ]);
+    final back = await MobileSettings.load(f);
+    expect((back.language, back.syncEnabled), ('th', false));
+    expect(File('${f.path}.tmp').existsSync(), isFalse);
+  });
+
   testWidgets('pair by IP + PIN with SAS, then send the clipboard',
       (tester) async {
     final peer = _FakePeer();
