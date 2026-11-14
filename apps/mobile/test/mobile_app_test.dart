@@ -41,6 +41,26 @@ class _FakePeer implements MobilePeer {
           Future<bool> Function(String sas, String hostName) confirm) =>
       pair('qr', 0, scanned, confirm);
 
+  final hostEvents = StreamController<PairingHostEvent>.broadcast();
+  final hostDecisions = <bool>[];
+  int openCalls = 0;
+
+  @override
+  Stream<PairingHostEvent> get pairingEvents => hostEvents.stream;
+
+  @override
+  Future<({String pin, String address, String qr})> openPairing() async {
+    openCalls++;
+    return (
+      pin: '482910',
+      address: '192.168.1.20:53317',
+      qr: '{"t":"dropclip-pair","v":1}'
+    );
+  }
+
+  @override
+  void confirmPairing(bool match) => hostDecisions.add(match);
+
   @override
   void sendText(String text) => sent.add(text);
 

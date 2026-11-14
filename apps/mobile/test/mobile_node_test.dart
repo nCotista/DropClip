@@ -675,4 +675,177 @@ void main() {
     expect(File('${hostsFile.path}.tmp').existsSync(), isFalse);
     await expectLater(pair.phone.reconnect(), completes);
   });
+
+  group('phone-to-phone peer pairing and transfer', () {
+    Future<MobileNode> startPhone(
+            Directory dir,
+            SecureKeyStore keys,
+            String name,
+            String os,
+            StreamController<String> texts,
+            StreamController<File> files) =>
+        MobileNode.start(
+          dir: dir,
+          keys: keys,
+          name: name,
+          os: os,
+          writeClipboard: (t) async => texts.add(t),
+          onReceived: (_, __) {},
+          onFile: (f, _) => files.add(f),
+          localIp: () async => '127.0.0.1',
+        );
+
+    Future<
+        ({
+          MobileNode android,
+          MobileNode ios,
+          Directory aDir,
+          InMemorySecureKeyStore aKeys,
+          StreamController<String> aText,
+          StreamController<String> iText,
+          StreamController<File> aFiles,
+          StreamController<File> iFiles
+        })> pairedPhones(Directory dir, {bool useQr = true}) async {
+      final aText = StreamController<String>.broadcast();
+      final iText = StreamController<String>.broadcast();
+      final aFiles = StreamController<File>.broadcast();
+      final iFiles = StreamController<File>.broadcast();
+      addTearDown(aText.close);
+      addTearDown(iText.close);
+      addTearDown(aFiles.close);
+      addTearDown(iFiles.close);
+      final aDir = Directory('${dir.path}/android');
+      final aKeys = InMemorySecureKeyStore();
+      final android =
+          await startPhone(aDir, aKeys, 'Pixel 9', 'android', aText, aFiles);
+      final ios = await startPhone(Directory('${dir.path}/ios'),
+          InMemorySecureKeyStore(), 'iPhone 16', 'ios', iText, iFiles);
+      addTearDown(ios.close);
+      final session = await android.openPairing();
+      String? hostSas;
+      final sasSub = android.pairingEvents.listen((e) {
+        if (e is PairingSasReady) {
+          hostSas = e.sas;
+          android.confirmPairing(true);
+        }
+      });
+      addTearDown(sasSub.cancel);
+      final aUp = android.connectedChanges
+          .firstWhere((ids) => ids.contains(ios.me.deviceId));
+      final iUp = ios.connectedChanges
+          .firstWhere((ids) => ids.contains(android.me.deviceId));
+      Future<bool> confirm(String sas, String hostName) async {
+        expect((hostName, sas), ('Pixel 9', hostSas));
+        return true;
+      }
+
+      await (useQr
+          ? ios.pairWithQr(session.qr, confirm)
+          : ios.pair('127.0.0.1', android.server.port, session.pin, confirm));
+      await Future.wait<void>([aUp, iUp]).timeout(const Duration(seconds: 5));
+      return (
+        android: android,
+        ios: ios,
+        aDir: aDir,
+        aKeys: aKeys,
+        aText: aText,
+        iText: iText,
+        aFiles: aFiles,
+        iFiles: iFiles,
+      );
+    }
+
+    test('Android and iOS pair by QR, sync clipboard, and send files both ways',
+        () async {
+      final dir = await Directory.systemTemp.createTemp('dc_p2p_qr_');
+      addTearDown(() => dir.delete(recursive: true));
+      final p = await pairedPhones(dir);
+      addTearDown(p.android.close);
+      expect(p.android.trusted.value.single.tier, 3);
+      expect(p.ios.trusted.value.single.tier, 2);
+
+      final toIos = p.iText.stream.first;
+      p.android.sendText('hello ios');
+      expect(await toIos.timeout(const Duration(seconds: 5)), 'hello ios');
+      final toAnd = p.aText.stream.first;
+      p.ios.sendText('hello android');
+      expect(await toAnd.timeout(const Duration(seconds: 5)), 'hello android');
+
+      final f1 = File('${dir.path}/a.bin')
+        ..writeAsBytesSync(utf8.encode('A->I'));
+      final f2 = File('${dir.path}/i.bin')
+        ..writeAsBytesSync(utf8.encode('I->A'));
+      final gotI = p.iFiles.stream.first;
+      await p.android.sendFile(p.ios.me.deviceId, f1.path);
+      expect(
+          (await gotI.timeout(const Duration(seconds: 5))).readAsStringSync(),
+          'A->I');
+      final gotA = p.aFiles.stream.first;
+      await p.ios.sendFile(p.android.me.deviceId, f2.path);
+      expect(
+          (await gotA.timeout(const Duration(seconds: 5))).readAsStringSync(),
+          'I->A');
+    });
+
+    test(
+        'PIN pair persists host port so inbound reconnect allows return sendFile',
+        () async {
+      final dir = await Directory.systemTemp.createTemp('dc_p2p_pin_');
+      addTearDown(() => dir.delete(recursive: true));
+      final p = await pairedPhones(dir, useQr: false);
+      await p.android.close();
+      final restarted = await startPhone(
+          p.aDir, p.aKeys, 'Pixel 9', 'android', p.aText, p.aFiles);
+      addTearDown(restarted.close);
+      final linked = restarted.connectedChanges
+          .firstWhere((ids) => ids.contains(p.ios.me.deviceId));
+      await p.ios.reconnect();
+      await linked.timeout(const Duration(seconds: 5));
+      final f = File('${dir.path}/r.txt')..writeAsStringSync('after-restart');
+      final got = p.iFiles.stream.first;
+      await restarted.sendFile(p.ios.me.deviceId, f.path);
+      expect((await got.timeout(const Duration(seconds: 5))).readAsStringSync(),
+          'after-restart');
+    });
+
+    test('host SAS rejection blocks trust and forget revokes both phones',
+        () async {
+      final dir = await Directory.systemTemp.createTemp('dc_p2p_edge_');
+      addTearDown(() => dir.delete(recursive: true));
+      final t1 = StreamController<String>.broadcast();
+      final t2 = StreamController<String>.broadcast();
+      final f1 = StreamController<File>.broadcast();
+      final f2 = StreamController<File>.broadcast();
+      addTearDown(() =>
+          Future.wait<void>([t1.close(), t2.close(), f1.close(), f2.close()]));
+      final host = await startPhone(Directory('${dir.path}/h'),
+          InMemorySecureKeyStore(), 'Host', 'android', t1, f1);
+      final joiner = await startPhone(Directory('${dir.path}/j'),
+          InMemorySecureKeyStore(), 'Joiner', 'ios', t2, f2);
+      addTearDown(host.close);
+      addTearDown(joiner.close);
+      final s = await host.openPairing();
+      final sub = host.pairingEvents.listen((e) {
+        if (e is PairingSasReady) host.confirmPairing(false);
+      });
+      addTearDown(sub.cancel);
+      await expectLater(joiner.pairWithQr(s.qr, (_, __) async => true),
+          throwsA(isA<PairingClientException>()));
+      expect(host.trusted.value, isEmpty);
+      expect(joiner.trusted.value, isEmpty);
+
+      final p = await pairedPhones(Directory('${dir.path}/p2')..createSync());
+      addTearDown(p.android.close);
+      final iosCleared = p.ios.trusted;
+      await p.android.forget(p.ios.me.deviceId);
+      for (var i = 0; i < 100 && iosCleared.value.isNotEmpty; i++) {
+        await Future<void>.delayed(const Duration(milliseconds: 20));
+      }
+      expect(p.android.trusted.value, isEmpty);
+      expect(iosCleared.value, isEmpty);
+      await expectLater(
+          p.android.sendFile(p.ios.me.deviceId, '${dir.path}/missing'),
+          throwsStateError);
+    });
+  });
 }

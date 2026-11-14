@@ -40,18 +40,19 @@ class _Incoming {
   _Incoming(this.peer, this.items);
 }
 
-/// This phone on the network (Tier 2, T2.5): identity, Trusted Store, the
-/// Control Plane to paired desktops (the phone always dials, §6.2) and text
-/// clipboard sync through [ClipboardSyncEngine] (FR-03B).
+/// This device on the LAN (Tier 2 Android / Tier 3 iOS): identity, Trusted
+/// Store, bidirectional pairing Host + Client, Control Plane mesh (§6.2), and
+/// clipboard/file sync through [ClipboardSyncEngine] (FR-03B).
 class MobileNode implements MobilePeer {
   final DeviceIdentityManager ids;
   final TrustedDeviceStore store;
   final PeerMesh mesh;
+  final PairingHost pairing;
   final File _hosts;
   final Future<void> Function(String text) writeClipboard;
   final void Function(String text, String from) onReceived;
 
-  /// The mTLS server paired computers send files and images to (§9).
+  /// The mTLS server paired devices send files and images to (§9).
   final TlsTransportServer server;
 
   /// Where received files and images are saved.
@@ -63,6 +64,7 @@ class MobileNode implements MobilePeer {
   late final StreamingFileReceiver _receiver =
       StreamingFileReceiver(destinationRoot: received);
   final _incoming = <String, _Incoming>{};
+  final _addresses = <String, (String host, int port)>{};
   Future<void> _hostOp = Future<void>.value();
   Future<void> _msgQueue = Future<void>.value();
   String _activeSender = '';
@@ -71,6 +73,8 @@ class MobileNode implements MobilePeer {
   final ValueNotifier<List<TrustedDevice>> trusted;
   late final ClipboardSyncEngine _engine;
   late final StreamSubscription<PeerMessage> _sub;
+  late final StreamSubscription<PairingHostEvent> _pairSub;
+  final Future<String> Function() _localIp;
   Timer? _watchdog;
 
   /// Settings switch: off stops sending and receiving clips.
@@ -80,13 +84,15 @@ class MobileNode implements MobilePeer {
       this.ids,
       this.store,
       this.mesh,
+      this.pairing,
       this._hosts,
       this.writeClipboard,
       this.onReceived,
       this.syncEnabled,
       this.server,
       this.received,
-      this.onFile)
+      this.onFile,
+      this._localIp)
       : trusted = ValueNotifier(store.activeDevices.toList()) {
     _engine = ClipboardSyncEngine(
       myId: me.deviceId,
@@ -111,7 +117,22 @@ class MobileNode implements MobilePeer {
         },
       ),
     );
-    // A computer's hello may carry a new name (it was renamed): show it.
+    _pairSub = pairing.events.listen((event) {
+      if (event
+          case PairingCompleted(
+            :final device,
+            :final clientIp,
+            :final clientPort,
+          )) {
+        if (clientIp != null && clientPort != null) {
+          _addresses[device.deviceId] = (clientIp, clientPort);
+          unawaited(_updateHosts(
+              (hosts) => hosts[device.deviceId] = '$clientIp:$clientPort'));
+          unawaited(mesh.reach(device.deviceId, clientIp, clientPort));
+        }
+      }
+    });
+    // A peer's hello may carry a new name (it was renamed): show it.
     mesh.peerChanges
         .listen((_) => trusted.value = store.activeDevices.toList());
     _sub = mesh.messages.listen((m) {
@@ -122,8 +143,9 @@ class MobileNode implements MobilePeer {
   Future<void> _onMessage(PeerMessage m) async {
     final type = m.envelope.type;
     if (type == MessageType.deviceRevoked) {
-      // The desktop removed this phone: forget it too (§13.1).
+      // The peer removed this device: forget it too (§13.1).
       _incoming.removeWhere((_, v) => v.peer == m.peerId);
+      _addresses.remove(m.peerId);
       await store.removeByDeviceId(m.peerId);
       await mesh.drop(m.peerId, VersionNegotiator.wsCloseNotPairedOrRevoked);
       await _updateHosts((hosts) => hosts.remove(m.peerId));
@@ -168,6 +190,7 @@ class MobileNode implements MobilePeer {
     bool Function()? syncEnabled,
     Directory? received,
     void Function(File file, String from)? onFile,
+    Future<String> Function()? localIp,
   }) async {
     final ids = DeviceIdentityManager(
         storageDir: Directory('${dir.path}/identity'), keyStore: keys);
@@ -177,9 +200,23 @@ class MobileNode implements MobilePeer {
     await store.load();
     late MobileNode node;
     final mesh = PeerMesh(identity: ids, store: store, hello: () => node.hello);
-    final server = await TlsTransportServer.bindForIdentity(
+    late final TlsTransportServer server;
+    final pairing = PairingHost(
+      engine: PairingEngine(
+        hostIdentity: ids.identity,
+        trustedStore: store,
+        hostTier: ids.identity.os == 'ios' ? 3 : 2,
+      ),
+      store: store,
+      onPaired: (d) {
+        if (d.certPem != null) server.addTrustedPeerCert(d.certPem!);
+        node.trusted.value = store.activeDevices.toList();
+      },
+    );
+    server = await TlsTransportServer.bindForIdentity(
       identity: ids,
       store: store,
+      pairingHandler: pairing.handler,
       pinnedHandler: (r) => node._route(r),
       webSocket: (r, fp) => unawaited(mesh.accept(r, fp)),
     );
@@ -187,13 +224,15 @@ class MobileNode implements MobilePeer {
         ids,
         store,
         mesh,
+        pairing,
         File('${dir.path}/hosts.json'),
         writeClipboard,
         onReceived,
         syncEnabled ?? () => true,
         server,
         received ?? Directory('${dir.path}/received'),
-        onFile ?? (_, __) {});
+        onFile ?? (_, __) {},
+        localIp ?? () => localLanIpv4());
   }
 
   /// Finds paired computers on the Wi-Fi and announces this phone, so it
@@ -222,6 +261,7 @@ class MobileNode implements MobilePeer {
       });
       for (final p in peers) {
         if (!p.canAutoConnect || p.state == PeerState.stale) continue;
+        _addresses[p.deviceId] = (p.address, p.record.port);
         unawaited(mesh.reach(p.deviceId, p.address, p.record.port));
       }
     });
@@ -239,19 +279,29 @@ class MobileNode implements MobilePeer {
         capabilities: const ['clip.text', 'clip.image', 'file'],
       );
 
-  /// `GET` [path] from paired [peerId] over pinned mTLS (e.g. a blob, §9.3).
-  Future<Uint8List> _fetch(String peerId, String path) async {
+  Future<({String host, int port, TrustedDevice peer})> _resolvePeer(
+      String peerId) async {
     final at = mesh.linkAddress(peerId);
     final peer = store.getByDeviceId(peerId);
-    if (at == null || at.port == null || peer == null) {
-      throw StateError('computer is not connected');
+    if (at == null || peer == null) {
+      throw StateError('device is not connected');
     }
+    final port = at.port ??
+        _addresses[peerId]?.$2 ??
+        _parseHostPort((await _withHostLock(_savedHosts))[peerId])?.$2;
+    if (port == null) throw StateError('device is not connected');
+    return (host: at.host, port: port, peer: peer);
+  }
+
+  /// `GET` [path] from paired [peerId] over pinned mTLS (e.g. a blob, §9.3).
+  Future<Uint8List> _fetch(String peerId, String path) async {
+    final target = await _resolvePeer(peerId);
     final client = await PinnedTransportClient.forIdentity(
-        identity: ids, store: store, expectedFp: peer.fp);
+        identity: ids, store: store, expectedFp: target.peer.fp);
     client.httpClient.connectionTimeout = const Duration(seconds: 5);
     try {
-      final req = await client.httpClient.getUrl(
-          Uri(scheme: 'https', host: at.host, port: at.port, path: path));
+      final req = await client.httpClient.getUrl(Uri(
+          scheme: 'https', host: target.host, port: target.port, path: path));
       final res = await req.close();
       if (res.statusCode != 200) throw HttpException('HTTP ${res.statusCode}');
       if (res.contentLength > ProtocolConstants.clipboardMaxSize) {
@@ -427,7 +477,24 @@ class MobileNode implements MobilePeer {
       tombstonesHash: '',
       tombstoneCount: 0);
 
-  /// Pairs with the desktop at [host]:[port] using the PIN it shows (§5,
+  @override
+  Stream<PairingHostEvent> get pairingEvents => pairing.events;
+
+  @override
+  Future<({String pin, String address, String qr})> openPairing() async {
+    final ip = await _localIp();
+    final s = pairing.open(ip: ip, port: server.port);
+    return (
+      pin: s.pin,
+      address: '$ip:${server.port}',
+      qr: jsonEncode(s.qr.toJson()),
+    );
+  }
+
+  @override
+  void confirmPairing(bool match) => pairing.confirm(match);
+
+  /// Pairs with the peer at [host]:[port] using the PIN it shows (§5,
   /// manual IP + PIN), then connects to it.
   @override
   Future<TrustedDevice> pairWithQr(String scanned,
@@ -440,7 +507,12 @@ class MobileNode implements MobilePeer {
           'E_PAIRING_INVALID', 'not a DropClip QR');
     }
     final d = await PairingClient.pairWithQr(
-        qr: qr, me: me, store: store, confirmSas: confirm, tier: _tier);
+        qr: qr,
+        me: me,
+        store: store,
+        confirmSas: confirm,
+        tier: _tier,
+        clientPort: server.port);
     return _connect(d, qr['ip'] as String, qr['port'] as int);
   }
 
@@ -454,45 +526,53 @@ class MobileNode implements MobilePeer {
         me: me,
         store: store,
         confirmSas: confirm,
-        tier: _tier);
+        tier: _tier,
+        clientPort: server.port);
     return _connect(d, host, port);
   }
 
-  /// Remembers where the desktop is and dials it.
+  /// Remembers where the peer is and dials it.
   Future<TrustedDevice> _connect(TrustedDevice d, String host, int port) async {
     if (d.certPem != null) server.addTrustedPeerCert(d.certPem!);
+    _addresses[d.deviceId] = (host, port);
     await _updateHosts((hosts) => hosts[d.deviceId] = '$host:$port');
     trusted.value = store.activeDevices.toList();
     unawaited(mesh.reach(d.deviceId, host, port));
     return d;
   }
 
-  /// Dials every paired desktop at its last known address.
+  /// Dials every paired peer at its last known address.
   ///
-  /// Also starts a watchdog that redials any saved computer that is still
+  /// Also starts a watchdog that redials any saved peer that is still
   /// offline: right after launch iOS may refuse local connections (network
-  /// not up, Local Network permission pending) and a computer that was
+  /// not up, Local Network permission pending) and a peer that was
   /// asleep comes back later; neither may be announced again over mDNS.
   Future<void> reconnect() async {
     _watchdog ??= Timer.periodic(watchdogEvery, (_) => unawaited(_redial()));
     await _redial(force: true);
   }
 
-  /// How often [reconnect]'s watchdog checks for offline computers.
+  /// How often [reconnect]'s watchdog checks for offline peers.
   static Duration watchdogEvery = const Duration(seconds: 10);
+
+  static (String, int)? _parseHostPort(Object? raw) {
+    if (raw is! String) return null;
+    final at = raw.lastIndexOf(':');
+    if (at <= 0) return null;
+    final port = int.tryParse(raw.substring(at + 1));
+    if (port == null || port <= 0 || port > 65535) return null;
+    return (raw.substring(0, at), port);
+  }
 
   Future<void> _redial({bool force = false}) async {
     for (final e in (await _withHostLock(_savedHosts)).entries) {
       if (!force && mesh.connected.contains(e.key)) continue;
-      final addr = e.value;
-      if (addr is! String) continue;
-      final at = addr.lastIndexOf(':');
-      if (at <= 0) continue;
-      final port = int.tryParse(addr.substring(at + 1));
-      if (port == null) continue;
+      final parsed = _parseHostPort(e.value);
+      if (parsed == null) continue;
+      _addresses[e.key] = parsed;
       // A phone back from doze still holds a half-open socket that Dart has
       // not marked closed; force redials instead of trusting `isClosed`.
-      unawaited(mesh.reach(e.key, addr.substring(0, at), port, force: force));
+      unawaited(mesh.reach(e.key, parsed.$1, parsed.$2, force: force));
     }
   }
 
@@ -527,6 +607,7 @@ class MobileNode implements MobilePeer {
     }
     await mesh.drop(deviceId, VersionNegotiator.wsCloseNotPairedOrRevoked);
     _incoming.removeWhere((_, v) => v.peer == deviceId);
+    _addresses.remove(deviceId);
     await store.removeByDeviceId(deviceId);
     await _updateHosts((hosts) => hosts.remove(deviceId));
     trusted.value = store.activeDevices.toList();
@@ -537,11 +618,7 @@ class MobileNode implements MobilePeer {
   @override
   Future<void> sendFile(String deviceId, String path,
       {void Function(int sent, int total)? onProgress}) async {
-    final at = mesh.linkAddress(deviceId);
-    final peer = store.getByDeviceId(deviceId);
-    if (at == null || at.port == null || peer == null) {
-      throw StateError('computer is not connected');
-    }
+    final target = await _resolvePeer(deviceId);
     final file = File(path);
     final item = FileOfferItem(
       itemId: 'i0',
@@ -572,13 +649,13 @@ class MobileNode implements MobilePeer {
         }),
         to: deviceId);
     if ((await reply).envelope.type != MessageType.fileAccept) {
-      throw StateError('the computer declined the file');
+      throw StateError('the device declined the file');
     }
     final client = await PinnedTransportClient.forIdentity(
-        identity: ids, store: store, expectedFp: peer.fp);
+        identity: ids, store: store, expectedFp: target.peer.fp);
     client.httpClient.connectionTimeout = const Duration(seconds: 5);
     Uri url(String p) =>
-        Uri(scheme: 'https', host: at.host, port: at.port, path: p);
+        Uri(scheme: 'https', host: target.host, port: target.port, path: p);
     Future<String> call(String method, String p,
         {Stream<List<int>>? body,
         Map<String, String> headers = const {}}) async {
@@ -701,10 +778,12 @@ class MobileNode implements MobilePeer {
   Future<void> close() async {
     _watchdog?.cancel();
     await _discovery?.stop();
+    await _pairSub.cancel();
     await _sub.cancel();
     await _msgQueue;
     await _hostOp;
     _engine.dispose();
+    await pairing.close();
     await mesh.close();
     await server.close(force: true);
   }
