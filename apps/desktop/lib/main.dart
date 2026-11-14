@@ -4,7 +4,6 @@ import 'dart:io';
 
 import 'package:dropclip_clipboard/dropclip_clipboard.dart';
 import 'package:dropclip_core/dropclip_core.dart';
-import 'package:dropclip_protocol/dropclip_protocol.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 

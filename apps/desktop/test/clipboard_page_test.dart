@@ -44,12 +44,15 @@ void main() {
     const lin = '/tmp/a/x.pdf';
     final openLin =
         openCommand(lin, reveal: false, macOS: false, windows: false);
-    final revLin =
-        openCommand(lin, reveal: true, macOS: false, windows: false);
-    expect(openLin, ('xdg-open', [lin]));
-    expect(revLin, ('xdg-open', ['/tmp/a']));
-    expect(openCommand('-bad.pdf', reveal: false, macOS: true),
-        ('open', ['./-bad.pdf']));
+    final revLin = openCommand(lin, reveal: true, macOS: false, windows: false);
+    // Records holding a List compare the List by identity: check the parts.
+    expect(openLin.$1, 'xdg-open');
+    expect(openLin.$2, [lin]);
+    expect(revLin.$1, 'xdg-open');
+    expect(revLin.$2, ['/tmp/a']);
+    final dash = openCommand('-bad.pdf', reveal: false, macOS: true);
+    expect(dash.$1, 'open');
+    expect(dash.$2, ['./-bad.pdf']);
   });
 
   test('runOpenWithSystem guards missing files, shell flags, and failures',
@@ -68,7 +71,11 @@ void main() {
     expect(missing, isFalse);
     expect(calls, 0);
 
-    final weird = File('${tmp.path}/a & calc | b.txt');
+    // `|` is not allowed in Windows file names; `&` and spaces still test
+    // that nothing goes through a shell.
+    final weird = File(Platform.isWindows
+        ? '${tmp.path}/a & calc b.txt'
+        : '${tmp.path}/a & calc | b.txt');
     await weird.writeAsString('hi');
     late String gotExe;
     late List<String> gotArgs;
