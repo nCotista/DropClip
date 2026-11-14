@@ -63,6 +63,28 @@ jobs:
             if (-not (Test-Path (Join-Path $t $f))) { throw "missing $f after install" }
           }
 
+      # The uninstaller used to delete the "Apps & features" entry before the
+      # folder, so a locked file left a half-removed app that could not be
+      # uninstalled again. Install with shortcuts, uninstall silently, and
+      # require both the folder and the entry to disappear.
+      - name: Smoke-test uninstall (folder, shortcuts and Apps & features entry)
+        shell: pwsh
+        run: |
+          $x = Join-Path $env:RUNNER_TEMP 'setup'
+          $t = Join-Path $env:RUNNER_TEMP 'DropClipUninstall'
+          $key = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\DropClip'
+          & "$x/install.ps1" -Target $t -NoLaunch
+          if (-not (Test-Path $key)) { throw 'install did not write the Apps & features entry' }
+          & "$t/uninstall.ps1" -Silent
+          $deadline = (Get-Date).AddSeconds(60)
+          while ((Test-Path $t) -and (Get-Date) -lt $deadline) { Start-Sleep -Milliseconds 500 }
+          if (Test-Path $t) {
+            Get-Content (Join-Path $env:TEMP 'dropclip-uninstall.log') -ErrorAction SilentlyContinue
+            throw "uninstall left $t behind"
+          }
+          while ((Test-Path $key) -and (Get-Date) -lt $deadline) { Start-Sleep -Milliseconds 500 }
+          if (Test-Path $key) { throw 'uninstall left the Apps & features entry' }
+
       - uses: actions/upload-artifact@v4
         with:
           name: DropClip-Setup-${{ steps.pack.outputs.version }}
