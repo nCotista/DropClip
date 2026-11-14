@@ -1,6 +1,6 @@
 name: dropclip_mobile
 description: DropClip Mobile Application Target (Android & iOS)
-version: 1.0.7+8
+version: 1.0.8+9
 publish_to: none
 
 environment:
