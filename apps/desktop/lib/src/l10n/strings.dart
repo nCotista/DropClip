@@ -79,6 +79,7 @@ abstract class Strings {
   String get nearbyDevices;
   String onlineCount(int n);
   String get noDevicesNearby;
+  String get phoneOnScreenHint;
   String get pairNewDevice;
 
   // Pairing (T1.3, UI-03)
@@ -273,6 +274,9 @@ class EnStrings extends Strings {
   String onlineCount(int n) => '$n online';
   @override
   String get noDevicesNearby => 'No devices nearby';
+  @override
+  String get phoneOnScreenHint =>
+      'Phones show up while DropClip is open on their screen.';
   @override
   String get pairNewDevice => 'Pair new device';
   @override
@@ -514,6 +518,9 @@ class ThStrings extends Strings {
   String onlineCount(int n) => 'ออนไลน์ $n เครื่อง';
   @override
   String get noDevicesNearby => 'ไม่พบอุปกรณ์ใกล้เคียง';
+  @override
+  String get phoneOnScreenHint =>
+      'มือถือจะขึ้นในรายการเมื่อเปิดแอป DropClip ค้างไว้บนหน้าจอ';
   @override
   String get pairNewDevice => 'จับคู่อุปกรณ์ใหม่';
   @override

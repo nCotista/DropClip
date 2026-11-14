@@ -124,6 +124,7 @@ void main() {
         (tester) async {
       await show(tester, devices: const []);
       expect(find.text('No devices nearby'), findsOneWidget);
+      expect(find.textContaining('DropClip is open'), findsOneWidget);
       await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);
       await tester.sendKeyEvent(LogicalKeyboardKey.enter);
       expect(sent, isEmpty);

@@ -145,8 +145,12 @@ class _DropzonePanelState extends State<DropzonePanel> {
                     letterSpacing: 0.8,
                     color: c.textTertiary)),
             const SizedBox(height: DropClipSpacing.sm),
-            if (widget.devices.isEmpty)
+            if (widget.devices.isEmpty) ...[
               Text(s.noDevicesNearby, style: TextStyle(color: c.textSecondary)),
+              // iOS pauses DropClip when the phone locks; it leaves the list.
+              Text(s.phoneOnScreenHint,
+                  style: TextStyle(fontSize: 12, color: c.textTertiary)),
+            ],
             for (final (i, d) in widget.devices.indexed)
               _DeviceChoice(
                   device: d,
