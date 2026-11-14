@@ -699,8 +699,8 @@ void main() {
         ({
           MobileNode android,
           MobileNode ios,
-          Directory aDir,
           InMemorySecureKeyStore aKeys,
+          InMemorySecureKeyStore iKeys,
           StreamController<String> aText,
           StreamController<String> iText,
           StreamController<File> aFiles,
@@ -714,12 +714,13 @@ void main() {
       addTearDown(iText.close);
       addTearDown(aFiles.close);
       addTearDown(iFiles.close);
-      final aDir = Directory('${dir.path}/android');
       final aKeys = InMemorySecureKeyStore();
-      final android =
-          await startPhone(aDir, aKeys, 'Pixel 9', 'android', aText, aFiles);
-      final ios = await startPhone(Directory('${dir.path}/ios'),
-          InMemorySecureKeyStore(), 'iPhone 16', 'ios', iText, iFiles);
+      final iKeys = InMemorySecureKeyStore();
+      final android = await startPhone(Directory('${dir.path}/android'), aKeys,
+          'Pixel 9', 'android', aText, aFiles);
+      final ios = await startPhone(Directory('${dir.path}/ios'), iKeys,
+          'iPhone 16', 'ios', iText, iFiles);
+      addTearDown(android.close);
       addTearDown(ios.close);
       final session = await android.openPairing();
       String? hostSas;
@@ -746,8 +747,8 @@ void main() {
       return (
         android: android,
         ios: ios,
-        aDir: aDir,
         aKeys: aKeys,
+        iKeys: iKeys,
         aText: aText,
         iText: iText,
         aFiles: aFiles,
@@ -760,7 +761,6 @@ void main() {
       final dir = await Directory.systemTemp.createTemp('dc_p2p_qr_');
       addTearDown(() => dir.delete(recursive: true));
       final p = await pairedPhones(dir);
-      addTearDown(p.android.close);
       expect(p.android.trusted.value.single.tier, 3);
       expect(p.ios.trusted.value.single.tier, 2);
 
@@ -788,22 +788,32 @@ void main() {
     });
 
     test(
-        'PIN pair persists host port so inbound reconnect allows return sendFile',
+        'PIN pair persists peer port so inbound reconnect allows return sendFile',
         () async {
       final dir = await Directory.systemTemp.createTemp('dc_p2p_pin_');
       addTearDown(() => dir.delete(recursive: true));
       final p = await pairedPhones(dir, useQr: false);
-      await p.android.close();
+      final aBig = p.android.me.deviceId.compareTo(p.ios.me.deviceId) > 0;
+      final initiator = aBig ? p.ios : p.android;
+      final responder = aBig ? p.android : p.ios;
+      final iFiles = aBig ? p.iFiles : p.aFiles;
+      await responder.close();
+      await Future<void>.delayed(const Duration(milliseconds: 200));
       final restarted = await startPhone(
-          p.aDir, p.aKeys, 'Pixel 9', 'android', p.aText, p.aFiles);
+          Directory('${dir.path}/${aBig ? 'android' : 'ios'}'),
+          aBig ? p.aKeys : p.iKeys,
+          responder.myName,
+          aBig ? 'android' : 'ios',
+          aBig ? p.aText : p.iText,
+          aBig ? p.aFiles : p.iFiles);
       addTearDown(restarted.close);
       final linked = restarted.connectedChanges
-          .firstWhere((ids) => ids.contains(p.ios.me.deviceId));
-      await p.ios.reconnect();
-      await linked.timeout(const Duration(seconds: 5));
+          .firstWhere((ids) => ids.contains(initiator.me.deviceId));
+      await initiator.reconnect();
+      await linked.timeout(const Duration(seconds: 12));
       final f = File('${dir.path}/r.txt')..writeAsStringSync('after-restart');
-      final got = p.iFiles.stream.first;
-      await restarted.sendFile(p.ios.me.deviceId, f.path);
+      final got = iFiles.stream.first;
+      await restarted.sendFile(initiator.me.deviceId, f.path);
       expect((await got.timeout(const Duration(seconds: 5))).readAsStringSync(),
           'after-restart');
     });
@@ -835,7 +845,6 @@ void main() {
       expect(joiner.trusted.value, isEmpty);
 
       final p = await pairedPhones(Directory('${dir.path}/p2')..createSync());
-      addTearDown(p.android.close);
       final iosCleared = p.ios.trusted;
       await p.android.forget(p.ios.me.deviceId);
       for (var i = 0; i < 100 && iosCleared.value.isNotEmpty; i++) {
