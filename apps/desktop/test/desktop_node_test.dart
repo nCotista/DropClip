@@ -48,6 +48,39 @@ void main() {
     expect(pickLanAddress([nic('Loopback', '127.0.0.1')]), '127.0.0.1');
   });
 
+  test('a renamed PC keeps its identity; a paired peer shows the new name',
+      () async {
+    final host = await _node('Host'), client = await _node('Client');
+    final session = await host.openPairing();
+    host.pairing.events.listen((e) {
+      if (e is PairingSasReady) host.pairing.confirm(true);
+    });
+    final done = host.pairing.events.firstWhere((e) => e is PairingCompleted);
+    await client.pairWith(
+        _seen(host, PeerTrust.untrusted), session.pin, (_, __) async => true);
+    await done;
+    final id = host.me.deviceId, fp = host.me.fp;
+
+    await host.rename('  Office PC  ');
+    expect(host.me.name, 'Office PC');
+    expect((host.me.deviceId, host.me.fp), (id, fp));
+    expect(host.record.name, 'Office PC');
+    expect(client.trusted.value.single.name, 'Host');
+
+    // The next connection's hello carries the new name.
+    final up = host.mesh.peerChanges.firstWhere((p) => p.isNotEmpty);
+    client.onPeers([_seen(host, PeerTrust.trusted)]);
+    host.onPeers([_seen(client, PeerTrust.trusted)]);
+    await up.timeout(const Duration(seconds: 5));
+    for (var i = 0;
+        i < 100 && client.trusted.value.single.name != 'Office PC';
+        i++) {
+      await Future<void>.delayed(const Duration(milliseconds: 20));
+    }
+    expect(client.trusted.value.single.name, 'Office PC');
+    await expectLater(host.rename('   '), throwsArgumentError);
+  });
+
   test('identity, port and fingerprint survive a restart', () async {
     final dir = await Directory.systemTemp.createTemp('dc_node_');
     addTearDown(

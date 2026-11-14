@@ -142,6 +142,33 @@ class DeviceIdentityManager {
     return _identity = created.identity;
   }
 
+  /// Changes this device's display name (what peers and discovery show).
+  /// The key, certificate and device id stay the same, so pairings remain.
+  Future<DeviceIdentity> rename(String name) async {
+    final clean = name.trim();
+    if (clean.isEmpty) throw ArgumentError.value(name, 'name', 'is empty');
+    final old = identity;
+    if (clean == old.name) return old;
+    final next = DeviceIdentity(
+      version: old.version,
+      deviceId: old.deviceId,
+      name: clean,
+      os: old.os,
+      certDer: old.certDer,
+      certPem: old.certPem,
+      fp: old.fp,
+      createdAt: old.createdAt,
+    );
+    final file = File('${storageDir.path}/$kIdentityFileName');
+    // Temp + rename: a kill mid-write must not lose the identity.
+    final tmp = File('${file.path}.tmp');
+    await tmp.writeAsString(
+        const JsonEncoder.withIndent('  ').convert(next.toJson()),
+        flush: true);
+    await tmp.rename(file.path);
+    return _identity = next;
+  }
+
   /// Reads the envelope-protected ECDSA P-256 private key PEM from [keyStore].
   Future<Uint8List> loadPrivateKeyPem() async {
     final keyBytes = await keyStore.read(kIdentityKeyStoreKey);

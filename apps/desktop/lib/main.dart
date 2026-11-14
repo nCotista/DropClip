@@ -107,6 +107,17 @@ Future<void> main(List<String> args) async {
     onDebug: (m) => log.debug('discovery', m),
   );
   discovery.cache.changes.listen(node.onPeers);
+  // Settings → Device name is the source of truth: rename the identity and
+  // announce the new name on Wi-Fi; paired peers learn it from our hello.
+  Future<void> applyName() async {
+    final want = store.config.value.deviceName.trim();
+    if (want.isEmpty || want == node.me.name) return;
+    await node.rename(want);
+    discovery.service.updateRecord(node.record);
+  }
+
+  store.config.addListener(() => unawaited(applyName()));
+  unawaited(applyName());
   node.mesh.peerChanges
       .listen((ids) => log.info('mesh', 'connected', {'peers': ids.length}));
   // Everything the shell shows is live: the adapter and address this PC is

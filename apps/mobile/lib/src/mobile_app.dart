@@ -499,10 +499,23 @@ class _SettingsPage extends StatelessWidget {
       body: ValueListenableBuilder<MobileSettings>(
         valueListenable: app.settings,
         builder: (_, s, __) => ListView(children: [
-          ListTile(
+          StatefulBuilder(
+            builder: (context, setTile) => ListTile(
+              key: const Key('phone-name'),
               leading: const Icon(Icons.smartphone),
-              title: Text(t.thisPhone),
-              subtitle: Text(app.node.myName)),
+              title: Text(t.phoneName),
+              subtitle: Text(app.node.myName),
+              trailing: const Icon(Icons.edit_outlined),
+              onTap: () async {
+                final name = await showDialog<String>(
+                    context: context,
+                    builder: (_) => _RenameDialog(current: app.node.myName));
+                if (name == null || name == app.node.myName) return;
+                await app.node.rename(name);
+                setTile(() {});
+              },
+            ),
+          ),
           SwitchListTile(
               key: const Key('sync-switch'),
               secondary: const Icon(Icons.sync),
@@ -527,6 +540,55 @@ class _SettingsPage extends StatelessWidget {
           ),
         ]),
       ),
+    );
+  }
+}
+
+class _RenameDialog extends StatefulWidget {
+  final String current;
+
+  const _RenameDialog({required this.current});
+
+  @override
+  State<_RenameDialog> createState() => _RenameDialogState();
+}
+
+class _RenameDialogState extends State<_RenameDialog> {
+  late final _text = TextEditingController(text: widget.current);
+
+  @override
+  void dispose() {
+    _text.dispose();
+    super.dispose();
+  }
+
+  void _save() {
+    final name = _text.text.trim();
+    if (name.isNotEmpty) Navigator.pop(context, name);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final t = MobileStrings.of(context);
+    return AlertDialog(
+      title: Text(t.phoneName),
+      content: Column(mainAxisSize: MainAxisSize.min, children: [
+        TextField(
+            key: const Key('rename-field'),
+            controller: _text,
+            autofocus: true,
+            maxLength: 64,
+            onSubmitted: (_) => _save()),
+        Text(t.phoneNameHint, style: Theme.of(context).textTheme.bodySmall),
+      ]),
+      actions: [
+        TextButton(
+            onPressed: () => Navigator.pop(context), child: Text(t.cancel)),
+        FilledButton(
+            key: const Key('rename-save'),
+            onPressed: _save,
+            child: Text(t.save)),
+      ],
     );
   }
 }

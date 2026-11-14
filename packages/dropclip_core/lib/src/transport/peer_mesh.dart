@@ -185,10 +185,14 @@ class PeerMesh {
     try {
       Object? lastError;
       for (final at in List.of(known)) {
-        final client = await PinnedTransportClient.forIdentity(
-            identity: identity, store: store, expectedFp: peer.fp);
-        client.httpClient.connectionTimeout = dialTimeout;
+        PinnedTransportClient? client;
         try {
+          // Inside the try: if reading the key fails (e.g. the iOS keychain
+          // right after launch) the peer must still be retried, or it stays
+          // offline until the app restarts.
+          client = await PinnedTransportClient.forIdentity(
+              identity: identity, store: store, expectedFp: peer.fp);
+          client.httpClient.connectionTimeout = dialTimeout;
           final ws = await client
               .connectWebSocket(Uri(
                   scheme: 'wss',
@@ -210,7 +214,7 @@ class PeerMesh {
           return;
         } on Object catch (e) {
           lastError = e;
-          client.close(force: true);
+          client?.close(force: true);
         }
         if (_closed) return;
       }
@@ -338,6 +342,12 @@ class PeerMesh {
       await s.shutdown(4004, 'device id does not match pinned cert');
     } else if (s.isReady) {
       markReady();
+      // The peer renamed itself: show the name it now uses (§7.4 hello).
+      final known = store.getByDeviceId(peerId);
+      final name = s.remoteHello!.name.trim();
+      if (known != null && name.isNotEmpty && known.name != name) {
+        await store.upsert(known.copyWith(name: name));
+      }
       if (s.clockSkewMeasured) _skew[peerId] = s.clockSkewMs;
       onEvent?.call('ready', {
         'peer': peerId,

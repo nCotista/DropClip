@@ -71,6 +71,7 @@ class MobileNode implements MobilePeer {
   final ValueNotifier<List<TrustedDevice>> trusted;
   late final ClipboardSyncEngine _engine;
   late final StreamSubscription<PeerMessage> _sub;
+  Timer? _watchdog;
 
   /// Settings switch: off stops sending and receiving clips.
   final bool Function() syncEnabled;
@@ -110,6 +111,9 @@ class MobileNode implements MobilePeer {
         },
       ),
     );
+    // A computer's hello may carry a new name (it was renamed): show it.
+    mesh.peerChanges
+        .listen((_) => trusted.value = store.activeDevices.toList());
     _sub = mesh.messages.listen((m) {
       _msgQueue = _swallow(_msgQueue.then<void>((_) => _onMessage(m)));
     });
@@ -221,20 +225,19 @@ class MobileNode implements MobilePeer {
         unawaited(mesh.reach(p.deviceId, p.address, p.record.port));
       }
     });
-    _discovery = DiscoveryService(
-      backend: backend,
-      cache: cache,
-      record: DiscoveryRecord(
+    _discovery =
+        DiscoveryService(backend: backend, cache: cache, record: _record);
+    await _discovery!.start();
+  }
+
+  DiscoveryRecord get _record => DiscoveryRecord(
         deviceId: me.deviceId,
         name: me.name,
         os: DeviceOs.values.byName(me.os),
         port: server.port,
         fingerprint: me.fp,
         capabilities: const ['clip.text', 'clip.image', 'file'],
-      ),
-    );
-    await _discovery!.start();
-  }
+      );
 
   /// `GET` [path] from paired [peerId] over pinned mTLS (e.g. a blob, §9.3).
   Future<Uint8List> _fetch(String peerId, String path) async {
@@ -417,7 +420,7 @@ class MobileNode implements MobilePeer {
       name: me.name,
       os: me.os,
       tier: _tier,
-      appVersion: '1.0.0',
+      appVersion: '1.0.6',
       capabilities: _tier == 3
           ? const ['clip.text', 'clip.image', 'file']
           : const ['clip.text', 'clip.push', 'clip.image', 'file'],
@@ -465,9 +468,22 @@ class MobileNode implements MobilePeer {
   }
 
   /// Dials every paired desktop at its last known address.
+  ///
+  /// Also starts a watchdog that redials any saved computer that is still
+  /// offline: right after launch iOS may refuse local connections (network
+  /// not up, Local Network permission pending) and a computer that was
+  /// asleep comes back later; neither may be announced again over mDNS.
   Future<void> reconnect() async {
-    final hosts = await _withHostLock(_savedHosts);
-    for (final e in hosts.entries) {
+    _watchdog ??= Timer.periodic(watchdogEvery, (_) => unawaited(_redial()));
+    await _redial(force: true);
+  }
+
+  /// How often [reconnect]'s watchdog checks for offline computers.
+  static Duration watchdogEvery = const Duration(seconds: 10);
+
+  Future<void> _redial({bool force = false}) async {
+    for (final e in (await _withHostLock(_savedHosts)).entries) {
+      if (!force && mesh.connected.contains(e.key)) continue;
       final addr = e.value;
       if (addr is! String) continue;
       final at = addr.lastIndexOf(':');
@@ -476,7 +492,7 @@ class MobileNode implements MobilePeer {
       if (port == null) continue;
       // A phone back from doze still holds a half-open socket that Dart has
       // not marked closed; force redials instead of trusting `isClosed`.
-      unawaited(mesh.reach(e.key, addr.substring(0, at), port, force: true));
+      unawaited(mesh.reach(e.key, addr.substring(0, at), port, force: force));
     }
   }
 
@@ -492,6 +508,12 @@ class MobileNode implements MobilePeer {
 
   @override
   String get myName => me.name;
+
+  @override
+  Future<void> rename(String name) async {
+    await ids.rename(name);
+    _discovery?.updateRecord(_record);
+  }
 
   @override
   Future<void> forget(String deviceId) async {
@@ -677,6 +699,7 @@ class MobileNode implements MobilePeer {
   }
 
   Future<void> close() async {
+    _watchdog?.cancel();
     await _discovery?.stop();
     await _sub.cancel();
     await _msgQueue;

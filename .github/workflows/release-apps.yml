@@ -57,16 +57,19 @@ jobs:
         run: |
           mkdir -p out
           cp apps/mobile/build/app/outputs/flutter-apk/app-release.apk out/DropClip-Android.apk
+          # A copy named with the version, like DropClip-Setup-<v>.exe.
+          v=$(grep -m1 '^version:' apps/mobile/pubspec.yaml | sed 's/^version: *//; s/+.*//')
+          cp out/DropClip-Android.apk "out/DropClip-Android-$v.apk"
       - uses: actions/upload-artifact@v4
         with:
           name: DropClip-Android
-          path: out/DropClip-Android.apk
+          path: out/DropClip-Android*.apk
       - name: Attach to release
         if: github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/')
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ inputs.tag || github.ref_name }}
-          files: out/DropClip-Android.apk
+          files: out/DropClip-Android*.apk
 
   macos:
     name: macOS app
@@ -92,16 +95,18 @@ jobs:
           lipo -archs "$app/Contents/MacOS/"* || true
           # ditto keeps symlinks, permissions and extended attributes.
           ditto -c -k --sequesterRsrc --keepParent "$app" out/DropClip-macOS.zip
+          v=$(grep -m1 '^version:' apps/desktop/pubspec.yaml | sed 's/^version: *//; s/+.*//')
+          cp out/DropClip-macOS.zip "out/DropClip-macOS-$v.zip"
       - uses: actions/upload-artifact@v4
         with:
           name: DropClip-macOS
-          path: out/DropClip-macOS.zip
+          path: out/DropClip-macOS*.zip
       - name: Attach to release
         if: github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/')
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ inputs.tag || github.ref_name }}
-          files: out/DropClip-macOS.zip
+          files: out/DropClip-macOS*.zip
 
   ios:
     name: iOS app (unsigned)
@@ -123,13 +128,15 @@ jobs:
           mkdir -p out/Payload
           cp -R apps/mobile/build/ios/iphoneos/Runner.app out/Payload/
           (cd out && zip -qry DropClip-iOS-unsigned.ipa Payload)
+          v=$(grep -m1 '^version:' apps/mobile/pubspec.yaml | sed 's/^version: *//; s/+.*//')
+          cp out/DropClip-iOS-unsigned.ipa "out/DropClip-iOS-$v-unsigned.ipa"
       - uses: actions/upload-artifact@v4
         with:
           name: DropClip-iOS-unsigned
-          path: out/DropClip-iOS-unsigned.ipa
+          path: out/DropClip-iOS*.ipa
       - name: Attach to release
         if: github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/')
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ inputs.tag || github.ref_name }}
-          files: out/DropClip-iOS-unsigned.ipa
+          files: out/DropClip-iOS*.ipa

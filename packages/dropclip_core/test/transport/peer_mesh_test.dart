@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:dropclip_core/dropclip_core.dart';
 import 'package:dropclip_protocol/dropclip_protocol.dart';
@@ -19,10 +20,11 @@ class _Node {
   static Future<_Node> start(String name,
       {Duration? grace,
       Duration? stableAfter,
-      ReconnectBackoffPolicy? backoff}) async {
+      ReconnectBackoffPolicy? backoff,
+      SecureKeyStore? keys}) async {
     final n = _Node();
     final dir = await Directory.systemTemp.createTemp('dc_mesh_');
-    final keys = InMemorySecureKeyStore();
+    keys ??= InMemorySecureKeyStore();
     n.ids = DeviceIdentityManager(storageDir: dir, keyStore: keys);
     await n.ids.loadOrCreate(deviceName: name, os: 'windows');
     n.store = TrustedDeviceStore(
@@ -76,6 +78,17 @@ class _Node {
       certPem: other.ids.identity.certPem,
       pairedAt: 0,
       lastSeenAt: 0));
+}
+
+/// A keychain that can be made to fail, as iOS may right after launch.
+class _FlakyKeys extends InMemorySecureKeyStore {
+  bool failing = false;
+
+  @override
+  Future<Uint8List?> read(String key) async {
+    if (failing) throw StateError('keychain not available');
+    return super.read(key);
+  }
 }
 
 /// Backoff that records which attempt it was asked for and waits briefly.
@@ -288,5 +301,62 @@ void main() {
     await dialer.mesh.close();
     await redial;
     expect(dialer.mesh.connected, isEmpty);
+  });
+  test('a peer that vanished without closing is replaced by its new link',
+      () async {
+    final (dialer, other) = await pair();
+    // The first link goes through a proxy that later freezes: the phone was
+    // killed (or lost Wi-Fi) and no FIN reaches the computer, so `other`
+    // still holds a session that looks open.
+    var frozen = false;
+    final held = <Socket>[];
+    final proxy = await ServerSocket.bind(InternetAddress.loopbackIPv4, 0);
+    addTearDown(() async {
+      await proxy.close();
+      for (final s in held) {
+        s.destroy();
+      }
+    });
+    proxy.listen((inbound) async {
+      // ignore: close_sinks, destroyed in tearDown via `held`.
+      final out =
+          await Socket.connect(InternetAddress.loopbackIPv4, other.server.port);
+      held.addAll([inbound, out]);
+      inbound.listen((d) => frozen ? null : out.add(d), onError: (_) {});
+      out.listen((d) => frozen ? null : inbound.add(d), onError: (_) {});
+    });
+    await dialer.mesh.reach(other.id, '127.0.0.1', proxy.port);
+    await until(() => other.mesh.connected.contains(dialer.id));
+    await until(() => dialer.mesh.connected.contains(other.id));
+    frozen = true;
+
+    // The app starts again and dials the computer directly.
+    await dialer.mesh
+        .reach(other.id, '127.0.0.1', other.server.port, force: true);
+    await until(() => dialer.mesh.connected.contains(other.id), seconds: 10);
+    final atDialer = dialer.mesh.messages.first;
+    await other.mesh.broadcast(_clip(other.id));
+    expect(
+        (await atDialer.timeout(const Duration(seconds: 5))).peerId, other.id);
+  });
+
+  test('a dial that fails before connecting is retried (keychain error)',
+      () async {
+    final backoff = _Recorded();
+    final kx = _FlakyKeys(), ky = _FlakyKeys();
+    final x = await _Node.start('X', keys: kx, backoff: backoff),
+        y = await _Node.start('Y', keys: ky, backoff: backoff);
+    await x.trust(y);
+    await y.trust(x);
+    await x.listen();
+    await y.listen();
+    final (dialer, other, keys) =
+        x.id.compareTo(y.id) < 0 ? (x, y, kx) : (y, x, ky);
+    keys.failing = true;
+    await dialer.mesh.reach(other.id, '127.0.0.1', other.server.port);
+    expect(dialer.mesh.connected, isEmpty);
+    keys.failing = false;
+    await until(() => dialer.mesh.connected.contains(other.id));
+    expect(backoff.attempts, isNotEmpty);
   });
 }
