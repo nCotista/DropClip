@@ -19,9 +19,10 @@ Future<void> main() async {
   final received = ValueNotifier<List<ReceivedClip>>(const []);
   void add(ReceivedClip c) =>
       received.value = [c, ...received.value].take(30).toList();
-  // Android: the app's own Download folder (visible in Files); iOS: Documents.
+  // Android: the app's own Download folder; iOS: Documents, which the Files
+  // app shows under "On My iPhone › DropClip" (UIFileSharingEnabled).
   final saveTo = Directory(
-      '${(await getDownloadsDirectory() ?? await getApplicationDocumentsDirectory()).path}/DropClip');
+      '${(Platform.isIOS ? null : await getDownloadsDirectory()) ?? (await getApplicationDocumentsDirectory()).path}/DropClip');
   Future<void> writeClipboard(String text) =>
       Clipboard.setData(ClipboardData(text: text));
   final node = await MobileNode.start(
