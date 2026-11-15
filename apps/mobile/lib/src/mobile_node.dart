@@ -37,7 +37,10 @@ class _Incoming {
   final String peer;
   final Map<String, FileOfferItem> items;
   final completed = <String>{};
-  _Incoming(this.peer, this.items);
+
+  /// Its own receiver, so its `.part` files are its own.
+  final StreamingFileReceiver receiver;
+  _Incoming(this.peer, this.items, this.receiver);
 }
 
 /// This device on the LAN (Tier 2 Android / Tier 3 iOS): identity, Trusted
@@ -61,8 +64,6 @@ class MobileNode implements MobilePeer {
   /// A file or image from [from] is saved at [file].
   final void Function(File file, String from) onFile;
 
-  late final StreamingFileReceiver _receiver =
-      StreamingFileReceiver(destinationRoot: received);
   final _incoming = <String, _Incoming>{};
   final _addresses = <String, (String host, int port)>{};
   Future<void> _hostOp = Future<void>.value();
@@ -347,9 +348,11 @@ class MobileNode implements MobilePeer {
         for (final j in rawItems)
           FileOfferItem.fromJson(j as Map<String, dynamic>)
       ];
-      await _receiver.validateOffer(items: items);
+      final receiver =
+          StreamingFileReceiver(destinationRoot: received, transferId: tid);
+      await receiver.validateOffer(items: items);
       final byId = {for (final i in items) i.itemId: i};
-      _incoming[tid] = _Incoming(m.peerId, byId);
+      _incoming[tid] = _Incoming(m.peerId, byId, receiver);
       ok = true;
     } on Object {
       ok = false;
@@ -412,7 +415,7 @@ class MobileNode implements MobilePeer {
     }
     final item = t.items[seg[4]];
     if (item == null) return _json(404, {'error': 'unknown item'});
-    final part = _receiver.partFileFor(item);
+    final part = t.receiver.partFileFor(item);
     if (r.method == 'GET') {
       if (seg.length != 6 || seg[5] != 'status') return Response.notFound(null);
       if (t.completed.contains(item.itemId)) {
@@ -436,7 +439,7 @@ class MobileNode implements MobilePeer {
       final buf = BytesBuilder(copy: false);
       Future<void> write(Uint8List chunk) async {
         final file =
-            await _receiver.appendChunk(item: item, offset: at, chunk: chunk);
+            await t.receiver.appendChunk(item: item, offset: at, chunk: chunk);
         at += chunk.length;
         if (file != null) {
           t.completed.add(item.itemId);
