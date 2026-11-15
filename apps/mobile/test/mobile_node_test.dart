@@ -467,4 +467,107 @@ void main() {
     await expectLater(phone.reconnect(), completes);
     expect(File('${base.path}/hosts.json.corrupt').existsSync(), isTrue);
   });
+
+  /// A phone paired with the fake desktop, which has offered it one file
+  /// (`bytes`, as transfer [tid]); [call] talks to the phone's file server
+  /// as the desktop would.
+  Future<
+      ({
+        Future<HttpClientResponse> Function(String, String, [List<int>?]) call,
+        Stream<Envelope> fromPhone,
+      })> offered(String tid, List<int> bytes) async {
+    final dir = await Directory.systemTemp.createTemp('dc_recv_bug_');
+    addTearDown(() => dir.delete(recursive: true));
+    final desk = await _desktop(dir);
+    final phone = await MobileNode.start(
+        dir: Directory('${dir.path}/phone'),
+        keys: InMemorySecureKeyStore(),
+        name: 'Pixel',
+        os: 'android',
+        writeClipboard: (_) async {},
+        onReceived: (_, __) {},
+        received: Directory('${dir.path}/Download'));
+    addTearDown(phone.close);
+    final pin = desk.pairing.open(ip: '127.0.0.1', port: desk.port).pin;
+    desk.pairing.events.listen((e) {
+      if (e is PairingSasReady) desk.pairing.confirm(true);
+    });
+    final linked = desk.mesh.peerChanges.firstWhere((p) => p.isNotEmpty);
+    await phone.pair('127.0.0.1', desk.port, pin, (_, __) async => true);
+    await linked.timeout(const Duration(seconds: 5));
+    await Future<void>.delayed(const Duration(milliseconds: 200));
+    final fromPhone =
+        desk.mesh.messages.map((m) => m.envelope).asBroadcastStream();
+    final accepted = fromPhone.firstWhere((e) =>
+        e.type == MessageType.fileAccept && e.payload['transfer_id'] == tid);
+    await desk.mesh.broadcast(Envelope(
+        type: MessageType.fileOffer,
+        msgId: '00000000-0000-4000-8000-0000000000e2',
+        origin: desk.id,
+        hlc: Hlc.now(desk.id),
+        ts: DateTime.now().millisecondsSinceEpoch,
+        payload: {
+          'transfer_id': tid,
+          'items': [
+            FileOfferItem(
+                    itemId: 'i0',
+                    path: 'report.pdf',
+                    size: bytes.length,
+                    sha256: sha256.convert(bytes).toString(),
+                    mime: 'application/pdf',
+                    modifiedAt: 0)
+                .toJson()
+          ],
+          'manifest': false,
+          'total_size': bytes.length,
+          'total_count': 1,
+        }));
+    await accepted.timeout(const Duration(seconds: 5));
+    final client = await PinnedTransportClient.forIdentity(
+        identity: desk.ids, store: desk.store, expectedFp: phone.me.fp);
+    addTearDown(client.close);
+    Future<HttpClientResponse> call(String method, String path,
+        [List<int>? body]) async {
+      final req = await client.httpClient.openUrl(
+          method,
+          Uri(
+              scheme: 'https',
+              host: '127.0.0.1',
+              port: phone.server.port,
+              path: path));
+      if (body != null) req.add(body);
+      return req.close();
+    }
+
+    return (call: call, fromPhone: fromPhone);
+  }
+
+  test('BUG-01: the phone refuses "finish" when the file never arrived',
+      () async {
+    const tid = '00000000-0000-4000-8000-0000000000e1';
+    final bytes = List<int>.generate(5000, (i) => i % 7);
+    final p = await offered(tid, bytes);
+    final done = p.fromPhone.firstWhere((e) =>
+        e.type == MessageType.fileComplete && e.payload['transfer_id'] == tid);
+    // The upload broke (or was never sent) and the computer says finish.
+    final res = await p.call('POST', '/api/v1/file/$tid/finish', []);
+    await res.drain<void>();
+    // Same rule as the desktop receiver: finish is not proof of the bytes.
+    expect(res.statusCode, 409);
+    expect((await done.timeout(const Duration(seconds: 5))).payload['state'],
+        'failed');
+  });
+
+  test('BUG-02: a cut-off upload is not reported as complete', () async {
+    const tid = '00000000-0000-4000-8000-0000000000e3';
+    final bytes = List<int>.generate(5000, (i) => i % 7);
+    final p = await offered(tid, bytes);
+    await (await p.call('GET', '/api/v1/file/$tid/i0/status')).drain<void>();
+    // Only half the file reaches the phone (Wi-Fi drop, app paused).
+    final res =
+        await p.call('POST', '/api/v1/file/$tid/i0', bytes.sublist(0, 2500));
+    final body = jsonDecode(await utf8.decodeStream(res)) as Map;
+    expect(body['received_bytes'], 2500);
+    expect(body['state'], isNot('complete'));
+  });
 }

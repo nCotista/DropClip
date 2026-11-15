@@ -53,10 +53,15 @@ class MobileNode implements MobilePeer {
   /// A file or image from [from] is saved at [file].
   final void Function(File file, String from) onFile;
 
-  late final StreamingFileReceiver _receiver =
-      StreamingFileReceiver(destinationRoot: received);
-  final _incoming =
-      <String, ({String peer, Map<String, FileOfferItem> items})>{};
+  final _incoming = <String,
+      ({
+    String peer,
+    Map<String, FileOfferItem> items,
+    StreamingFileReceiver receiver,
+
+    /// Items that arrived whole, were verified and saved.
+    Set<String> saved,
+  })>{};
   DiscoveryService? _discovery;
   @override
   final ValueNotifier<List<TrustedDevice>> trusted;
@@ -238,16 +243,24 @@ class MobileNode implements MobilePeer {
   /// taken (the computer's user chose to send them).
   Future<void> _offered(PeerMessage m) async {
     final p = m.envelope.payload;
-    final tid = p['transfer_id'] as String;
+    final rawTid = p['transfer_id'];
+    if (rawTid is! String) return; // nothing to answer to
+    final tid = rawTid;
     var ok = false;
     try {
       final items = [
         for (final j in p['items'] as List)
           FileOfferItem.fromJson(j as Map<String, dynamic>)
       ];
-      await _receiver.validateOffer(items: items);
-      _incoming[tid] =
-          (peer: m.peerId, items: {for (final i in items) i.itemId: i});
+      final receiver =
+          StreamingFileReceiver(destinationRoot: received, transferId: tid);
+      await receiver.validateOffer(items: items);
+      _incoming[tid] = (
+        peer: m.peerId,
+        items: {for (final i in items) i.itemId: i},
+        receiver: receiver,
+        saved: <String>{},
+      );
       ok = true;
     } on Object {
       ok = false;
@@ -277,19 +290,37 @@ class MobileNode implements MobilePeer {
     }
     if (seg[4] == 'finish') {
       _incoming.remove(seg[3]);
+      // "finish" is not proof the bytes arrived: every item must have been
+      // received whole, verified and saved (as the desktop receiver checks).
+      final missing = [
+        for (final id in t.items.keys)
+          if (!t.saved.contains(id)) id
+      ];
+      for (final id in missing) {
+        final part = t.receiver.partFileFor(t.items[id]!);
+        if (await part.exists()) await part.delete();
+      }
       unawaited(mesh.broadcast(
           _envelope(MessageType.fileComplete, {
             'transfer_id': seg[3],
-            'state': 'complete',
-            'items': const <Object>[]
+            'state': missing.isEmpty ? 'complete' : 'failed',
+            if (missing.isNotEmpty) 'code': 'E_INCOMPLETE',
+            'items': [
+              for (final id in missing) {'item_id': id}
+            ],
           }),
           to: t.peer));
-      return _json(200, {'state': 'complete'});
+      return missing.isEmpty
+          ? _json(200, {'state': 'complete'})
+          : _json(409, {'error': 'incomplete', 'missing': missing});
     }
     final item = t.items[seg[4]];
     if (item == null) return _json(404, {'error': 'unknown item'});
-    final part = _receiver.partFileFor(item);
+    final part = t.receiver.partFileFor(item);
     if (r.method == 'GET') {
+      if (t.saved.contains(item.itemId)) {
+        return _json(200, {'offset': item.size, 'state': 'complete'});
+      }
       // Start over: a broken upload resends from 0 (no resume on phones).
       if (await part.exists()) await part.delete();
       return _json(200, {'offset': 0, 'state': 'in_progress'});
@@ -299,9 +330,12 @@ class MobileNode implements MobilePeer {
       final buf = BytesBuilder(copy: false);
       Future<void> write(Uint8List chunk) async {
         final file =
-            await _receiver.appendChunk(item: item, offset: at, chunk: chunk);
+            await t.receiver.appendChunk(item: item, offset: at, chunk: chunk);
         at += chunk.length;
-        if (file != null) onFile(file, _nameOf(t.peer));
+        if (file != null) {
+          t.saved.add(item.itemId);
+          onFile(file, _nameOf(t.peer));
+        }
       }
 
       await for (final data in r.read()) {
@@ -316,7 +350,10 @@ class MobileNode implements MobilePeer {
       if (buf.isNotEmpty || (item.size == 0 && at == 0)) {
         await write(buf.takeBytes());
       }
-      return _json(200, {'received_bytes': at, 'state': 'complete'});
+      return _json(200, {
+        'received_bytes': at,
+        'state': t.saved.contains(item.itemId) ? 'complete' : 'in_progress'
+      });
     } on ProtocolException catch (e) {
       return _json(e.httpStatus, e.toHttpJson());
     }

@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
 
@@ -129,11 +130,21 @@ class StreamingFileReceiver {
   final Future<int> Function()? availableDiskBytes;
   final void Function(String itemId, int bytesWritten)? onCheckpointEligible;
 
+  /// Keeps this transfer's `.part` files apart from another transfer's
+  /// file of the same name; empty without a transfer id.
+  final String _partTag;
+
+  /// [transferId] (the peer's `transfer_id`, untrusted) gives every transfer
+  /// its own `.part` files: two `photo.jpg` arriving at once must not write
+  /// into one file. Only a hash of it reaches the file name.
   StreamingFileReceiver({
     required this.destinationRoot,
     this.availableDiskBytes,
     this.onCheckpointEligible,
-  });
+    String? transferId,
+  }) : _partTag = transferId == null
+            ? ''
+            : '.${sha256.convert(utf8.encode(transferId)).toString().substring(0, 12)}';
 
   /// Validates an entire offer batch for path traversal, reserved names,
   /// case-insensitive collisions, and available disk space.
@@ -157,7 +168,7 @@ class StreamingFileReceiver {
 
   File partFileFor(FileOfferItem item) {
     final safeRel = PathSanitizer.sanitize(item.path);
-    return File('${destinationRoot.path}/$safeRel.part');
+    return File('${destinationRoot.path}/$safeRel$_partTag.part');
   }
 
   File finalFileFor(FileOfferItem item) {
