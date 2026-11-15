@@ -1,3 +1,5 @@
+import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
 
@@ -125,15 +127,43 @@ class StreamingFileSender {
 /// Receives streaming file chunks into `.part` files, enforces path safety and
 /// disk quotas, and verifies SHA-256 before atomic rename (T1.10, §12.3).
 class StreamingFileReceiver {
+  static final _finalizeLocks = <String, Future<void>>{};
+
+  static Future<File> _serializeRename(
+    String lockKey,
+    Future<File> Function() action,
+  ) {
+    final prev = _finalizeLocks[lockKey] ?? Future<void>.value();
+    final current = prev.then((_) => action());
+    final guard = current.then<void>((_) {}, onError: (Object _) {});
+    _finalizeLocks[lockKey] = guard;
+    unawaited(guard.whenComplete(() {
+      if (identical(_finalizeLocks[lockKey], guard)) {
+        _finalizeLocks.remove(lockKey);
+      }
+    }));
+    return current;
+  }
+
   final Directory destinationRoot;
   final Future<int> Function()? availableDiskBytes;
   final void Function(String itemId, int bytesWritten)? onCheckpointEligible;
 
+  /// Keeps this transfer's `.part` files apart from another transfer's
+  /// file of the same name; empty without a transfer id.
+  final String _partTag;
+
+  /// [transferId] (the peer's `transfer_id`, untrusted) gives every transfer
+  /// its own `.part` files: two `photo.jpg` arriving at once must not write
+  /// into one file. Only a hash of it reaches the file name.
   StreamingFileReceiver({
     required this.destinationRoot,
     this.availableDiskBytes,
     this.onCheckpointEligible,
-  });
+    String? transferId,
+  }) : _partTag = transferId == null
+            ? ''
+            : '.${sha256.convert(utf8.encode(transferId)).toString().substring(0, 12)}';
 
   /// Validates an entire offer batch for path traversal, reserved names,
   /// case-insensitive collisions, and available disk space.
@@ -157,7 +187,7 @@ class StreamingFileReceiver {
 
   File partFileFor(FileOfferItem item) {
     final safeRel = PathSanitizer.sanitize(item.path);
-    return File('${destinationRoot.path}/$safeRel.part');
+    return File('${destinationRoot.path}/$safeRel$_partTag.part');
   }
 
   File finalFileFor(FileOfferItem item) {
@@ -241,10 +271,13 @@ class StreamingFileReceiver {
         );
       }
       final wanted = finalFileFor(item);
-      await wanted.parent.create(recursive: true);
-      final target = await freeNameFor(wanted);
-      await partFile.rename(target.path);
-      return target;
+      final norm = wanted.absolute.path.replaceAll(RegExp(r'[\\/]+'), '/');
+      return _serializeRename(norm.toLowerCase(), () async {
+        await wanted.parent.create(recursive: true);
+        final target = await freeNameFor(wanted);
+        await partFile.rename(target.path);
+        return target;
+      });
     }
     return null;
   }

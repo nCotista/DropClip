@@ -305,27 +305,77 @@ void main() {
       () async {
     final a = await _device('A'), b = await _device('B');
     await _pairAndLink(a.node, b.node);
-    final sent = await _file(a.dir, 'resume.bin', kStreamingChunkSize + 100);
-    // Pre-populate .part with 1 MiB + 50 B so GET .../status truncates back to
-    // the 1 MiB chunk boundary and emits immediate incoming progress.
-    final part = File('${b.dir.path}/Downloads/resume.bin.part');
+    const total = kStreamingChunkSize + 100;
+    final sent = await _file(a.dir, 'resume.bin', total);
+    final bytes = await sent.readAsBytes();
+    const tid = '00000000-0000-4000-8000-0000000000e1';
+    final item = FileOfferItem(
+      itemId: 'i0',
+      path: 'resume.bin',
+      size: total,
+      sha256: await computeFileSha256(sent),
+      mime: 'application/octet-stream',
+      modifiedAt: 0,
+    );
+    // Pre-populate this transfer's .part with 1 MiB + 50 B so GET .../status
+    // truncates back to the 1 MiB chunk boundary and emits immediate progress.
+    final dl = Directory('${b.dir.path}/Downloads');
+    final part = StreamingFileReceiver(destinationRoot: dl, transferId: tid)
+        .partFileFor(item);
     await part.create(recursive: true);
-    final seed = await sent
-        .openRead(0, kStreamingChunkSize + 50)
-        .fold<BytesBuilder>(
-            BytesBuilder(copy: false), (buf, chunk) => buf..add(chunk));
-    await part.writeAsBytes(seed.takeBytes());
+    await part.writeAsBytes(bytes.sublist(0, kStreamingChunkSize + 50));
 
-    await a.files.send(b.node.me.deviceId, 'B', [sent]);
+    final accepted = a.node.mesh.messages.firstWhere(
+      (m) =>
+          m.envelope.type == MessageType.fileAccept &&
+          m.envelope.payload['transfer_id'] == tid,
+    );
+    await a.node.mesh.broadcast(
+      Envelope(
+        type: MessageType.fileOffer,
+        msgId: '00000000-0000-4000-8000-0000000000e2',
+        origin: a.node.me.deviceId,
+        hlc: Hlc.now(a.node.me.deviceId),
+        ts: DateTime.now().millisecondsSinceEpoch,
+        payload: {
+          'transfer_id': tid,
+          'items': [item.toJson()],
+          'manifest': false,
+          'total_size': total,
+          'total_count': 1,
+        },
+      ),
+      to: b.node.me.deviceId,
+    );
+    await accepted.timeout(const Duration(seconds: 5));
 
+    final statusRaw = await a.node.fetchFrom(
+      b.node.me.deviceId,
+      '/api/v1/file/$tid/i0/status',
+    );
+    final status = jsonDecode(utf8.decode(statusRaw)) as Map<String, Object?>;
+    expect(status['offset'], kStreamingChunkSize);
+    expect(await part.length(), kStreamingChunkSize);
     expect(
       b.updates.map((u) => (u.done, u.state)),
       contains((kStreamingChunkSize, 'in_progress')),
     );
+
+    await a.node.postTo(
+      b.node.me.deviceId,
+      '/api/v1/file/$tid/i0',
+      Stream.value(bytes.sublist(kStreamingChunkSize)),
+      headers: {'x-offset': '$kStreamingChunkSize'},
+    );
+    await a.node.postTo(
+      b.node.me.deviceId,
+      '/api/v1/file/$tid/finish',
+      Stream.value(utf8.encode('{}')),
+    );
     expect(b.updates.last.state, 'complete');
     expect(
       await computeFileSha256(File('${b.dir.path}/Downloads/resume.bin')),
-      await computeFileSha256(sent),
+      item.sha256,
     );
   });
 

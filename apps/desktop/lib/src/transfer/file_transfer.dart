@@ -208,7 +208,8 @@ class FileTransfers {
             ?.name ??
         m.peerId;
     var ok = false;
-    final receiver = StreamingFileReceiver(destinationRoot: _downloads);
+    final receiver =
+        StreamingFileReceiver(destinationRoot: _downloads, transferId: tid);
     try {
       await receiver.validateOffer(items: items);
       ok = await decide(name, items);
