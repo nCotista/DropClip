@@ -1,0 +1,46 @@
+{
+  "file": "/private/tmp/dropclip-t13-pairing-20261113-023418.pcap",
+  "bytes": 20627,
+  "sha256": "7d5952d955d6b96389b318b1c9b01cb6d433e445452bd49b2d060acbaff0fbfc",
+  "capture_duration_seconds": 150.529232,
+  "tcp_streams": 2,
+  "counts": {
+    "packets": 159,
+    "tls_record_type_23": 75,
+    "fragmented_records_skipped": 2,
+    "tls_record_type_22": 2,
+    "server_hello": 1,
+    "tls_record_type_20": 2
+  },
+  "server_selected_versions": [
+    "0x304"
+  ],
+  "server_selected_ciphers": [
+    "0x1301"
+  ],
+  "tls13_server_hello_observed": true,
+  "limits": "No TLS secrets used. Encrypted HTTP/WS payloads were not inspected. Capture duration is not full user-flow pairing time. Fragmented TLS records are skipped, not reconstructed.",
+  "flows": [
+    {
+      "flow": 1,
+      "new_connection_in_capture": false,
+      "data_packets": 68,
+      "first_to_last_data_seconds": 150.003298,
+      "largest_data_gap_seconds": 14.997029,
+      "tcp_syn_to_serverhello_seconds": null
+    },
+    {
+      "flow": 2,
+      "new_connection_in_capture": true,
+      "data_packets": 11,
+      "first_to_last_data_seconds": 3.942653,
+      "largest_data_gap_seconds": 2.005175,
+      "tcp_syn_to_serverhello_seconds": 0.051497
+    }
+  ],
+  "under_15_second_criterion_passed": true,
+  "timing_scope": "User timed from Desktop Pair new device through manual IP/PIN entry, matching and confirming SAS on both displays, ending at Simulator Paired; apps were prepared beforehand. This was a separate repeat after the captured trial.",
+  "user_reported_pairing_only_seconds": 13.38,
+  "timing_evidence": "User-reported external stopwatch; one iOS Simulator manual-PIN trial; not an automated UI timestamp or physical QR measurement.",
+  "setup_inclusive_prior_trial_seconds": 54.22
+}
