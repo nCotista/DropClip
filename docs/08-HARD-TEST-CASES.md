@@ -1,6 +1,6 @@
 # DropClip — Hard Test Cases (trying to break the app)
 
-Version tested: `main` after v1.0.9 plus PR #120 (branch `fix/same-name-part-files`).
+Version tested: `main` after v1.0.10 (PR #120 merged).
 
 Part 1 is automated: hostile inputs to the file receiver, with results.
 Part 2 is manual: situations only real devices and networks can create.
@@ -85,7 +85,7 @@ The Android and iOS native code for the free-space check has not been compiled o
 
 | ID | How to break it | Correct behaviour | Pass/Fail |
 |---|---|---|---|
-| H-15 | **(ADV-01)** In the PC's download folder, create a folder `test`. From the phone, send a file named exactly `test` (no extension). | Saved as `test (1)`. Fails on v1.0.9; fixed in PR #120. | |
+| H-15 | **(ADV-01)** In the PC's download folder, create a folder `test`. From the phone, send a file named exactly `test` (no extension). | Saved as `test (1)`. Fails on v1.0.10 and older; fixed by this PR. | |
 | H-16 | Send a file over 4 GB from the PC to the iPhone. | Arrives intact, or a clear error if the phone lacks space. The phone app does not crash. | |
 | H-17 | Send a folder with 5 000 small files to the PC. | All arrive and the folder structure is kept. The PC stays responsive. | |
 | H-18 | Start sending a file that is still growing (e.g. a screen recording in progress). | Fails clearly (checksum), or sends the version from when it started. Never "complete" with a broken file. | |
@@ -117,7 +117,7 @@ The Android and iOS native code for the free-space check has not been compiled o
 
 | Group | Cases | Known to fail on v1.0.9 |
 |---|---|---|
-| Automated | 8 | ADV-01, 01b, 01c, 02 (all fixed in PR #120) |
+| Automated | 8 | ADV-01, 01b, 01c, 02 (all fixed in this PR) |
 | A. Network | 6 | |
 | B. Device and OS | 8 | |
 | C. Files | 7 | H-15 |
