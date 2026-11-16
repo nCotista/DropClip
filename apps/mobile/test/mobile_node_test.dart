@@ -488,6 +488,7 @@ void main() {
     String status = _statusOk,
     void Function(String text, String from)? onReceived,
     void Function(File file, String from)? onFile,
+    Future<int?> Function()? freeBytes,
   }) async {
     final desk = await _desktop(dir, status: status);
     final phoneDir = Directory('${dir.path}/phone');
@@ -498,7 +499,8 @@ void main() {
         os: 'android',
         writeClipboard: (_) async {},
         onReceived: onReceived ?? (_, __) {},
-        onFile: onFile);
+        onFile: onFile,
+        freeBytes: freeBytes);
     addTearDown(phone.close);
     final pin = desk.pairing.open(ip: '127.0.0.1', port: desk.port).pin;
     final sasSub = desk.pairing.events.listen((e) {
@@ -541,6 +543,104 @@ void main() {
       expect(pair.desk.files, isEmpty);
     });
   }
+
+  /// Offers [item] from the fake desktop; returns the phone's answer.
+  Future<Envelope> offer(
+      ({MobileNode phone, _Desktop desk, Directory phoneDir}) pair,
+      String tid,
+      FileOfferItem item) async {
+    final answer = pair.desk.mesh.messages.firstWhere((m) =>
+        (m.envelope.type == MessageType.fileAccept ||
+            m.envelope.type == MessageType.fileReject) &&
+        m.envelope.payload['transfer_id'] == tid);
+    await pair.desk.mesh.broadcast(Envelope(
+        type: MessageType.fileOffer,
+        msgId: '00000000-0000-4000-8000-${tid.substring(tid.length - 12)}',
+        origin: pair.desk.id,
+        hlc: Hlc.now(pair.desk.id),
+        ts: DateTime.now().millisecondsSinceEpoch,
+        payload: {
+          'transfer_id': tid,
+          'items': [item.toJson()],
+          'manifest': false,
+          'total_size': item.size,
+          'total_count': 1,
+        }));
+    return (await answer.timeout(const Duration(seconds: 5))).envelope;
+  }
+
+  test('ADV-02 the phone refuses an offer bigger than its free space',
+      () async {
+    final dir = await Directory.systemTemp.createTemp('dc_adv_space_');
+    addTearDown(() => dir.delete(recursive: true));
+    final pair = await pairedPair(dir, freeBytes: () async => 1 << 30);
+    FileOfferItem big(int size) => FileOfferItem(
+        itemId: 'i0',
+        path: 'huge.bin',
+        size: size,
+        sha256: '0' * 64,
+        mime: 'application/octet-stream',
+        modifiedAt: 0);
+    expect(
+        (await offer(
+                pair, '00000000-0000-4000-8000-0000000000a1', big(1 << 50)))
+            .type,
+        MessageType.fileReject);
+    // What fits is still taken without asking.
+    expect(
+        (await offer(pair, '00000000-0000-4000-8000-0000000000a2', big(1000)))
+            .type,
+        MessageType.fileAccept);
+  });
+
+  test('a write error on the phone ends the transfer and tells the computer',
+      () async {
+    final dir = await Directory.systemTemp.createTemp('dc_adv_write_');
+    addTearDown(() => dir.delete(recursive: true));
+    final pair = await pairedPair(dir);
+    // The received folder cannot be created: a file is in its place.
+    final received = Directory('${pair.phoneDir.path}/received');
+    if (received.existsSync()) received.deleteSync(recursive: true);
+    File(received.path).writeAsStringSync('in the way');
+    const tid = '00000000-0000-4000-8000-0000000000a3';
+    final bytes = [1, 2, 3];
+    final it = FileOfferItem(
+        itemId: 'i0',
+        path: 'a.txt',
+        size: bytes.length,
+        sha256: sha256.convert(bytes).toString(),
+        mime: 'text/plain',
+        modifiedAt: 0);
+    expect((await offer(pair, tid, it)).type, MessageType.fileAccept);
+    final failed = pair.desk.mesh.messages.firstWhere((m) =>
+        m.envelope.type == MessageType.fileComplete &&
+        m.envelope.payload['transfer_id'] == tid);
+    final client = await PinnedTransportClient.forIdentity(
+        identity: pair.desk.ids,
+        store: pair.desk.store,
+        expectedFp: pair.phone.me.fp);
+    addTearDown(client.close);
+    final req = await client.httpClient.postUrl(Uri(
+        scheme: 'https',
+        host: '127.0.0.1',
+        port: pair.phone.server.port,
+        path: '/api/v1/file/$tid/i0'));
+    req.add(bytes);
+    final res = await req.close();
+    expect(res.statusCode, 500);
+    await res.drain<void>();
+    final done = await failed.timeout(const Duration(seconds: 5));
+    expect(done.envelope.payload['state'], 'failed');
+    // The transfer is over: a later request finds nothing.
+    final again = await client.httpClient.getUrl(Uri(
+        scheme: 'https',
+        host: '127.0.0.1',
+        port: pair.phone.server.port,
+        path: '/api/v1/file/$tid/i0/status'));
+    final againRes = await again.close();
+    expect(againRes.statusCode, 404);
+    await againRes.drain<void>();
+  });
 
   test('receiver rejects bad offer, bad x-offset, and un-uploaded finish',
       () async {

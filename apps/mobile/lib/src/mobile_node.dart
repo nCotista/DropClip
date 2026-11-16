@@ -192,6 +192,7 @@ class MobileNode implements MobilePeer {
     Directory? received,
     void Function(File file, String from)? onFile,
     Future<String> Function()? localIp,
+    Future<int?> Function()? freeBytes,
     int firstPort = kTransportPortFirst,
     int lastPort = kTransportPortLast,
   }) async {
@@ -225,7 +226,7 @@ class MobileNode implements MobilePeer {
       firstPort: firstPort,
       lastPort: lastPort,
     );
-    return node = MobileNode._(
+    node = MobileNode._(
         ids,
         store,
         mesh,
@@ -238,7 +239,13 @@ class MobileNode implements MobilePeer {
         received ?? Directory('${dir.path}/received'),
         onFile ?? (_, __) {},
         localIp ?? () => localLanIpv4());
+    node._freeBytes = freeBytes;
+    return node;
   }
+
+  /// Free space where received files go; null when the platform cannot say.
+  /// Offers are accepted without asking, so this is the only size gate.
+  Future<int?> Function()? _freeBytes;
 
   /// Finds paired computers on the Wi-Fi and announces this phone, so it
   /// reconnects after the computer's address changes and shows up in the
@@ -348,8 +355,13 @@ class MobileNode implements MobilePeer {
         for (final j in rawItems)
           FileOfferItem.fromJson(j as Map<String, dynamic>)
       ];
-      final receiver =
-          StreamingFileReceiver(destinationRoot: received, transferId: tid);
+      final free = _freeBytes;
+      final receiver = StreamingFileReceiver(
+          destinationRoot: received,
+          transferId: tid,
+          // Unknown free space: let the write fail (and clean up) instead.
+          availableDiskBytes:
+              free == null ? null : () async => await free() ?? 1 << 62);
       await receiver.validateOffer(items: items);
       final byId = {for (final i in items) i.itemId: i};
       _incoming[tid] = _Incoming(m.peerId, byId, receiver);
@@ -464,6 +476,31 @@ class MobileNode implements MobilePeer {
       return _json(200, {'received_bytes': at, 'state': state});
     } on ProtocolException catch (e) {
       return _json(e.httpStatus, e.toHttpJson());
+    } on Object {
+      // The disk is full, the folder went away, a name is blocked...: end
+      // the transfer here, drop the half file and tell the computer, as
+      // the desktop receiver does. Otherwise it would stay open for good.
+      if (_incoming.remove(tid) != null) {
+        for (final i in t.items.values) {
+          try {
+            final p = t.receiver.partFileFor(i);
+            if (await p.exists()) await p.delete();
+          } on Object {
+            // Nothing more to clean.
+          }
+        }
+        unawaited(mesh.broadcast(
+            _envelope(MessageType.fileComplete, {
+              'transfer_id': tid,
+              'state': 'failed',
+              'code': 'E_WRITE_FAILED',
+              'items': [
+                {'item_id': item.itemId}
+              ],
+            }),
+            to: t.peer));
+      }
+      return _json(500, {'error': 'transfer_failed'});
     }
   }
 

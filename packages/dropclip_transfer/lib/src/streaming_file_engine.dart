@@ -154,6 +154,7 @@ class StreamingFileReceiver {
     } on InvalidPathException catch (e) {
       throw ProtocolException(ProtocolErrorCode.invalidPath, e.reason);
     }
+    _checkFolderClashes(items);
     if (availableDiskBytes != null) {
       final freeBytes = await availableDiskBytes!();
       final needed = items.fold<int>(0, (sum, item) => sum + item.size);
@@ -162,6 +163,29 @@ class StreamingFileReceiver {
           ProtocolErrorCode.diskFull,
           'insufficient free disk space for file offer',
         );
+      }
+    }
+  }
+
+  /// A path cannot be both a file and a folder: not within one offer
+  /// ("report" and "report/a.txt", in any letter case, as Windows and macOS
+  /// ignore it), and not against what is already on disk (a file "report"
+  /// when the offer needs a folder "report/"). Either would fail half-way.
+  void _checkFolderClashes(List<FileOfferItem> items) {
+    final files = {for (final i in items) i.path.toLowerCase()};
+    for (final i in items) {
+      final parts = i.path.split('/');
+      for (var n = 1; n < parts.length; n++) {
+        final folder = parts.take(n).join('/');
+        if (files.contains(folder.toLowerCase())) {
+          throw ProtocolException(ProtocolErrorCode.invalidPath,
+              '"$folder" is both a file and a folder in this offer');
+        }
+        final onDisk = '${destinationRoot.path}/$folder';
+        if (FileSystemEntity.typeSync(onDisk) == FileSystemEntityType.file) {
+          throw ProtocolException(ProtocolErrorCode.invalidPath,
+              'a file named "$folder" is in the way of a folder');
+        }
       }
     }
   }
@@ -189,7 +213,12 @@ class StreamingFileReceiver {
   /// `photo (1).jpg`, `photo (2).jpg`, ... A received file never replaces
   /// one the user already has.
   static Future<File> freeNameFor(File wanted) async {
-    if (!await wanted.exists()) return wanted;
+    // Taken means anything with that name: a folder "Screenshots" blocks a
+    // file "Screenshots" just as a file would.
+    Future<bool> taken(File f) async =>
+        await FileSystemEntity.type(f.path, followLinks: false) !=
+        FileSystemEntityType.notFound;
+    if (!await taken(wanted)) return wanted;
     final path = wanted.path;
     final slash = path.lastIndexOf(RegExp(r'[\\/]'));
     final dot = path.lastIndexOf('.');
@@ -198,7 +227,7 @@ class StreamingFileReceiver {
     final ext = hasExt ? path.substring(dot) : '';
     for (var i = 1;; i++) {
       final next = File('$stem ($i)$ext');
-      if (!await next.exists()) return next;
+      if (!await taken(next)) return next;
     }
   }
 
