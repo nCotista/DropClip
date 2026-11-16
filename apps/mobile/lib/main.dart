@@ -45,6 +45,14 @@ Future<void> main() async {
     received: saveTo,
     onFile: (file, from) =>
         add((from: from, text: file.uri.pathSegments.last, path: file.path)),
+    freeBytes: () async {
+      try {
+        return await const MethodChannel('dropclip/storage')
+            .invokeMethod<int>('freeBytes', {'path': saveTo.path});
+      } on Object {
+        return null; // Older build without the channel: no check.
+      }
+    },
   );
   try {
     await node.reconnect();
